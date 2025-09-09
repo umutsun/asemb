@@ -1,0 +1,160 @@
+import type { IExecuteFunctions } from 'n8n-workflow';
+import { createHash } from 'crypto';
+import { getEmbeddingService, EmbeddingService } from './embedding-service';
+
+const embeddingCache = new Map<string, number[]>();
+let embeddingServiceInstance: EmbeddingService | null = null;
+
+export interface OpenAICreds {
+  apiKey: string;
+  model: string;
+  baseUrl?: string;
+}
+
+async function fetchWithRetry(url: string, init: RequestInit, attempts = 3, baseDelayMs = 300): Promise<Response> {
+  let lastErr: any;
+  for (let n = 0; n < attempts; n++) {
+    try {
+      const res = await fetch(url, init);
+      if (res.ok) return res;
+      // Retry on 429/5xx
+      if (res.status === 429 || (res.status >= 500 && res.status < 600)) {
+        lastErr = new Error(`HTTP ${res.status}`);
+      } else {
+        return res; // non-retryable
+      }
+    } catch (e) {
+      lastErr = e;
+    }
+    const delay = baseDelayMs * Math.pow(2, n);
+    await new Promise((r) => setTimeout(r, delay));
+  }
+  if (lastErr) throw lastErr;
+  throw new Error('Unknown error during fetchWithRetry');
+}
+
+export async function getOpenAIEmbedding(thisArg: IExecuteFunctions, i: number, text: string) {
+  const creds = (await thisArg.getCredentials('openAIApi')) as unknown as OpenAICreds;
+  if (!creds?.apiKey) throw new Error('OpenAI API key is required');
+
+  // Use the new embedding service if available
+  if (!embeddingServiceInstance) {
+    try {
+      embeddingServiceInstance = getEmbeddingService(creds.apiKey);
+    } catch (error) {
+      // Fall back to legacy implementation
+    }
+  }
+
+  if (embeddingServiceInstance) {
+    return await embeddingServiceInstance.generateEmbedding(text);
+  }
+
+  // Legacy implementation for backward compatibility
+  const baseUrl = (creds.baseUrl || 'https://api.openai.com').replace(/\/$/, '');
+  const model = creds.model || 'text-embedding-3-small';
+  const body = {
+    input: text,
+    model,
+  } as Record<string, any>;
+
+  const res = await fetchWithRetry(`${baseUrl}/v1/embeddings`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${creds.apiKey}`,
+    },
+    body: JSON.stringify(body),
+  });
+
+  if (!res.ok) {
+    const msg = await res.text().catch(() => res.statusText);
+    throw new Error(`OpenAI embeddings request failed: ${res.status} ${msg}`);
+  }
+  const json = (await res.json()) as any;
+  const vector: number[] | undefined = json?.data?.[0]?.embedding;
+  if (!Array.isArray(vector)) throw new Error('Embedding not found in response');
+  return vector as number[];
+}
+
+export function vectorToSqlArray(vec: number[]): string {
+  // Format as "[v1,v2,...]" which can be cast to ::vector
+  return `[${vec.join(',')}]`;
+}
+
+export async function embedText(thisArg: IExecuteFunctions, i: number, text: string) {
+  const hash = createHash('sha256').update(text).digest('hex');
+  const cached = embeddingCache.get(hash);
+  if (cached) {
+    return cached;
+  }
+
+  // Placeholder for provider abstraction; currently uses OpenAI credentials.
+  const embedding = await getOpenAIEmbedding(thisArg, i, text);
+  embeddingCache.set(hash, embedding);
+  return embedding;
+}
+
+/**
+ * Batch embed multiple texts efficiently
+ */
+export async function batchEmbedText(
+  thisArg: IExecuteFunctions, 
+  i: number, 
+  texts: string[]
+): Promise<number[][]> {
+  const creds = (await thisArg.getCredentials('openAIApi')) as unknown as OpenAICreds;
+  if (!creds?.apiKey) throw new Error('OpenAI API key is required');
+
+  if (!embeddingServiceInstance) {
+    embeddingServiceInstance = getEmbeddingService(creds.apiKey);
+  }
+
+  return await embeddingServiceInstance.batchEmbeddings(texts);
+}
+
+/**
+ * Calculate similarity between two embeddings
+ */
+export function cosineSimilarity(a: number[], b: number[]): number {
+  if (embeddingServiceInstance) {
+    return embeddingServiceInstance.cosineSimilarity(a, b);
+  }
+
+  // Fallback implementation
+  if (a.length !== b.length) {
+    throw new Error('Embeddings must have the same dimension');
+  }
+
+  let dotProduct = 0;
+  let normA = 0;
+  let normB = 0;
+
+  for (let i = 0; i < a.length; i++) {
+    dotProduct += a[i] * b[i];
+    normA += a[i] * a[i];
+    normB += b[i] * b[i];
+  }
+
+  normA = Math.sqrt(normA);
+  normB = Math.sqrt(normB);
+
+  if (normA === 0 || normB === 0) return 0;
+
+  return dotProduct / (normA * normB);
+}
+
+/**
+ * Get embedding service statistics
+ */
+export async function getEmbeddingStats() {
+  if (embeddingServiceInstance) {
+    return await embeddingServiceInstance.getStats();
+  }
+  
+  return {
+    cacheSize: embeddingCache.size,
+    cacheHitRate: 0,
+    averageLatency: 0
+  };
+}

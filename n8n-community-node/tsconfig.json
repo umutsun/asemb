@@ -1,0 +1,22 @@
+{
+  "compilerOptions": {
+    "target": "ES2019",
+    "module": "commonjs",
+    "moduleResolution": "node",
+    "lib": ["ES2020"],
+    "declaration": true,
+    "outDir": "dist",
+    "rootDir": ".",
+    "strict": true,
+    "esModuleInterop": true,
+    "resolveJsonModule": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true
+  ,\\n  " exclude\: [\\n \nodes/*Enhanced*.ts\,\\n \nodes/*optimized*.ts\,\\n \nodes/*.bak.ts\\\n ]\\n}\\n,
+  "include": [
+    "index.ts",
+    "nodes/**/*.ts",
+    "credentials/**/*.ts",
+    "shared/**/*.ts"
+  ]
+,\\n  " exclude\: [\\n \nodes/*Enhanced*.ts\,\\n \nodes/*optimized*.ts\,\\n \nodes/*.bak.ts\\\n ]\\n}\\n

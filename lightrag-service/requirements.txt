@@ -1,0 +1,5 @@
+fastapi
+uvicorn
+lightrag-hku[api]
+python-dotenv
+openai

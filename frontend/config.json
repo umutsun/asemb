@@ -1,0 +1,87 @@
+{
+  "app": {
+    "name": "Alice Semantic Bridge",
+    "description": "Mali Müşavir Asistanı",
+    "version": "1.0.0",
+    "locale": "tr"
+  },
+  "database": {
+    "host": "91.99.229.96",
+    "port": 5432,
+    "name": "asemb",
+    "user": "postgres",
+    "password": "Semsiye!22",
+    "ssl": false,
+    "maxConnections": 20
+  },
+  "redis": {
+    "host": "localhost",
+    "port": 6379,
+    "password": "",
+    "db": 0
+  },
+  "openai": {
+    "apiKey": "",
+    "model": "gpt-4-turbo-preview",
+    "embeddingModel": "text-embedding-3-small",
+    "maxTokens": 4096,
+    "temperature": 0.7
+  },
+  "anthropic": {
+    "apiKey": "",
+    "model": "claude-3-opus-20240229",
+    "maxTokens": 4096
+  },
+  "deepseek": {
+    "apiKey": "",
+    "baseUrl": "https://api.deepseek.com",
+    "model": "deepseek-coder"
+  },
+  "ollama": {
+    "baseUrl": "http://localhost:11434",
+    "model": "llama2",
+    "embeddingModel": "nomic-embed-text"
+  },
+  "huggingface": {
+    "apiKey": "",
+    "model": "sentence-transformers/all-MiniLM-L6-v2",
+    "endpoint": "https://api-inference.huggingface.co/models/"
+  },
+  "n8n": {
+    "url": "https://n8n.luwi.dev",
+    "apiKey": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI0MzhiMjFmOS03NTE2LTQ5YjItOTBjZS0zMTQ4NjA1ZDQ0NTQiLCJpc3MiOiJuOG4iLCJhdWQiOiJwdWJsaWMtYXBpIiwiaWF0IjoxNzUyNjA3MzE5fQ.jVoHfsa92S5xUv4M4h2YyAKKnQ3Yv6WH62R9D0A1zTk"
+  },
+  "scraper": {
+    "timeout": 30000,
+    "maxConcurrency": 3,
+    "userAgent": "ASB Web Scraper"
+  },
+  "embeddings": {
+    "chunkSize": 1000,
+    "chunkOverlap": 200,
+    "batchSize": 10,
+    "provider": "openai"
+  },
+  "dataSource": {
+    "useLocalDb": true,
+    "localDbPercentage": 100,
+    "externalApiPercentage": 0,
+    "hybridMode": false,
+    "prioritySource": "local"
+  },
+  "llmSettings": {
+    "temperature": 0,
+    "topP": 0.1,
+    "maxTokens": 2048,
+    "presencePenalty": 0,
+    "frequencyPenalty": 0,
+    "ragWeight": 100,
+    "llmKnowledgeWeight": 0,
+    "streamResponse": true,
+    "systemPrompt": "Sen bir RAG asistanısın. MUTLAKA SADECE verilen context'ten cevap ver. Context'te olmayan hiçbir bilgi verme. Eğer context'te bilgi yoksa 'Bu konuda veritabanımda bilgi bulunmuyor' de.",
+    "activeChatModel": "anthropic/claude-3-sonnet",
+    "activeEmbeddingModel": "openai/text-embedding-3-small",
+    "responseStyle": "professional",
+    "language": "tr"
+  }
+}

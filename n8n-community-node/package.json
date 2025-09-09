@@ -1,0 +1,46 @@
+{
+  "name": "n8n-nodes-asemb",
+  "version": "0.1.0",
+  "description": "n8n community nodes for Alice Semantic Bridge (ASEMB)",
+  "keywords": ["n8n", "n8n-community-node"],
+  "license": "MIT",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "postbuild": "node scripts/copy-assets.js",
+    "clean": "powershell -NoProfile -Command \"if (Test-Path dist) { Remove-Item -Recurse -Force dist }\""
+  },
+  "files": ["dist"],
+  "n8n": {
+    "credentials": [
+      "dist/credentials/AliceSemanticBridgeApi.credentials.js",
+      "dist/credentials/OpenAIApi.credentials.js",
+      "dist/credentials/PostgresDb.credentials.js",
+      "dist/credentials/PostgresWithVectorApi.credentials.js",
+      "dist/credentials/RedisApi.credentials.js"
+    ],
+    "nodes": [
+      "dist/nodes/AliceSemanticBridge.node.js",
+      "dist/nodes/PgvectorUpsert.node.js",
+      "dist/nodes/PgvectorQuery.node.js",
+      "dist/nodes/WebScrape.node.js",
+      "dist/nodes/RedisPublish.node.js",
+      "dist/nodes/TextChunk.node.js",
+      "dist/nodes/SitemapFetch.node.js",
+      "dist/nodes/PgHybridQuery.node.js",
+      "dist/nodes/AsembSearch.node.js",
+      "dist/nodes/ASEMBWorkflow.node.js"
+    ]
+  },
+  "dependencies": {
+    "n8n-workflow": "^1.40.0",
+    "pg": "^8.11.3",
+    "pgvector": "^0.1.8",
+    "ioredis": "^5.3.2",
+    "openai": "^4.24.1"
+  },
+  "devDependencies": {
+    "typescript": "^5.3.3"
+  }
+}

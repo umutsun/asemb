@@ -1,0 +1,217 @@
+import OpenAI from 'openai';
+import crypto from 'crypto';
+import { cacheManager } from '../src/shared/cache-manager';
+
+export interface EmbeddingOptions {
+  model?: string;
+  batchSize?: number;
+  cacheTTL?: number;
+  retryAttempts?: number;
+  retryDelay?: number;
+}
+
+export class EmbeddingService {
+  private openai: OpenAI;
+  private readonly defaultOptions: Required<EmbeddingOptions> = {
+    model: 'text-embedding-ada-002',
+    batchSize: 100,
+    cacheTTL: 604800, // 7 days
+    retryAttempts: 3,
+    retryDelay: 1000
+  };
+
+  constructor(apiKey: string, options?: EmbeddingOptions) {
+    this.openai = new OpenAI({ apiKey });
+    this.defaultOptions = { ...this.defaultOptions, ...options };
+  }
+
+  /**
+   * Generate embedding for a single text
+   */
+  async generateEmbedding(text: string): Promise<number[]> {
+    const cacheKey = this.getCacheKey(text);
+
+    return cacheManager.getOrCompute(
+      cacheKey,
+      () => this.retryWithBackoff(async () => {
+        const response = await this.openai.embeddings.create({
+          model: this.defaultOptions.model,
+          input: text.trim()
+        });
+        return response.data[0].embedding;
+      }),
+      { ttl: this.defaultOptions.cacheTTL }
+    );
+  }
+
+  /**
+   * Generate embeddings for multiple texts in batches
+   */
+  async batchEmbeddings(texts: string[]): Promise<number[][]> {
+    const uniqueTexts = [...new Set(texts.map(t => t.trim()))];
+    const embeddingsMap = new Map<string, number[]>();
+
+    // Process in batches
+    for (let i = 0; i < uniqueTexts.length; i += this.defaultOptions.batchSize) {
+      const batch = uniqueTexts.slice(i, i + this.defaultOptions.batchSize);
+      
+      const uncachedTexts: string[] = [];
+      
+      // Check cache for each item in batch
+      await Promise.all(batch.map(async (text) => {
+        const cacheKey = this.getCacheKey(text);
+        const cached = await cacheManager.get<number[]>(cacheKey);
+        if (cached) {
+          embeddingsMap.set(text, cached);
+        } else {
+          uncachedTexts.push(text);
+        }
+      }));
+
+      // Generate embeddings for uncached texts
+      if (uncachedTexts.length > 0) {
+        const newEmbeddings = await this.retryWithBackoff(async () => {
+          const response = await this.openai.embeddings.create({
+            model: this.defaultOptions.model,
+            input: uncachedTexts
+          });
+          return response.data.map((d: any) => d.embedding);
+        });
+
+        // Fill in the results and cache
+        await Promise.all(uncachedTexts.map(async (text, j) => {
+          const embedding = newEmbeddings[j];
+          embeddingsMap.set(text, embedding);
+          const cacheKey = this.getCacheKey(text);
+          // Cache asynchronously
+          cacheManager.set(cacheKey, embedding, this.defaultOptions.cacheTTL).catch(console.error);
+        }));
+      }
+    }
+
+    // Map back to original order (handling duplicates)
+    return texts.map(text => embeddingsMap.get(text.trim())!);
+  }
+
+  /**
+   * Calculate cosine similarity between two embeddings
+   */
+  cosineSimilarity(a: number[], b: number[]): number {
+    if (a.length !== b.length) {
+      throw new Error('Embeddings must have the same dimension');
+    }
+
+    let dotProduct = 0;
+    let normA = 0;
+    let normB = 0;
+
+    for (let i = 0; i < a.length; i++) {
+      dotProduct += a[i] * b[i];
+      normA += a[i] * a[i];
+      normB += b[i] * b[i];
+    }
+
+    normA = Math.sqrt(normA);
+    normB = Math.sqrt(normB);
+
+    if (normA === 0 || normB === 0) return 0;
+
+    return dotProduct / (normA * normB);
+  }
+
+  /**
+   * Find most similar embeddings from a set
+   */
+  findMostSimilar(
+    queryEmbedding: number[], 
+    embeddings: number[][], 
+    topK: number = 5
+  ): { index: number; similarity: number }[] {
+    const similarities = embeddings.map((embedding, index) => ({
+      index,
+      similarity: this.cosineSimilarity(queryEmbedding, embedding)
+    }));
+
+    return similarities
+      .sort((a, b) => b.similarity - a.similarity)
+      .slice(0, topK);
+  }
+
+  // Private helper methods
+  private getCacheKey(text: string): string {
+    const hash = crypto.createHash('sha256').update(text.trim()).digest('hex');
+    return `embedding:${this.defaultOptions.model}:${hash}`;
+  }
+
+  private async retryWithBackoff<T>(
+    fn: () => Promise<T>,
+    attempt: number = 0
+  ): Promise<T> {
+    try {
+      return await fn();
+    } catch (error: any) {
+      if (attempt >= this.defaultOptions.retryAttempts - 1) {
+        throw error;
+      }
+
+      // Check if it's a rate limit error
+      if (error.response?.status === 429) {
+        const retryAfter = parseInt(error.response.headers['retry-after'] || '60') * 1000;
+        await this.delay(retryAfter);
+      } else {
+        // Exponential backoff for other errors
+        await this.delay(this.defaultOptions.retryDelay * Math.pow(2, attempt));
+      }
+
+      return this.retryWithBackoff(fn, attempt + 1);
+    }
+  }
+
+  private delay(ms: number): Promise<void> {
+    return new Promise(resolve => setTimeout(resolve, ms));
+  }
+
+  /**
+   * Validate embedding dimension
+   */
+  validateDimension(embedding: number[]): boolean {
+    // Ada-002 produces 1536-dimensional embeddings
+    const expectedDimension = this.defaultOptions.model === 'text-embedding-ada-002' ? 1536 : null;
+    
+    if (expectedDimension && embedding.length !== expectedDimension) {
+      console.warn(`Unexpected embedding dimension: ${embedding.length} (expected ${expectedDimension})`);
+      return false;
+    }
+    
+    return true;
+  }
+
+  /**
+   * Get embedding statistics for monitoring
+   */
+  async getStats(): Promise<{
+    cacheSize: number;
+    cacheHitRate: number;
+    averageLatency: number;
+  }> {
+    const stats = await cacheManager.getStats();
+    return {
+      cacheSize: stats.redisKeys,
+      cacheHitRate: stats.hitRate,
+      averageLatency: 0 // TODO: Implement latency tracking
+    };
+  }
+}
+
+// Export singleton instance
+let embeddingService: EmbeddingService | null = null;
+
+export function getEmbeddingService(apiKey?: string): EmbeddingService {
+  if (!embeddingService) {
+    if (!apiKey) {
+      throw new Error('API key required for first initialization');
+    }
+    embeddingService = new EmbeddingService(apiKey);
+  }
+  return embeddingService;
+}
