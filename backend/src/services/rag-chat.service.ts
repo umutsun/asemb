@@ -268,14 +268,19 @@ export class RAGChatService {
         sourceTable: r.source_table || 'documents',
         citation: citation,
         score: score,
-        relevance: score > 80 ? 'Yüksek' : score > 60 ? 'Orta' : 'Düşük',
+        relevance: score,  // Send numeric value for frontend
+        relevanceText: score > 80 ? 'Yüksek' : score > 60 ? 'Orta' : 'Düşük',
         databaseInfo: {
           table: r.source_table || 'documents',
           id: r.id,
           hasMetadata: !!r.metadata
         },
         index: idx + 1,
-        metadata: r.metadata
+        metadata: r.metadata || {},
+        // Add additional metrics
+        priority: idx + 1,  // Priority based on order
+        hasContent: !!(r.content || r.excerpt),
+        contentLength: (r.content || r.excerpt || '').length
       };
     });
   }

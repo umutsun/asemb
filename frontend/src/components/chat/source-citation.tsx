@@ -57,58 +57,115 @@ export function SourceCitation({ sources }: SourceCitationProps) {
     }
   };
 
+  // Calculate overall confidence based on sources
+  const calculateConfidence = () => {
+    if (sources.length === 0) return 0;
+    if (sources.length >= 5) return 95;
+    if (sources.length >= 3) return 85;
+    if (sources.length >= 2) return 70;
+    return 50;
+  };
+
+  const confidence = calculateConfidence();
+  const confidenceColor = confidence >= 85 ? 'text-green-600' : confidence >= 70 ? 'text-yellow-600' : 'text-orange-600';
+  const confidenceText = confidence >= 85 ? 'Yüksek' : confidence >= 70 ? 'Orta' : 'Düşük';
+
   return (
     <div className="mt-4 pt-3 border-t border-gray-100/60 dark:border-gray-600/30">
-      <p className="text-xs font-medium mb-3 text-gray-600 dark:text-gray-400 flex items-center gap-1">
-        <span className="w-1 h-1 bg-blue-500 rounded-full"></span>
-        Kaynaklar:
-      </p>
+      <div className="flex items-center justify-between mb-3">
+        <p className="text-xs font-medium text-gray-600 dark:text-gray-400 flex items-center gap-1">
+          <span className="w-1 h-1 bg-blue-500 rounded-full"></span>
+          Kaynaklar ({sources.length})
+        </p>
+        <div className="flex items-center gap-3 text-xs">
+          <span className="flex items-center gap-1">
+            <span className="text-gray-500 dark:text-gray-400">Güven:</span>
+            <span className={`font-medium ${confidenceColor}`}>
+              {confidenceText} ({confidence}%)
+            </span>
+          </span>
+        </div>
+      </div>
       <div className="space-y-2">
-        {sources.map((source, index) => (
-          <div key={source.id} className="group">
-            <div className="flex items-start gap-2 p-2 rounded-lg hover:bg-gray-50/50 dark:hover:bg-gray-700/30 transition-colors duration-200">
-              <div className="mt-0.5 text-blue-500 dark:text-blue-400 opacity-70 group-hover:opacity-100 transition-opacity">
-                {getSourceIcon(source.sourceTable)}
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 mb-1">
-                  {source.url ? (
-                    <a
-                      href={source.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-xs text-blue-600 dark:text-blue-400 hover:underline font-medium line-clamp-2"
-                    >
-                      {source.citation || source.title}
-                    </a>
-                  ) : (
-                    <span className="text-xs font-medium text-gray-700 dark:text-gray-300 line-clamp-2">
-                      {source.citation || source.title}
+        {sources.map((source, index) => {
+          // Calculate individual metrics
+          const hasMetadata = source.metadata && Object.keys(source.metadata).length > 0;
+          const metricScore = source.score || source.relevance || source.relevanceScore || (hasMetadata ? 75 : 50);
+          const scoreColor = metricScore >= 80 ? 'text-green-600' : metricScore >= 60 ? 'text-yellow-600' : 'text-gray-500';
+          const scoreDisplay = Math.round(metricScore);
+          
+          return (
+            <div key={source.id} className="group">
+              <div className="flex items-start gap-2 p-2 rounded-lg hover:bg-gray-50/50 dark:hover:bg-gray-700/30 transition-colors duration-200">
+                <div className="mt-0.5 text-blue-500 dark:text-blue-400 opacity-70 group-hover:opacity-100 transition-opacity">
+                  {getSourceIcon(source.sourceTable)}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 mb-1">
+                    {source.url ? (
+                      <a
+                        href={source.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-xs text-blue-600 dark:text-blue-400 hover:underline font-medium line-clamp-2"
+                      >
+                        {source.citation || source.title}
+                      </a>
+                    ) : (
+                      <span className="text-xs font-medium text-gray-700 dark:text-gray-300 line-clamp-2">
+                        {source.citation || source.title}
+                      </span>
+                    )}
+                    {source.sourceTable && (
+                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${getBadgeColor(source.sourceTable)}`}>
+                        {getSourceTableName(source.sourceTable)}
+                      </span>
+                    )}
+                    {/* Show similarity score */}
+                    <span className={`text-xs font-medium ${scoreColor}`}>
+                      %{scoreDisplay}
                     </span>
+                  </div>
+                  {source.excerpt && (
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 line-clamp-2 leading-relaxed">
+                      {source.excerpt}
+                    </p>
                   )}
-                  {source.sourceTable && (
-                    <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${getBadgeColor(source.sourceTable)}`}>
-                      {getSourceTableName(source.sourceTable)}
-                    </span>
+                  {/* Additional metadata display */}
+                  {source.metadata && (
+                    <div className="flex gap-2 mt-1">
+                      {source.metadata.tarih && (
+                        <span className="text-xs text-gray-400 dark:text-gray-500">
+                          📅 {source.metadata.tarih}
+                        </span>
+                      )}
+                      {source.metadata.sayiNo && (
+                        <span className="text-xs text-gray-400 dark:text-gray-500">
+                          📄 {source.metadata.sayiNo}
+                        </span>
+                      )}
+                      {source.metadata.kararNo && (
+                        <span className="text-xs text-gray-400 dark:text-gray-500">
+                          ⚖️ {source.metadata.kararNo}
+                        </span>
+                      )}
+                    </div>
                   )}
-                  {source.relevanceScore && (
-                    <span className="text-xs text-gray-500 dark:text-gray-400">
-                      %{source.relevanceScore}
+                </div>
+                <div className="flex flex-col items-end gap-1">
+                  <span className="text-xs text-gray-400 dark:text-gray-500 font-mono bg-gray-100 dark:bg-gray-700 px-1.5 py-0.5 rounded">
+                    {index + 1}
+                  </span>
+                  {hasMetadata && (
+                    <span className="text-xs text-green-600 dark:text-green-400">
+                      ✓
                     </span>
                   )}
                 </div>
-                {source.excerpt && (
-                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 line-clamp-2 leading-relaxed">
-                    {source.excerpt}
-                  </p>
-                )}
               </div>
-              <span className="text-xs text-gray-400 dark:text-gray-500 font-mono bg-gray-100 dark:bg-gray-700 px-1.5 py-0.5 rounded">
-                {index + 1}
-              </span>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );

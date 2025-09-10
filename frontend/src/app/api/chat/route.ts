@@ -15,7 +15,7 @@ async function getConfig() {
 }
 
 // ASB Backend URL from environment or default
-const ASB_API_URL = process.env.ASB_API_URL || process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3003';
+const ASB_API_URL = process.env.ASB_API_URL || process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8083';
 
 export async function POST(request: NextRequest) {
   try {
@@ -116,17 +116,22 @@ export async function POST(request: NextRequest) {
         content: data.response || data.message || data.content || 'No response received',
         timestamp: new Date(),
       },
-      sources: data.sources?.map((source: any) => ({
-        id: source.id || `source-${Date.now()}`,
+      sources: data.sources?.map((source: any, idx: number) => ({
+        id: source.id || `source-${Date.now()}-${idx}`,
         title: source.title || source.document || 'Unknown Source',
         url: source.url,
         content: source.text || source.excerpt || source.content,
         excerpt: source.text || source.excerpt || source.content?.substring(0, 200),
-        relevanceScore: source.score || source.similarity,
+        relevanceScore: source.relevance || source.score || source.similarity || 0,
+        score: source.relevance || source.score || source.similarity || 0,
+        relevance: source.relevance || source.score || source.similarity || 0,
         sourceTable: source.sourceTable || source.source_table,
         category: source.category,
         citation: source.citation || source.title || source.document,
-        metadata: source.metadata,
+        metadata: source.metadata || {},
+        priority: source.priority || source.index || idx + 1,
+        hasContent: source.hasContent,
+        contentLength: source.contentLength,
       })) || [],
       conversationId: data.conversationId || finalConversationId,
     };
