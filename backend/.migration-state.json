@@ -1,0 +1,36 @@
+{
+  "tables": {
+    "sorucevap": {
+      "offset": 950,
+      "total": 15788,
+      "migrated": 0,
+      "failed": 0,
+      "skipped": 950
+    },
+    "makaleler": {
+      "offset": 0,
+      "total": 1066,
+      "migrated": 0,
+      "failed": 0,
+      "skipped": 0
+    },
+    "ozelgeler": {
+      "offset": 0,
+      "total": 1001,
+      "migrated": 0,
+      "failed": 0,
+      "skipped": 0
+    },
+    "danistaykararlari": {
+      "offset": 0,
+      "total": 1001,
+      "migrated": 0,
+      "failed": 0,
+      "skipped": 0
+    }
+  },
+  "currentTable": "sorucevap",
+  "startTime": 1757608556771,
+  "totalTokens": 0,
+  "estimatedCost": 0
+}
