@@ -4,8 +4,12 @@
     "cli-progress": "^3.12.0",
     "dotenv": "^17.2.2",
     "glob": "^11.0.3",
+    "i18next": "^25.5.2",
+    "i18next-browser-languagedetector": "^8.2.0",
+    "i18next-http-backend": "^3.0.2",
     "openai": "^5.20.1",
-    "pg": "^8.16.3"
+    "pg": "^8.16.3",
+    "react-i18next": "^15.7.3"
   },
   "devDependencies": {
     "@swc/jest": "^0.2.39",

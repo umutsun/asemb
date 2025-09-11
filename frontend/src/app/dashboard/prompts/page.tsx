@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -51,6 +52,7 @@ GÖREV:
 - Özellikle [Kaynak 1], [Kaynak 2] ve [Kaynak 3]'teki bilgilere odaklan`;
 
 export default function PromptsPage() {
+  const { t } = useTranslation();
   const [prompts, setPrompts] = useState<SystemPrompt[]>([]);
   const [activePrompt, setActivePrompt] = useState<SystemPrompt | null>(null);
   const [editingPrompt, setEditingPrompt] = useState('');
@@ -61,7 +63,6 @@ export default function PromptsPage() {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   
-  // Chatbot Settings States
   const [chatbotSettings, setChatbotSettings] = useState<ChatbotSettings>({
     title: '',
     subtitle: '',
@@ -145,13 +146,13 @@ export default function PromptsPage() {
       });
 
       if (response.ok) {
-        setSuccess('Sistem prompt başarıyla güncellendi!');
+        setSuccess(t('prompts.successUpdate'));
         fetchPrompts();
       } else {
-        setError('Güncelleme başarısız oldu');
+        setError(t('prompts.failUpdate'));
       }
     } catch (error) {
-      setError('Bağlantı hatası');
+      setError(t('prompts.connectionError'));
     } finally {
       setSaving(false);
     }
@@ -173,7 +174,7 @@ export default function PromptsPage() {
       });
       
       if (response.ok) {
-        setSuccess('Chatbot ayarları başarıyla kaydedildi!');
+        setSuccess(t('prompts.chatbotSettingsSaved'));
         setTimeout(() => {
           setSuccess('');
         }, 3000);
@@ -182,7 +183,7 @@ export default function PromptsPage() {
       }
     } catch (error) {
       console.error('Failed to save settings:', error);
-      setError('Ayarlar kaydedilemedi');
+      setError(t('prompts.settingsSaveFailed'));
     } finally {
       setSavingChatbot(false);
     }
@@ -195,7 +196,7 @@ export default function PromptsPage() {
   };
 
   const handleResetChatbot = async () => {
-    if (!confirm('Tüm chatbot ayarları varsayılan değerlere dönecek. Emin misiniz?')) {
+    if (!confirm(t('prompts.confirmReset'))) {
       return;
     }
     
@@ -205,12 +206,12 @@ export default function PromptsPage() {
       });
       
       if (response.ok) {
-        setSuccess('Ayarlar sıfırlandı');
+        setSuccess(t('prompts.settingsReset'));
         fetchChatbotSettings();
       }
     } catch (error) {
       console.error('Failed to reset settings:', error);
-      setError('Ayarlar sıfırlanamadı');
+      setError(t('prompts.settingsResetFailed'));
     }
   };
 
@@ -239,17 +240,17 @@ export default function PromptsPage() {
 
   const promptTemplates = [
     {
-      name: 'Detaylı Açıklama',
+      name: t('prompts.templates.detailed'),
       prompt: 'Detaylı ve açıklayıcı cevaplar ver. Her konuyu örneklerle açıkla.',
       temp: 0.3
     },
     {
-      name: 'Kısa ve Öz',
+      name: t('prompts.templates.concise'),
       prompt: 'Kısa, net ve öz cevaplar ver. Sadece en önemli bilgileri paylaş.',
       temp: 0.1
     },
     {
-      name: 'Yaratıcı',
+      name: t('prompts.templates.creative'),
       prompt: 'Yaratıcı ve farklı bakış açıları sun. Alternatif çözümler öner.',
       temp: 0.7
     }
@@ -258,10 +259,10 @@ export default function PromptsPage() {
   return (
     <div className="p-6 lg:p-8 container mx-auto p-6 max-w-7xl space-y-6">
       <div className="flex justify-between items-center">
-        <h1 className="text-xl font-semibold">Chatbot & Prompt Yönetimi</h1>
+        <h1 className="text-xl font-semibold">{t('prompts.title')}</h1>
         <Button onClick={() => { fetchPrompts(); fetchChatbotSettings(); }} variant="outline" size="sm">
           <RotateCcw className="w-4 h-4 mr-2" />
-          Yenile
+          {t('prompts.refreshButton')}
         </Button>
       </div>
 
@@ -283,77 +284,71 @@ export default function PromptsPage() {
         <TabsList className="grid w-full grid-cols-2 max-w-xl">
           <TabsTrigger value="chatbot">
             <Bot className="w-4 h-4 mr-2" />
-            Chatbot
+            {t('prompts.chatbotTab')}
           </TabsTrigger>
           <TabsTrigger value="prompt">
             <Settings className="w-4 h-4 mr-2" />
-            Prompt
+            {t('prompts.promptTab')}
           </TabsTrigger>
         </TabsList>
 
-        {/* Chatbot Settings Tab */}
         <TabsContent value="chatbot" className="space-y-6">
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             <div className="lg:col-span-2 space-y-6">
-              {/* General Settings */}
               <Card>
                 <CardHeader>
-                  <CardTitle>Genel Ayarlar</CardTitle>
-                  <CardDescription>
-                    Chatbot başlığı ve mesajlarını özelleştirin
-                  </CardDescription>
+                  <CardTitle>{t('prompts.generalSettings.title')}</CardTitle>
+                  <CardDescription>{t('prompts.generalSettings.description')}</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div>
-                    <Label htmlFor="title">Chatbot Başlığı</Label>
+                    <Label htmlFor="title">{t('prompts.labels.chatbotTitle')}</Label>
                     <Input
                       id="title"
                       value={chatbotSettings.title}
                       onChange={(e) => setChatbotSettings({ ...chatbotSettings, title: e.target.value })}
-                      placeholder="Örn: Hukuki Asistan"
+                      placeholder={t('prompts.placeholders.chatbotTitle')}
                       className="mt-1"
                     />
                   </div>
                   
                   <div>
-                    <Label htmlFor="logoUrl">Logo URL</Label>
+                    <Label htmlFor="logoUrl">{t('prompts.labels.logoUrl')}</Label>
                     <Input
                       id="logoUrl"
                       value={chatbotSettings.logoUrl}
                       onChange={(e) => setChatbotSettings({ ...chatbotSettings, logoUrl: e.target.value })}
-                      placeholder="https://example.com/logo.png"
+                      placeholder={t('prompts.placeholders.logoUrl')}
                       className="mt-1"
                     />
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Logo için resim URL'si girin (opsiyonel)
-                    </p>
+                    <p className="text-xs text-muted-foreground mt-1">{t('prompts.placeholders.logoDescription')}</p>
                   </div>
                   
                   <div>
-                    <Label htmlFor="welcomeMessage">Karşılama Mesajı</Label>
+                    <Label htmlFor="welcomeMessage">{t('prompts.labels.welcomeMessage')}</Label>
                     <Textarea
                       id="welcomeMessage"
                       value={chatbotSettings.welcomeMessage}
                       onChange={(e) => setChatbotSettings({ ...chatbotSettings, welcomeMessage: e.target.value })}
-                      placeholder="Kullanıcıları karşılayacak mesaj..."
+                      placeholder={t('prompts.placeholders.welcomeMessage')}
                       className="mt-1"
                       rows={3}
                     />
                   </div>
                   
                   <div>
-                    <Label htmlFor="placeholder">Input Placeholder</Label>
+                    <Label htmlFor="placeholder">{t('prompts.labels.inputPlaceholder')}</Label>
                     <Input
                       id="placeholder"
                       value={chatbotSettings.placeholder}
                       onChange={(e) => setChatbotSettings({ ...chatbotSettings, placeholder: e.target.value })}
-                      placeholder="Örn: Sorunuzu yazın..."
+                      placeholder={t('prompts.placeholders.inputPlaceholder')}
                       className="mt-1"
                     />
                   </div>
 
                   <div>
-                    <Label htmlFor="primaryColor">Ana Renk</Label>
+                    <Label htmlFor="primaryColor">{t('prompts.labels.primaryColor')}</Label>
                     <div className="flex gap-2 mt-1">
                       <Input
                         id="primaryColor"
@@ -374,29 +369,26 @@ export default function PromptsPage() {
                   <div className="flex gap-2">
                     <Button onClick={handleSaveChatbot} disabled={savingChatbot}>
                       <Save className="w-4 h-4 mr-2" />
-                      {savingChatbot ? 'Kaydediliyor...' : 'Kaydet'}
+                      {savingChatbot ? t('prompts.buttons.saving') : t('prompts.buttons.save')}
                     </Button>
                     <Button onClick={handleResetChatbot} variant="outline">
                       <RotateCcw className="w-4 h-4 mr-2" />
-                      Varsayılana Dön
+                      {t('prompts.buttons.resetToDefault')}
                     </Button>
                   </div>
                 </CardContent>
               </Card>
 
-              {/* Suggestions */}
               <Card>
                 <CardHeader>
-                  <CardTitle>Öneri Kartları</CardTitle>
-                  <CardDescription>
-                    Kullanıcılara gösterilecek öneri kartlarını düzenleyin
-                  </CardDescription>
+                  <CardTitle>{t('prompts.suggestions.title')}</CardTitle>
+                  <CardDescription>{t('prompts.suggestions.description')}</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   {suggestions.map((suggestion, index) => (
                     <div key={index} className="p-4 border rounded-lg space-y-3">
                       <div className="flex justify-between items-start">
-                        <span className="text-sm font-medium">Öneri {index + 1}</span>
+                        <span className="text-sm font-medium">{t('prompts.suggestions.suggestion')} {index + 1}</span>
                         <Button
                           variant="ghost"
                           size="sm"
@@ -418,14 +410,14 @@ export default function PromptsPage() {
                           <Input
                             value={suggestion.title}
                             onChange={(e) => updateSuggestion(index, 'title', e.target.value)}
-                            placeholder="Başlık"
+                            placeholder={t('prompts.labels.chatbotTitle')}
                           />
                         </div>
                         <div className="col-span-6">
                           <Input
                             value={suggestion.description}
                             onChange={(e) => updateSuggestion(index, 'description', e.target.value)}
-                            placeholder="Açıklama"
+                            placeholder={t('prompts.generalSettings.description')}
                           />
                         </div>
                       </div>
@@ -438,17 +430,16 @@ export default function PromptsPage() {
                     className="w-full"
                   >
                     <Plus className="h-4 w-4 mr-2" />
-                    Yeni Öneri Ekle
+                    {t('prompts.buttons.addNewSuggestion')}
                   </Button>
                 </CardContent>
               </Card>
             </div>
 
-            {/* Preview */}
             <div className="space-y-6">
               <Card>
                 <CardHeader>
-                  <CardTitle className="text-lg">Önizleme</CardTitle>
+                  <CardTitle className="text-lg">{t('prompts.preview.title')}</CardTitle>
                 </CardHeader>
                 <CardContent>
                   <div className="bg-gray-50 dark:bg-gray-900 rounded-lg p-6">
@@ -460,10 +451,10 @@ export default function PromptsPage() {
                         <Bot className="w-8 h-8 text-white" />
                       </div>
                       <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-2">
-                        {chatbotSettings.title || 'Chatbot Başlığı'}
+                        {chatbotSettings.title || t('prompts.preview.defaultTitle')}
                       </h3>
                       <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
-                        {chatbotSettings.welcomeMessage || 'Karşılama mesajınız'}
+                        {chatbotSettings.welcomeMessage || t('prompts.preview.defaultWelcome')}
                       </p>
                       {suggestions.length > 0 && (
                         <div className="space-y-2 text-left">
@@ -486,7 +477,7 @@ export default function PromptsPage() {
 
               <Card>
                 <CardHeader>
-                  <CardTitle>Renk Paletleri</CardTitle>
+                  <CardTitle>{t('prompts.palettes.title')}</CardTitle>
                 </CardHeader>
                 <CardContent className="grid grid-cols-2 gap-2">
                   <Button
@@ -495,7 +486,7 @@ export default function PromptsPage() {
                     onClick={() => setChatbotSettings({ ...chatbotSettings, primaryColor: '#3B82F6' })}
                   >
                     <div className="w-4 h-4 bg-blue-500 rounded mr-2" />
-                    Mavi
+                    {t('prompts.palettes.blue')}
                   </Button>
                   <Button
                     variant="outline"
@@ -503,7 +494,7 @@ export default function PromptsPage() {
                     onClick={() => setChatbotSettings({ ...chatbotSettings, primaryColor: '#10B981' })}
                   >
                     <div className="w-4 h-4 bg-green-500 rounded mr-2" />
-                    Yeşil
+                    {t('prompts.palettes.green')}
                   </Button>
                   <Button
                     variant="outline"
@@ -511,7 +502,7 @@ export default function PromptsPage() {
                     onClick={() => setChatbotSettings({ ...chatbotSettings, primaryColor: '#8B5CF6' })}
                   >
                     <div className="w-4 h-4 bg-purple-500 rounded mr-2" />
-                    Mor
+                    {t('prompts.palettes.purple')}
                   </Button>
                   <Button
                     variant="outline"
@@ -519,7 +510,7 @@ export default function PromptsPage() {
                     onClick={() => setChatbotSettings({ ...chatbotSettings, primaryColor: '#F59E0B' })}
                   >
                     <div className="w-4 h-4 bg-amber-500 rounded mr-2" />
-                    Turuncu
+                    {t('prompts.palettes.orange')}
                   </Button>
                 </CardContent>
               </Card>
@@ -527,20 +518,17 @@ export default function PromptsPage() {
           </div>
         </TabsContent>
 
-        {/* System Prompt Tab */}
         <TabsContent value="prompt" className="space-y-6">
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             <div className="lg:col-span-2">
               <Card>
                 <CardHeader>
-                  <CardTitle>Sistem Prompt</CardTitle>
-                  <CardDescription>
-                    AI'nın nasıl cevap vereceğini belirleyen ana talimatlar
-                  </CardDescription>
+                  <CardTitle>{t('prompts.systemPrompt.title')}</CardTitle>
+                  <CardDescription>{t('prompts.systemPrompt.description')}</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="space-y-2">
-                    <Label htmlFor="prompt">Prompt Metni</Label>
+                    <Label htmlFor="prompt">{t('prompts.systemPrompt.promptText')}</Label>
                     <Textarea
                       id="prompt"
                       value={editingPrompt}
@@ -550,14 +538,14 @@ export default function PromptsPage() {
                       placeholder="Sistem prompt'unu buraya yazın..."
                     />
                     <p className="text-sm text-muted-foreground">
-                      {editingPrompt.length} karakter
+                      {editingPrompt.length} {t('prompts.systemPrompt.characters')}
                     </p>
                   </div>
 
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <Label htmlFor="temperature">
-                        Temperature: {temperature}
+                        {t('prompts.systemPrompt.temperature')}: {temperature}
                       </Label>
                       <Slider
                         id="temperature"
@@ -568,13 +556,13 @@ export default function PromptsPage() {
                         onValueChange={(v) => setTemperature(v[0])}
                       />
                       <p className="text-xs text-muted-foreground">
-                        Düşük: Tutarlı, Yüksek: Yaratıcı
+                        {t('prompts.systemPrompt.tempDescription')}
                       </p>
                     </div>
 
                     <div className="space-y-2">
                       <Label htmlFor="maxTokens">
-                        Max Tokens: {maxTokens}
+                        {t('prompts.systemPrompt.maxTokens')}: {maxTokens}
                       </Label>
                       <Slider
                         id="maxTokens"
@@ -585,7 +573,7 @@ export default function PromptsPage() {
                         onValueChange={(v) => setMaxTokens(v[0])}
                       />
                       <p className="text-xs text-muted-foreground">
-                        Maksimum cevap uzunluğu
+                        {t('prompts.systemPrompt.maxTokensDescription')}
                       </p>
                     </div>
                   </div>
@@ -593,11 +581,11 @@ export default function PromptsPage() {
                   <div className="flex gap-2">
                     <Button onClick={handleSavePrompt} disabled={saving}>
                       <Save className="w-4 h-4 mr-2" />
-                      {saving ? 'Kaydediliyor...' : 'Kaydet'}
+                      {saving ? t('prompts.buttons.saving') : t('prompts.buttons.save')}
                     </Button>
                     <Button onClick={handleResetPrompt} variant="outline">
                       <RotateCcw className="w-4 h-4 mr-2" />
-                      Varsayılana Dön
+                      {t('prompts.buttons.resetToDefault')}
                     </Button>
                     <Button onClick={handleCopy} variant="outline">
                       {copied ? (
@@ -605,7 +593,7 @@ export default function PromptsPage() {
                       ) : (
                         <Copy className="w-4 h-4 mr-2" />
                       )}
-                      {copied ? 'Kopyalandı' : 'Kopyala'}
+                      {copied ? t('prompts.copied') : t('prompts.copy')}
                     </Button>
                   </div>
                 </CardContent>
@@ -615,10 +603,8 @@ export default function PromptsPage() {
             <div className="space-y-6">
               <Card>
                 <CardHeader>
-                  <CardTitle>Hızlı Şablonlar</CardTitle>
-                  <CardDescription>
-                    Önceden tanımlı prompt şablonları
-                  </CardDescription>
+                  <CardTitle>{t('prompts.templates.title')}</CardTitle>
+                  <CardDescription>{t('prompts.templates.description')}</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-2">
                   {promptTemplates.map((template) => (
@@ -639,26 +625,20 @@ export default function PromptsPage() {
 
               <Card>
                 <CardHeader>
-                  <CardTitle>Prompt İpuçları</CardTitle>
+                  <CardTitle>{t('prompts.tips.title')}</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-3 text-sm">
                   <div>
-                    <p className="font-medium">Kaynak Referansları</p>
-                    <p className="text-muted-foreground">
-                      [Kaynak 1], [Kaynak 2] formatını kullanın
-                    </p>
+                    <p className="font-medium">{t('prompts.tips.references')}</p>
+                    <p className="text-muted-foreground">{t('prompts.tips.referencesDesc')}</p>
                   </div>
                   <div>
-                    <p className="font-medium">Bağlam Kullanımı</p>
-                    <p className="text-muted-foreground">
-                      En ilgili kaynaklar başta gelir
-                    </p>
+                    <p className="font-medium">{t('prompts.tips.context')}</p>
+                    <p className="text-muted-foreground">{t('prompts.tips.contextDesc')}</p>
                   </div>
                   <div>
-                    <p className="font-medium">Temperature</p>
-                    <p className="text-muted-foreground">
-                      0.1: Tutarlı, 0.5: Dengeli, 0.9: Yaratıcı
-                    </p>
+                    <p className="font-medium">{t('prompts.tips.temperature')}</p>
+                    <p className="text-muted-foreground">{t('prompts.tips.temperatureDesc')}</p>
                   </div>
                 </CardContent>
               </Card>
@@ -666,23 +646,21 @@ export default function PromptsPage() {
               {activePrompt && (
                 <Card>
                   <CardHeader>
-                    <CardTitle>Aktif Prompt</CardTitle>
-                    <CardDescription>
-                      Şu anda kullanımda olan prompt
-                    </CardDescription>
+                    <CardTitle>{t('prompts.activePrompt.title')}</CardTitle>
+                    <CardDescription>{t('prompts.activePrompt.description')}</CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-2">
                     <p className="text-sm">
-                      <span className="font-medium">İsim:</span> {activePrompt.name}
+                      <span className="font-medium">{t('prompts.activePrompt.name')}:</span> {activePrompt.name}
                     </p>
                     <p className="text-sm">
-                      <span className="font-medium">Temperature:</span> {activePrompt.temperature}
+                      <span className="font-medium">{t('prompts.systemPrompt.temperature')}:</span> {activePrompt.temperature}
                     </p>
                     <p className="text-sm">
-                      <span className="font-medium">Max Tokens:</span> {activePrompt.maxTokens}
+                      <span className="font-medium">{t('prompts.systemPrompt.maxTokens')}:</span> {activePrompt.maxTokens}
                     </p>
                     <p className="text-sm">
-                      <span className="font-medium">Güncelleme:</span>{' '}
+                      <span className="font-medium">{t('prompts.activePrompt.updated')}:</span>{' '}
                       {new Date(activePrompt.updatedAt).toLocaleString('tr-TR')}
                     </p>
                   </CardContent>

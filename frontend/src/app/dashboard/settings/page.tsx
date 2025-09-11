@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { getApiUrl, API_CONFIG } from '@/lib/config';
 import { useToast } from '@/hooks/use-toast';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -10,6 +11,8 @@ import { Textarea } from '@/components/ui/textarea';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Label } from '@/components/ui/label';
+import { Slider } from '@/components/ui/slider';
 import {
   Settings,
   Database,
@@ -32,8 +35,42 @@ import {
   Activity,
   Package,
   FileCode,
-  Container
+  Container,
+  Bot,
+  Palette,
+  Plus,
+  Trash2,
+  Copy,
+  Check,
+  RotateCcw
 } from 'lucide-react';
+
+interface SystemPrompt {
+  id: string;
+  name: string;
+  prompt: string;
+  temperature: number;
+  maxTokens: number;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+interface ChatbotSettings {
+  title: string;
+  subtitle: string;
+  logoUrl: string;
+  welcomeMessage: string;
+  placeholder: string;
+  primaryColor: string;
+  suggestions: string;
+}
+
+interface Suggestion {
+  icon: string;
+  title: string;
+  description: string;
+}
 
 interface Config {
   app: {
@@ -124,6 +161,7 @@ interface Config {
 }
 
 export default function SettingsPage() {
+  const { t, i18n } = useTranslation();
   const { toast } = useToast();
   const [config, setConfig] = useState<Config>({
     app: {
@@ -218,6 +256,38 @@ export default function SettingsPage() {
   const [testResults, setTestResults] = useState<Record<string, boolean>>({});
 
   // Services state
+  // Prompt and Chatbot States
+  const [prompts, setPrompts] = useState<SystemPrompt[]>([]);
+  const [activePrompt, setActivePrompt] = useState<SystemPrompt | null>(null);
+  const [editingPrompt, setEditingPrompt] = useState('');
+  const [promptTemperature, setPromptTemperature] = useState(0.1);
+  const [promptMaxTokens, setPromptMaxTokens] = useState(2048);
+  const [savingPrompt, setSavingPrompt] = useState(false);
+  const [copiedPrompt, setCopiedPrompt] = useState(false);
+  
+  const [chatbotSettings, setChatbotSettings] = useState<ChatbotSettings>({
+    title: '',
+    subtitle: '',
+    logoUrl: '',
+    welcomeMessage: '',
+    placeholder: '',
+    primaryColor: '#3B82F6',
+    suggestions: '[]'
+  });
+  const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
+  const [savingChatbot, setSavingChatbot] = useState(false);
+  
+  const defaultPrompt = `You are an expert assistant.
+    
+TASK:
+- Answer based on the context provided below
+- IMPORTANT: Prioritize sources at the BEGINNING of context (most relevant)
+- Create comprehensive answers using information from the first 3-5 sources
+- Always cite sources in [Source 1], [Source 2] format
+- If context is empty or no relevant info, say "No information available in database"
+- Don't guess, only use information from context
+- Be professional in your response`;
+
   const [services, setServices] = useState<Record<string, any>>({
     lightrag: { status: 'stopped' },
     raganything: { status: 'stopped' },
@@ -279,7 +349,156 @@ export default function SettingsPage() {
   useEffect(() => {
     fetchConfig();
     fetchServiceStatus();
+    fetchPrompts();
+    fetchChatbotSettings();
   }, []);
+
+  useEffect(() => {
+    document.documentElement.lang = i18n.language;
+    document.title = t('settings.title') + ' - Alice Semantic Bridge';
+  }, [i18n.language, t]);
+
+  const fetchPrompts = async () => {
+    try {
+      const response = await fetch('http://localhost:8083/api/v2/config/prompts');
+      if (response.ok) {
+        const data = await response.json();
+        setPrompts(data.prompts || []);
+        const active = data.prompts?.find((p: SystemPrompt) => p.isActive);
+        if (active) {
+          setActivePrompt(active);
+          setEditingPrompt(active.prompt);
+          setPromptTemperature(active.temperature);
+          setPromptMaxTokens(active.maxTokens);
+        } else {
+          setEditingPrompt(defaultPrompt);
+        }
+      }
+    } catch (error) {
+      console.error('Failed to fetch prompts:', error);
+      setEditingPrompt(defaultPrompt);
+    }
+  };
+
+  const fetchChatbotSettings = async () => {
+    try {
+      const response = await fetch('http://localhost:8083/api/v2/chatbot/settings');
+      const data = await response.json();
+      
+      setChatbotSettings({
+        title: data.title || '',
+        subtitle: data.subtitle || '',
+        logoUrl: data.logoUrl || '',
+        welcomeMessage: data.welcomeMessage || '',
+        placeholder: data.placeholder || '',
+        primaryColor: data.primaryColor || '#3B82F6',
+        suggestions: data.suggestions || '[]'
+      });
+      
+      try {
+        const parsedSuggestions = JSON.parse(data.suggestions || '[]');
+        setSuggestions(Array.isArray(parsedSuggestions) ? parsedSuggestions : []);
+      } catch {
+        setSuggestions([]);
+      }
+    } catch (error) {
+      console.error('Failed to fetch chatbot settings:', error);
+    }
+  };
+
+  const handleSavePrompt = async () => {
+    setSavingPrompt(true);
+    try {
+      const response = await fetch('http://localhost:8083/api/v2/config/prompts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          prompt: editingPrompt,
+          temperature: promptTemperature,
+          maxTokens: promptMaxTokens,
+          name: 'Custom System Prompt'
+        })
+      });
+
+      if (response.ok) {
+        toast({
+          title: "Success",
+          description: "System prompt updated successfully",
+          duration: 3000,
+        });
+        fetchPrompts();
+      }
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to update prompt",
+        variant: "destructive",
+        duration: 3000,
+      });
+    } finally {
+      setSavingPrompt(false);
+    }
+  };
+
+  const handleSaveChatbot = async () => {
+    setSavingChatbot(true);
+    try {
+      const response = await fetch('http://localhost:8083/api/v2/chatbot/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...chatbotSettings,
+          suggestions: JSON.stringify(suggestions)
+        })
+      });
+      
+      if (response.ok) {
+        toast({
+          title: "Success",
+          description: "Chatbot settings saved successfully",
+          duration: 3000,
+        });
+      }
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to save chatbot settings",
+        variant: "destructive",
+        duration: 3000,
+      });
+    } finally {
+      setSavingChatbot(false);
+    }
+  };
+
+  const handleResetPrompt = () => {
+    setEditingPrompt(defaultPrompt);
+    setPromptTemperature(0.1);
+    setPromptMaxTokens(2048);
+  };
+
+  const handleCopyPrompt = () => {
+    navigator.clipboard.writeText(editingPrompt);
+    setCopiedPrompt(true);
+    setTimeout(() => setCopiedPrompt(false), 2000);
+  };
+
+  const addSuggestion = () => {
+    setSuggestions([
+      ...suggestions,
+      { icon: '📌', title: '', description: '' }
+    ]);
+  };
+
+  const updateSuggestion = (index: number, field: keyof Suggestion, value: string) => {
+    const updated = [...suggestions];
+    updated[index] = { ...updated[index], [field]: value };
+    setSuggestions(updated);
+  };
+
+  const removeSuggestion = (index: number) => {
+    setSuggestions(suggestions.filter((_, i) => i !== index));
+  };
 
   const fetchServiceStatus = async () => {
     try {
@@ -334,16 +553,16 @@ export default function SettingsPage() {
 
       if (response.ok) {
         toast({
-          title: "Başarılı ✨",
-          description: "Ayarlarınız başarıyla kaydedildi ve uygulandı.",
+          title: t('toasts.settingsSavedSuccessTitle'),
+          description: t('toasts.settingsSavedSuccess'),
           duration: 3000,
         });
       }
     } catch (error) {
       console.error('Failed to save config:', error);
       toast({
-        title: "Hata Oluştu",
-        description: "Ayarlar kaydedilemedi. Lütfen tekrar deneyin.",
+        title: t('toasts.settingsSavedErrorTitle'),
+        description: t('toasts.settingsSavedError'),
         variant: "destructive",
         duration: 4000,
       });
@@ -401,26 +620,31 @@ export default function SettingsPage() {
     });
   };
 
+  const handleLanguageChange = (newLang: string) => {
+    updateConfig('app', 'locale', newLang);
+    i18n.changeLanguage(newLang);
+  };
+
   return (
     <div className="py-6 space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-semibold">Ayarlar</h1>
+          <h1 className="text-xl font-semibold">{t('settings.title')}</h1>
           <p className="text-sm text-muted-foreground mt-1">
-            ASB sistem konfigürasyonu ve bağlantı ayarları
+            {t('settings.description')}
           </p>
         </div>
         <Button onClick={handleSave} disabled={saving}>
           {saving ? (
             <>
               <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
-              Kaydediliyor...
+              {t('settings.savingButton')}
             </>
           ) : (
             <>
               <Save className="mr-2 h-4 w-4" />
-              Kaydet
+              {t('settings.saveButton')}
             </>
           )}
         </Button>
@@ -428,14 +652,16 @@ export default function SettingsPage() {
 
       {/* Configuration Tabs */}
       <Tabs defaultValue="general" className="w-full">
-        <TabsList className="grid w-full grid-cols-7 gap-1">
-          <TabsTrigger value="general">Genel</TabsTrigger>
-          <TabsTrigger value="services">Servisler</TabsTrigger>
-          <TabsTrigger value="database">Database</TabsTrigger>
-          <TabsTrigger value="ai-services">AI</TabsTrigger>
-          <TabsTrigger value="embeddings">Embeddings</TabsTrigger>
-          <TabsTrigger value="integrations">Entegrasyon</TabsTrigger>
-          <TabsTrigger value="advanced">Gelişmiş</TabsTrigger>
+        <TabsList className="grid w-full grid-cols-9 gap-1">
+          <TabsTrigger value="general">{t('settings.generalTab')}</TabsTrigger>
+          <TabsTrigger value="services">{t('settings.servicesTab')}</TabsTrigger>
+          <TabsTrigger value="database">{t('settings.databaseTab')}</TabsTrigger>
+          <TabsTrigger value="ai-services">{t('settings.aiServicesTab')}</TabsTrigger>
+          <TabsTrigger value="embeddings">{t('settings.embeddingsTab')}</TabsTrigger>
+          <TabsTrigger value="integrations">{t('settings.integrationsTab')}</TabsTrigger>
+          <TabsTrigger value="chatbot">Chatbot</TabsTrigger>
+          <TabsTrigger value="prompts">Prompts</TabsTrigger>
+          <TabsTrigger value="advanced">{t('settings.advancedTab')}</TabsTrigger>
         </TabsList>
 
         <TabsContent value="general">
@@ -443,35 +669,35 @@ export default function SettingsPage() {
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Settings className="h-5 w-5" />
-                Genel Ayarlar
+                {t('settings.generalSettingsTitle')}
               </CardTitle>
               <CardDescription>
-                Uygulama adı ve temel yapılandırma
+                {t('settings.generalSettingsDescription')}
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div>
-                <label className="text-sm font-medium">Uygulama Adı</label>
+                <label className="text-sm font-medium">{t('settings.appNameLabel')}</label>
                 <Input
                   value={config.app.name}
                   onChange={(e) => updateConfig('app', 'name', e.target.value)}
-                  placeholder="Örn: Mali Müşavir Asistanı"
+                  placeholder={t('settings.appNamePlaceholder')}
                 />
                 <p className="text-xs text-muted-foreground mt-1">
-                  Bu isim tüm sayfalarda görünecektir
+                  {t('settings.appNameDescription')}
                 </p>
               </div>
               <div>
-                <label className="text-sm font-medium">Açıklama</label>
+                <label className="text-sm font-medium">{t('settings.appDescriptionLabel')}</label>
                 <Input
                   value={config.app.description}
                   onChange={(e) => updateConfig('app', 'description', e.target.value)}
-                  placeholder="Sistem açıklaması"
+                  placeholder={t('settings.appDescriptionPlaceholder')}
                 />
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="text-sm font-medium">Versiyon</label>
+                  <label className="text-sm font-medium">{t('settings.versionLabel')}</label>
                   <Input
                     value={config.app.version}
                     onChange={(e) => updateConfig('app', 'version', e.target.value)}
@@ -479,14 +705,14 @@ export default function SettingsPage() {
                   />
                 </div>
                 <div>
-                  <label className="text-sm font-medium">Dil</label>
+                  <label className="text-sm font-medium">{t('settings.languageLabel')}</label>
                   <select
-                    value={config.app.locale}
-                    onChange={(e) => updateConfig('app', 'locale', e.target.value)}
+                    value={i18n.language}
+                    onChange={(e) => handleLanguageChange(e.target.value)}
                     className="w-full p-2 border rounded-md"
                   >
-                    <option value="tr">Türkçe</option>
-                    <option value="en">English</option>
+                    <option value="tr">{t('settings.languageOptions.tr')}</option>
+                    <option value="en">{t('settings.languageOptions.en')}</option>
                   </select>
                 </div>
               </div>
@@ -1513,6 +1739,345 @@ export default function SettingsPage() {
               </div>
             </CardContent>
           </Card>
+        </TabsContent>
+
+        {/* Chatbot Settings Tab */}
+        <TabsContent value="chatbot" className="space-y-4">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div className="lg:col-span-2 space-y-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Bot className="h-5 w-5" />
+                    Chatbot Appearance
+                  </CardTitle>
+                  <CardDescription>
+                    Customize chatbot title, messages and appearance
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div>
+                    <Label>Chatbot Title</Label>
+                    <Input
+                      value={chatbotSettings.title}
+                      onChange={(e) => setChatbotSettings({ ...chatbotSettings, title: e.target.value })}
+                      placeholder="e.g., Assistant"
+                    />
+                  </div>
+                  
+                  <div>
+                    <Label>Logo URL</Label>
+                    <Input
+                      value={chatbotSettings.logoUrl}
+                      onChange={(e) => setChatbotSettings({ ...chatbotSettings, logoUrl: e.target.value })}
+                      placeholder="https://example.com/logo.png"
+                    />
+                  </div>
+                  
+                  <div>
+                    <Label>Welcome Message</Label>
+                    <Textarea
+                      value={chatbotSettings.welcomeMessage}
+                      onChange={(e) => setChatbotSettings({ ...chatbotSettings, welcomeMessage: e.target.value })}
+                      placeholder="Welcome message for users..."
+                      rows={3}
+                    />
+                  </div>
+                  
+                  <div>
+                    <Label>Input Placeholder</Label>
+                    <Input
+                      value={chatbotSettings.placeholder}
+                      onChange={(e) => setChatbotSettings({ ...chatbotSettings, placeholder: e.target.value })}
+                      placeholder="e.g., Type your question..."
+                    />
+                  </div>
+
+                  <div>
+                    <Label>Primary Color</Label>
+                    <div className="flex gap-2">
+                      <Input
+                        type="color"
+                        value={chatbotSettings.primaryColor}
+                        onChange={(e) => setChatbotSettings({ ...chatbotSettings, primaryColor: e.target.value })}
+                        className="w-20 h-10"
+                      />
+                      <Input
+                        value={chatbotSettings.primaryColor}
+                        onChange={(e) => setChatbotSettings({ ...chatbotSettings, primaryColor: e.target.value })}
+                        placeholder="#3B82F6"
+                        className="flex-1"
+                      />
+                    </div>
+                  </div>
+
+                  <Button onClick={handleSaveChatbot} disabled={savingChatbot}>
+                    <Save className="mr-2 h-4 w-4" />
+                    {savingChatbot ? 'Saving...' : 'Save Chatbot Settings'}
+                  </Button>
+                </CardContent>
+              </Card>
+
+              {/* Suggestions */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <MessageSquare className="h-5 w-5" />
+                    Suggestion Cards
+                  </CardTitle>
+                  <CardDescription>
+                    Edit suggestion cards shown to users
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {suggestions.map((suggestion, index) => (
+                    <div key={index} className="p-4 border rounded-lg space-y-3">
+                      <div className="flex justify-between items-start">
+                        <span className="text-sm font-medium">Suggestion {index + 1}</span>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => removeSuggestion(index)}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                      <div className="grid grid-cols-12 gap-2">
+                        <div className="col-span-2">
+                          <Input
+                            value={suggestion.icon}
+                            onChange={(e) => updateSuggestion(index, 'icon', e.target.value)}
+                            placeholder="📚"
+                            className="text-center"
+                          />
+                        </div>
+                        <div className="col-span-4">
+                          <Input
+                            value={suggestion.title}
+                            onChange={(e) => updateSuggestion(index, 'title', e.target.value)}
+                            placeholder="Title"
+                          />
+                        </div>
+                        <div className="col-span-6">
+                          <Input
+                            value={suggestion.description}
+                            onChange={(e) => updateSuggestion(index, 'description', e.target.value)}
+                            placeholder="Description"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                  
+                  <Button
+                    variant="outline"
+                    onClick={addSuggestion}
+                    className="w-full"
+                  >
+                    <Plus className="h-4 w-4 mr-2" />
+                    Add New Suggestion
+                  </Button>
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Preview */}
+            <div>
+              <Card>
+                <CardHeader>
+                  <CardTitle>Preview</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="bg-gray-50 dark:bg-gray-900 rounded-lg p-6">
+                    <div className="text-center">
+                      <div 
+                        className="w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg"
+                        style={{ backgroundColor: chatbotSettings.primaryColor }}
+                      >
+                        <Bot className="w-8 h-8 text-white" />
+                      </div>
+                      <h3 className="text-lg font-bold mb-2">
+                        {chatbotSettings.title || 'Chatbot Title'}
+                      </h3>
+                      <p className="text-sm text-muted-foreground mb-4">
+                        {chatbotSettings.welcomeMessage || 'Welcome message'}
+                      </p>
+                      {suggestions.length > 0 && (
+                        <div className="space-y-2 text-left">
+                          {suggestions.slice(0, 3).map((suggestion, index) => (
+                            <div key={index} className="bg-white dark:bg-gray-800 rounded-lg p-3 shadow border text-sm">
+                              <p className="font-medium">
+                                {suggestion.icon} {suggestion.title}
+                              </p>
+                              <p className="text-xs text-muted-foreground mt-1">
+                                {suggestion.description}
+                              </p>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          </div>
+        </TabsContent>
+
+        {/* Prompts Tab */}
+        <TabsContent value="prompts" className="space-y-4">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div className="lg:col-span-2">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Brain className="h-5 w-5" />
+                    System Prompt
+                  </CardTitle>
+                  <CardDescription>
+                    Main instructions that determine how AI responds
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div>
+                    <Label>Prompt Text</Label>
+                    <Textarea
+                      value={editingPrompt}
+                      onChange={(e) => setEditingPrompt(e.target.value)}
+                      rows={15}
+                      className="font-mono text-sm"
+                      placeholder="System prompt here..."
+                    />
+                    <p className="text-sm text-muted-foreground mt-1">
+                      {editingPrompt.length} characters
+                    </p>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label>
+                        Temperature: {promptTemperature}
+                      </Label>
+                      <Slider
+                        min={0}
+                        max={1}
+                        step={0.1}
+                        value={[promptTemperature]}
+                        onValueChange={(v) => setPromptTemperature(v[0])}
+                      />
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Low: Consistent, High: Creative
+                      </p>
+                    </div>
+
+                    <div>
+                      <Label>
+                        Max Tokens: {promptMaxTokens}
+                      </Label>
+                      <Slider
+                        min={256}
+                        max={4096}
+                        step={256}
+                        value={[promptMaxTokens]}
+                        onValueChange={(v) => setPromptMaxTokens(v[0])}
+                      />
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Maximum response length
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex gap-2">
+                    <Button onClick={handleSavePrompt} disabled={savingPrompt}>
+                      <Save className="mr-2 h-4 w-4" />
+                      {savingPrompt ? 'Saving...' : 'Save Prompt'}
+                    </Button>
+                    <Button onClick={handleResetPrompt} variant="outline">
+                      <RotateCcw className="mr-2 h-4 w-4" />
+                      Reset to Default
+                    </Button>
+                    <Button onClick={handleCopyPrompt} variant="outline">
+                      {copiedPrompt ? (
+                        <Check className="mr-2 h-4 w-4" />
+                      ) : (
+                        <Copy className="mr-2 h-4 w-4" />
+                      )}
+                      {copiedPrompt ? 'Copied' : 'Copy'}
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+
+            <div className="space-y-4">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Quick Templates</CardTitle>
+                  <CardDescription>
+                    Predefined prompt templates
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-2">
+                  <Button
+                    variant="outline"
+                    className="w-full justify-start"
+                    onClick={() => {
+                      setEditingPrompt(defaultPrompt + '\n\nProvide detailed and explanatory answers. Explain each topic with examples.');
+                      setPromptTemperature(0.3);
+                    }}
+                  >
+                    Detailed Explanation
+                  </Button>
+                  <Button
+                    variant="outline"
+                    className="w-full justify-start"
+                    onClick={() => {
+                      setEditingPrompt(defaultPrompt + '\n\nGive short, clear and concise answers. Share only the most important information.');
+                      setPromptTemperature(0.1);
+                    }}
+                  >
+                    Short & Concise
+                  </Button>
+                  <Button
+                    variant="outline"
+                    className="w-full justify-start"
+                    onClick={() => {
+                      setEditingPrompt(defaultPrompt + '\n\nBe creative and offer different perspectives. Suggest alternative solutions.');
+                      setPromptTemperature(0.7);
+                    }}
+                  >
+                    Creative
+                  </Button>
+                </CardContent>
+              </Card>
+
+              {activePrompt && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Active Prompt</CardTitle>
+                    <CardDescription>
+                      Currently active prompt
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-2">
+                    <p className="text-sm">
+                      <span className="font-medium">Name:</span> {activePrompt.name}
+                    </p>
+                    <p className="text-sm">
+                      <span className="font-medium">Temperature:</span> {activePrompt.temperature}
+                    </p>
+                    <p className="text-sm">
+                      <span className="font-medium">Max Tokens:</span> {activePrompt.maxTokens}
+                    </p>
+                    <p className="text-sm">
+                      <span className="font-medium">Updated:</span>{' '}
+                      {new Date(activePrompt.updatedAt).toLocaleString()}
+                    </p>
+                  </CardContent>
+                </Card>
+              )}
+            </div>
+          </div>
         </TabsContent>
       </Tabs>
     </div>

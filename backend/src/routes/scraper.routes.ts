@@ -2,9 +2,11 @@ import { Router, Request, Response } from 'express';
 import axios from 'axios';
 import * as cheerio from 'cheerio';
 import { chromium } from 'playwright';
-import { pgPool } from '../server';
+import { pgPool, redis } from '../server';
 import { RecursiveCharacterTextSplitter } from '@langchain/textsplitters';
 import { encoding_for_model } from 'tiktoken';
+import advancedScraper from '../services/advanced-scraper.service';
+import puppeteerScraper from '../services/puppeteer-scraper.service';
 
 const router = Router();
 
@@ -133,26 +135,43 @@ router.post('/api/v2/scraper', async (req: Request, res: Response) => {
   let activityDetails: any = {};
   
   try {
-    const { url, saveToDb = false, mode = 'auto', generateEmbeddings = false } = req.body;
+    const { 
+      url, 
+      saveToDb = false, 
+      mode = 'auto', 
+      generateEmbeddings = false,
+      customSelectors = [],
+      prioritySelectors = [],
+      extractMode = 'best'
+    } = req.body;
     
     // Auto-detect if we need dynamic scraping
     let useDynamic = mode === 'dynamic';
+    let usePuppeteer = mode === 'puppeteer';
+    
     if (mode === 'auto') {
-      // Sites that typically need dynamic rendering
-      const dynamicSites = [
-        'gib.gov.tr',
-        'e-devlet.turkiye.gov.tr',
-        'twitter.com',
-        'x.com',
-        'instagram.com',
-        'facebook.com',
-        'linkedin.com',
-        'youtube.com',
-        'medium.com',
-        'dev.to',
-        'stackoverflow.com'
+      // Sites that typically need dynamic rendering  
+      const dynamicPatterns = [
+        /\.gov\./i,  // Government sites often need dynamic
+        /twitter\.com/i,
+        /x\.com/i,
+        /instagram\.com/i,
+        /facebook\.com/i,
+        /linkedin\.com/i,
+        /youtube\.com/i,
+        /medium\.com/i,
+        /dev\.to/i,
+        /stackoverflow\.com/i
       ];
-      useDynamic = dynamicSites.some(site => url.includes(site));
+      
+      // Check if URL matches any pattern that needs dynamic rendering
+      useDynamic = dynamicPatterns.some(pattern => pattern.test(url));
+      
+      // Use puppeteer for sites that need more advanced handling
+      // Government sites, sites with complex JS, etc.
+      if (useDynamic && /\.gov\./i.test(url)) {
+        usePuppeteer = true;
+      }
     }
     
     if (!url) {
@@ -161,7 +180,148 @@ router.post('/api/v2/scraper', async (req: Request, res: Response) => {
     }
 
     console.log(`[SCRAPER] Starting scrape for: ${url}`);
-    console.log(`[SCRAPER] Mode: ${useDynamic ? 'dynamic' : 'static'}`);
+    console.log(`[SCRAPER] Mode: ${usePuppeteer ? 'puppeteer (advanced)' : (useDynamic ? 'dynamic (playwright)' : 'static (cheerio)')}`);
+    
+    // Use advanced scraper for custom selectors
+    if (customSelectors.length > 0 || prioritySelectors.length > 0) {
+      console.log('[SCRAPER] Using advanced scraper with custom selectors');
+      const advancedResults = await advancedScraper.scrapeWebsite(url, {
+        mode,
+        saveToDb,
+        generateEmbeddings,
+        customSelectors,
+        prioritySelectors,
+        extractMode,
+        maxDepth: 1,
+        maxPages: 1
+      });
+      
+      if (advancedResults && advancedResults.length > 0) {
+        const result = advancedResults[0];
+        
+        // Log activity
+        await logActivity(
+          'scrape',
+          url,
+          result.title,
+          'success',
+          {
+            url,
+            title: result.title,
+            description: result.description,
+            scrapeMethod: 'advanced',
+            customSelectors: customSelectors.length,
+            prioritySelectors: prioritySelectors.length
+          },
+          {
+            content_length: result.content.length,
+            chunk_count: result.chunks?.length || 0,
+            embedding_count: result.embeddings?.length || 0,
+            scraping_mode: 'advanced',
+            extraction_time_ms: Date.now() - startTime
+          },
+          undefined
+        );
+        
+        return res.json({
+          success: true,
+          title: result.title,
+          content: result.content.substring(0, 5000),
+          contentPreview: result.content.substring(0, 500) + '...',
+          description: result.description || '',
+          keywords: result.keywords || '',
+          url,
+          metadata: {
+            ...result.metadata,
+            scrapingMode: 'advanced',
+            customSelectors: customSelectors.length,
+            prioritySelectors: prioritySelectors.length,
+            extractMode
+          },
+          metrics: {
+            contentLength: result.content.length,
+            htmlLength: 0,
+            chunksCreated: result.chunks?.length || 0,
+            embeddingsGenerated: result.embeddings?.length || 0,
+            totalTokens: 0,
+            extractionTimeMs: Date.now() - startTime
+          },
+          savedToDb: saveToDb,
+          timestamp: new Date().toISOString()
+        });
+      }
+    }
+    
+    // Use Puppeteer for sites that need advanced scraping
+    if (usePuppeteer) {
+      console.log('[SCRAPER] Using Puppeteer for enhanced scraping');
+      const puppeteerResult = await puppeteerScraper.scrapeWithPuppeteer(url, { saveToDb, generateEmbeddings });
+      
+      if (puppeteerResult.success && puppeteerResult.content) {
+        // Save to database if requested
+        let savedId = null;
+        if (saveToDb) {
+          savedId = await puppeteerScraper.saveToDatabase(puppeteerResult);
+        }
+        
+        // Generate and save embeddings if requested
+        let embeddings: number[][] = [];
+        if (generateEmbeddings && puppeteerResult.chunks && savedId) {
+          embeddings = await puppeteerScraper.generateEmbeddings(puppeteerResult.chunks);
+          await puppeteerScraper.saveEmbeddings(savedId, puppeteerResult.chunks, embeddings);
+        }
+        
+        // Log activity
+        await logActivity(
+          'scrape',
+          url,
+          puppeteerResult.title,
+          'success',
+          {
+            url,
+            title: puppeteerResult.title,
+            description: puppeteerResult.description,
+            scrapeMethod: 'puppeteer'
+          },
+          {
+            content_length: puppeteerResult.content.length,
+            chunk_count: puppeteerResult.chunks?.length || 0,
+            embedding_count: embeddings.length,
+            scraping_mode: 'puppeteer',
+            extraction_time_ms: Date.now() - startTime
+          },
+          undefined
+        );
+        
+        return res.json({
+          success: true,
+          title: puppeteerResult.title,
+          content: puppeteerResult.content.substring(0, 5000),
+          contentPreview: puppeteerResult.content.substring(0, 500) + '...',
+          description: puppeteerResult.description || '',
+          keywords: puppeteerResult.keywords || '',
+          url,
+          metadata: {
+            ...puppeteerResult.metadata,
+            scrapingMode: 'puppeteer'
+          },
+          metrics: {
+            contentLength: puppeteerResult.content.length,
+            htmlLength: 0,
+            chunksCreated: puppeteerResult.chunks?.length || 0,
+            embeddingsGenerated: embeddings.length,
+            totalTokens: 0,
+            extractionTimeMs: Date.now() - startTime
+          },
+          savedToDb: saveToDb,
+          timestamp: new Date().toISOString()
+        });
+      } else {
+        // If Puppeteer fails, fall back to regular scraping
+        console.log('[SCRAPER] Puppeteer failed, falling back to Playwright');
+        useDynamic = true;
+      }
+    }
     
     let htmlContent = '';
     let pageTitle = '';
@@ -190,7 +350,16 @@ router.post('/api/v2/scraper', async (req: Request, res: Response) => {
           });
           
           // Wait for content to load
-          await page.waitForTimeout(3000);
+          await page.waitForTimeout(5000);
+          
+          // For GİB site, wait for specific content
+          if (url.includes('gib.gov.tr')) {
+            try {
+              await page.waitForSelector('.icerik, .content, #content, .mevzuat-icerik', { timeout: 5000 });
+            } catch {
+              console.log('[SCRAPER] GİB content selector not found, continuing...');
+            }
+          }
           
           // Try to click "accept cookies" or similar buttons
           try {
@@ -285,7 +454,17 @@ router.post('/api/v2/scraper', async (req: Request, res: Response) => {
       'div.content-wrapper',
       '.markdown-body',
       '.prose',
-      '[itemprop="articleBody"]'
+      '[itemprop="articleBody"]',
+      // GİB specific selectors
+      '.icerik',
+      '.icerik-alani',
+      '.kanun-icerik',
+      '.mevzuat-icerik',
+      '#icerik',
+      '.sayfa-icerik',
+      '.detail-content',
+      '.mevzuat-detay',
+      '.kanun-detay'
     ];
     
     let mainContent = null;
@@ -435,14 +614,23 @@ router.post('/api/v2/scraper', async (req: Request, res: Response) => {
           extractionTime: Date.now() - startTime
         });
         
+        // Format embeddings for pgvector
+        let formattedEmbeddings = null;
+        if (embeddings.length > 0) {
+          // Convert array of arrays to array of vector strings
+          formattedEmbeddings = embeddings.map(embedding => 
+            `[${embedding.join(',')}]`
+          );
+        }
+        
         // Insert or update the scraped content
         const result = await pgPool.query(`
           INSERT INTO scraped_data (
             url, title, content, description, keywords, metadata,
-            content_chunks, embeddings, chunk_count, content_length, 
+            content_chunks, chunk_count, content_length, 
             token_count, scraping_mode
           )
-          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
           ON CONFLICT (url) 
           DO UPDATE SET 
             title = EXCLUDED.title,
@@ -451,7 +639,6 @@ router.post('/api/v2/scraper', async (req: Request, res: Response) => {
             keywords = EXCLUDED.keywords,
             metadata = EXCLUDED.metadata,
             content_chunks = EXCLUDED.content_chunks,
-            embeddings = EXCLUDED.embeddings,
             chunk_count = EXCLUDED.chunk_count,
             content_length = EXCLUDED.content_length,
             token_count = EXCLUDED.token_count,
@@ -466,12 +653,39 @@ router.post('/api/v2/scraper', async (req: Request, res: Response) => {
           keywords, 
           metadataJson,
           chunks,
-          embeddings.length > 0 ? embeddings : null,
           chunks.length,
           content.length,
           totalTokens,
           useDynamic ? 'dynamic' : 'static'
         ]);
+        
+        // Store embeddings separately if they exist
+        if (formattedEmbeddings && formattedEmbeddings.length > 0) {
+          try {
+            for (let i = 0; i < formattedEmbeddings.length && i < chunks.length; i++) {
+              await pgPool.query(`
+                INSERT INTO document_embeddings (
+                  document_id, 
+                  chunk_text, 
+                  embedding,
+                  metadata
+                )
+                VALUES ($1, $2, $3::vector, $4)
+              `, [
+                result.rows[0].id,
+                chunks[i],
+                formattedEmbeddings[i],
+                JSON.stringify({
+                  chunk_index: i,
+                  total_chunks: chunks.length,
+                  url: url
+                })
+              ]);
+            }
+          } catch (embError) {
+            console.error('[SCRAPER] Embedding storage error:', embError);
+          }
+        }
         
         savedId = result.rows[0].id;
         console.log(`[SCRAPER] Saved to database with ID: ${savedId}`);
@@ -732,6 +946,42 @@ router.post('/api/v2/embeddings', async (req: Request, res: Response) => {
   }
 });
 
+// Get scraper history/pages
+router.get('/api/v2/scraper', async (req: Request, res: Response) => {
+  try {
+    const { limit = 50 } = req.query;
+    
+    const result = await pgPool.query(`
+      SELECT 
+        id, 
+        title, 
+        url, 
+        description, 
+        content_length, 
+        chunk_count,
+        token_count, 
+        scraping_mode, 
+        created_at, 
+        updated_at
+      FROM scraped_data
+      ORDER BY created_at DESC
+      LIMIT $1
+    `, [limit]);
+    
+    res.json({
+      success: true,
+      pages: result.rows,
+      total: result.rowCount
+    });
+  } catch (error: any) {
+    console.error('Error fetching scraped pages:', error);
+    res.status(500).json({ 
+      error: 'Failed to fetch scraped pages',
+      message: error.message 
+    });
+  }
+});
+
 // Get all scraped pages with metrics
 router.get('/api/v2/scraper/pages', async (req: Request, res: Response) => {
   try {
@@ -845,6 +1095,216 @@ router.delete('/api/v2/scraper/pages/:id', async (req: Request, res: Response) =
     console.error('Error deleting page:', error);
     res.status(500).json({ 
       error: 'Failed to delete page',
+      message: error.message 
+    });
+  }
+});
+
+// Advanced scraping endpoints
+router.post('/api/v2/scraper/crawl', async (req: Request, res: Response) => {
+  try {
+    const {
+      url,
+      maxDepth = 2,
+      maxPages = 10,
+      followLinks = true,
+      generateEmbeddings = false,
+      saveToDb = true,
+      includePatterns = [],
+      excludePatterns = []
+    } = req.body;
+
+    if (!url) {
+      return res.status(400).json({ error: 'URL is required' });
+    }
+
+    // Start crawling in background and track progress
+    const jobId = `crawl_${Date.now()}`;
+    
+    // Initialize job status
+    await redis.set(`job:${jobId}`, JSON.stringify({
+      status: 'processing',
+      url,
+      progress: 0,
+      totalPages: 0,
+      processedPages: 0,
+      startTime: new Date()
+    }), 'EX', 3600);
+
+    // Start crawling asynchronously
+    advancedScraper.scrapeWebsite(url, {
+      maxDepth,
+      maxPages,
+      followLinks,
+      generateEmbeddings,
+      saveToDb,
+      includePatterns,
+      excludePatterns
+    }).then(async (results) => {
+      // Update job status
+      await redis.set(`job:${jobId}`, JSON.stringify({
+        status: 'completed',
+        url,
+        progress: 100,
+        totalPages: results.length,
+        processedPages: results.length,
+        results: results.map(r => ({
+          url: r.url,
+          title: r.title,
+          contentLength: r.content.length,
+          chunksCount: r.chunks?.length || 0
+        })),
+        completedTime: new Date()
+      }), 'EX', 3600);
+    }).catch(async (error) => {
+      // Update job status with error
+      await redis.set(`job:${jobId}`, JSON.stringify({
+        status: 'failed',
+        url,
+        error: error.message,
+        failedTime: new Date()
+      }), 'EX', 3600);
+    });
+
+    res.json({
+      success: true,
+      jobId,
+      message: 'Crawling started',
+      statusUrl: `/api/v2/scraper/job/${jobId}`
+    });
+  } catch (error: any) {
+    console.error('Crawl error:', error);
+    res.status(500).json({ 
+      error: 'Failed to start crawling',
+      message: error.message 
+    });
+  }
+});
+
+// Batch scraping endpoint
+router.post('/api/v2/scraper/batch', async (req: Request, res: Response) => {
+  try {
+    const {
+      urls,
+      generateEmbeddings = false,
+      saveToDb = true
+    } = req.body;
+
+    if (!urls || !Array.isArray(urls) || urls.length === 0) {
+      return res.status(400).json({ error: 'URLs array is required' });
+    }
+
+    const jobId = `batch_${Date.now()}`;
+    
+    // Initialize job status
+    await redis.set(`job:${jobId}`, JSON.stringify({
+      status: 'processing',
+      totalUrls: urls.length,
+      processedUrls: 0,
+      progress: 0,
+      startTime: new Date()
+    }), 'EX', 3600);
+
+    // Process batch asynchronously
+    advancedScraper.scrapeBatch(urls, {
+      generateEmbeddings,
+      saveToDb
+    }).then(async (results) => {
+      await redis.set(`job:${jobId}`, JSON.stringify({
+        status: 'completed',
+        totalUrls: urls.length,
+        processedUrls: results.length,
+        progress: 100,
+        results: results.map(r => ({
+          url: r.url,
+          title: r.title,
+          success: !r.error,
+          error: r.error
+        })),
+        completedTime: new Date()
+      }), 'EX', 3600);
+    }).catch(async (error) => {
+      await redis.set(`job:${jobId}`, JSON.stringify({
+        status: 'failed',
+        error: error.message,
+        failedTime: new Date()
+      }), 'EX', 3600);
+    });
+
+    res.json({
+      success: true,
+      jobId,
+      message: 'Batch scraping started',
+      totalUrls: urls.length,
+      statusUrl: `/api/v2/scraper/job/${jobId}`
+    });
+  } catch (error: any) {
+    console.error('Batch scraping error:', error);
+    res.status(500).json({ 
+      error: 'Failed to start batch scraping',
+      message: error.message 
+    });
+  }
+});
+
+// Get job status
+router.get('/api/v2/scraper/job/:jobId', async (req: Request, res: Response) => {
+  try {
+    const { jobId } = req.params;
+    const jobData = await redis.get(`job:${jobId}`);
+    
+    if (!jobData) {
+      return res.status(404).json({ error: 'Job not found' });
+    }
+    
+    const job = JSON.parse(jobData);
+    res.json({
+      success: true,
+      job
+    });
+  } catch (error: any) {
+    console.error('Error fetching job:', error);
+    res.status(500).json({ 
+      error: 'Failed to fetch job status',
+      message: error.message 
+    });
+  }
+});
+
+// Get sitemap URLs
+router.post('/api/v2/scraper/sitemap', async (req: Request, res: Response) => {
+  try {
+    const { url } = req.body;
+    
+    if (!url) {
+      return res.status(400).json({ error: 'URL is required' });
+    }
+
+    const baseUrl = new URL(url);
+    const sitemapUrl = `${baseUrl.protocol}//${baseUrl.host}/sitemap.xml`;
+    
+    const response = await axios.get(sitemapUrl, { timeout: 10000 });
+    const $ = cheerio.load(response.data, { xmlMode: true });
+    
+    const urls: string[] = [];
+    $('url > loc').each((_, el) => {
+      const loc = $(el).text();
+      if (loc) {
+        urls.push(loc);
+      }
+    });
+    
+    res.json({
+      success: true,
+      sitemapUrl,
+      urlsFound: urls.length,
+      urls: urls.slice(0, 100), // Return first 100 URLs
+      hasMore: urls.length > 100
+    });
+  } catch (error: any) {
+    console.error('Sitemap error:', error);
+    res.status(500).json({ 
+      error: 'Failed to fetch sitemap',
       message: error.message 
     });
   }

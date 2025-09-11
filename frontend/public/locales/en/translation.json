@@ -1,0 +1,254 @@
+{
+  "settings": {
+    "title": "Settings",
+    "description": "ASB system configuration and connection settings",
+    "saveButton": "Save",
+    "savingButton": "Saving...",
+    "generalTab": "General",
+    "servicesTab": "Services",
+    "databaseTab": "Database",
+    "aiServicesTab": "AI",
+    "embeddingsTab": "Embeddings",
+    "integrationsTab": "Integrations",
+    "advancedTab": "Advanced",
+    "generalSettingsTitle": "General Settings",
+    "generalSettingsDescription": "Application name and basic configuration",
+    "appNameLabel": "Application Name",
+    "appNamePlaceholder": "e.g., Financial Advisor Assistant",
+    "appNameDescription": "This name will appear on all pages",
+    "appDescriptionLabel": "Description",
+    "appDescriptionPlaceholder": "System description",
+    "versionLabel": "Version",
+    "languageLabel": "Language",
+    "languageOptions": {
+      "tr": "Türkçe",
+      "en": "English"
+    }
+  },
+  "header": {
+    "dashboard": "Dashboard",
+    "systemStatus": "System Status",
+    "overallStatus": "Overall System Status",
+    "connecting": "Connecting...",
+    "allServicesActive": "All Services Active",
+    "someIssues": "Some Issues Detected",
+    "checkingServices": "Checking services...",
+    "active": "Active",
+    "inactive": "Inactive",
+    "connected": "Connected",
+    "notConnected": "Not Connected",
+    "lastUpdated": "Last updated",
+    "viewDetails": "View Details",
+    "systemSettings": "System Settings",
+    "logout": "Logout",
+    "login": "Login",
+    "menu": {
+      "overview": "Overview",
+      "ragQuery": "LightRAG Query",
+      "documents": "Documents",
+      "embeddings": "Embeddings",
+      "webScraper": "Web Scraper",
+      "prompts": "Prompts",
+      "settings": "Settings",
+      "activities": "Activities",
+      "chatbot": "Chatbot"
+    }
+  },
+  "prompts": {
+    "title": "Chatbot & Prompt Management",
+    "refreshButton": "Refresh",
+    "chatbotTab": "Chatbot",
+    "promptTab": "Prompt",
+    "successUpdate": "System prompt updated successfully!",
+    "failUpdate": "Update failed",
+    "connectionError": "Connection error",
+    "chatbotSettingsSaved": "Chatbot settings saved successfully!",
+    "settingsSaveFailed": "Could not save settings",
+    "settingsReset": "Settings have been reset",
+    "settingsResetFailed": "Could not reset settings",
+    "confirmReset": "All chatbot settings will revert to default. Are you sure?",
+    "copied": "Copied",
+    "copy": "Copy",
+    "generalSettings": {
+      "title": "General Settings",
+      "description": "Customize chatbot title and messages"
+    },
+    "labels": {
+      "chatbotTitle": "Chatbot Title",
+      "logoUrl": "Logo URL",
+      "welcomeMessage": "Welcome Message",
+      "inputPlaceholder": "Input Placeholder",
+      "primaryColor": "Primary Color"
+    },
+    "placeholders": {
+      "chatbotTitle": "e.g., Legal Assistant",
+      "logoUrl": "https://example.com/logo.png",
+      "logoDescription": "Enter image URL for the logo (optional)",
+      "welcomeMessage": "Message to greet users...",
+      "inputPlaceholder": "e.g., Type your question..."
+    },
+    "buttons": {
+      "save": "Save",
+      "saving": "Saving...",
+      "resetToDefault": "Reset to Default",
+      "addNewSuggestion": "Add New Suggestion"
+    },
+    "suggestions": {
+      "title": "Suggestion Cards",
+      "description": "Edit the suggestion cards shown to users",
+      "suggestion": "Suggestion"
+    },
+    "preview": {
+      "title": "Preview",
+      "defaultTitle": "Chatbot Title",
+      "defaultWelcome": "Your welcome message"
+    },
+    "palettes": {
+      "title": "Color Palettes",
+      "blue": "Blue",
+      "green": "Green",
+      "purple": "Purple",
+      "orange": "Orange"
+    },
+    "systemPrompt": {
+      "title": "System Prompt",
+      "description": "Main instructions that define how the AI will respond",
+      "promptText": "Prompt Text",
+      "characters": "characters",
+      "temperature": "Temperature",
+      "tempDescription": "Low: Consistent, High: Creative",
+      "maxTokens": "Max Tokens",
+      "maxTokensDescription": "Maximum response length"
+    },
+    "templates": {
+      "title": "Quick Templates",
+      "description": "Pre-defined prompt templates",
+      "detailed": "Detailed Explanation",
+      "concise": "Short and Concise",
+      "creative": "Creative"
+    },
+    "tips": {
+      "title": "Prompt Tips",
+      "references": "Source References",
+      "referencesDesc": "Use the format [Source 1], [Source 2]",
+      "context": "Context Usage",
+      "contextDesc": "The most relevant sources come first",
+      "temperature": "Temperature",
+      "temperatureDesc": "0.1: Consistent, 0.5: Balanced, 0.9: Creative"
+    },
+    "activePrompt": {
+      "title": "Active Prompt",
+      "description": "The prompt currently in use",
+      "name": "Name",
+      "updated": "Updated"
+    }
+  },
+  "scraper": {
+    "title": "Web Scraper",
+    "description": "Extract and analyze content from web pages",
+    "refreshButton": "Refresh",
+    "scraperTitle": "Web Scraper",
+    "scraperDescription": "Extract content from web pages and store in vector database",
+    "scraperTab": "Scraper",
+    "historyTab": "History",
+    "totalPages": "Total Pages",
+    "totalSize": "Total Size",
+    "totalChunks": "Total Chunks",
+    "successRate": "Success Rate",
+    "urlPlaceholder": "https://example.com",
+    "scrapeButton": "Scrape",
+    "scrapingButton": "Scraping...",
+    "scrapedPages": "Scraped Pages",
+    "searchPlaceholder": "Search...",
+    "noPages": "No pages scraped yet",
+    "table": {
+      "title": "Title",
+      "url": "URL",
+      "size": "Size",
+      "chunks": "Chunks",
+      "mode": "Mode",
+      "date": "Date",
+      "actions": "Actions"
+    },
+    "actions": {
+      "viewDetails": "View Details",
+      "createEmbeddings": "Create Embeddings",
+      "delete": "Delete"
+    },
+    "history": {
+      "title": "Scraping History",
+      "loading": "Loading...",
+      "noHistory": "No history yet",
+      "success": "Success",
+      "failed": "Failed",
+      "embeddings": "Embeddings",
+      "noEmbeddings": "No embeddings"
+    },
+    "details": {
+      "title": "Page Details",
+      "description": "Description",
+      "content": "Content",
+      "url": "URL",
+      "length": "Content Length",
+      "characters": "characters",
+      "created": "Created"
+    },
+    "toasts": {
+      "enterUrl": "Please enter a URL",
+      "validUrl": "Please enter a valid URL",
+      "scrapeSuccess": "Successfully scraped: {{title}}",
+      "scrapeFailed": "Scraping failed",
+      "networkError": "Network error",
+      "embeddingsSuccess": "Embeddings created for {{title}}",
+      "embeddingsFailed": "Failed to create embeddings",
+      "pageDeleted": "Page deleted",
+      "pageDeleteFailed": "Failed to delete page",
+      "historyDeleted": "History entry deleted",
+      "historyDeleteFailed": "Failed to delete entry",
+      "historyCleared": "History cleared",
+      "historyClearFailed": "Failed to clear history",
+      "copied": "Copied to clipboard",
+      "confirmClearHistory": "All history records will be deleted. Are you sure?",
+      "pageLoadFailed": "Failed to load pages"
+    }
+  },
+  "dashboard": {
+    "title": "Dashboard",
+    "loading": "Loading dashboard...",
+    "loadError": "Failed to load dashboard data",
+    "documents": "Documents",
+    "conversations": "Conversations",
+    "messages": "Messages",
+    "embeddings": "Embeddings",
+    "systemStatus": "System Status",
+    "recentActivity": "Recent Activity",
+    "statistics": "Statistics",
+    "quickActions": "Quick Actions",
+    "refresh": "Refresh",
+    "viewAll": "View All",
+    "active": "Active",
+    "inactive": "Inactive",
+    "connected": "Connected",
+    "disconnected": "Disconnected",
+    "status": "Status",
+    "lastUpdated": "Last Updated",
+    "totalSize": "Total Size",
+    "usedMemory": "Used Memory",
+    "cacheHits": "Cache Hits",
+    "initialized": "Initialized",
+    "notInitialized": "Not Initialized",
+    "nodeCount": "Node Count",
+    "edgeCount": "Edge Count",
+    "communities": "Communities",
+    "chunks": "Chunks",
+    "avgChunkSize": "Average Chunk Size",
+    "indexStatus": "Index Status",
+    "lastIndexTime": "Last Index Time"
+  },
+  "toasts": {
+    "settingsSavedSuccessTitle": "Success ✨",
+    "settingsSavedSuccess": "Your settings have been successfully saved and applied.",
+    "settingsSavedErrorTitle": "Error Occurred",
+    "settingsSavedError": "Settings could not be saved. Please try again."
+  }
+}

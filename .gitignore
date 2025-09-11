@@ -299,3 +299,6 @@ jest.config.cjs
 # Windows reserved filenames accidentally created
 /nul
 /frontend/nul
+
+# Moved to old
+/old/

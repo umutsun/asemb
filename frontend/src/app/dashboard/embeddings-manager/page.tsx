@@ -20,8 +20,12 @@ import {
   Search,
   Play,
   Pause,
-  Zap
+  Zap,
+  Loader2,
+  Settings,
+  ExternalLink
 } from 'lucide-react';
+import Link from 'next/link';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 interface TableInfo {
@@ -76,6 +80,8 @@ export default function EmbeddingsManagerPage() {
   const [searchResults, setSearchResults] = useState<any[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [batchSize, setBatchSize] = useState(10);
+  const [isLoadingTables, setIsLoadingTables] = useState(true);
+  const [isLoadingStats, setIsLoadingStats] = useState(true);
 
   useEffect(() => {
     fetchAvailableTables();
@@ -84,6 +90,7 @@ export default function EmbeddingsManagerPage() {
   }, []);
 
   const fetchAvailableTables = async () => {
+    setIsLoadingTables(true);
     try {
       const response = await fetch('/api/embeddings/tables');
       if (response.ok) {
@@ -96,10 +103,14 @@ export default function EmbeddingsManagerPage() {
       }
     } catch (error) {
       console.error('Failed to fetch tables:', error);
+      setError('Veritabanı tabloları yüklenemedi. Veritabanı bağlantınızı kontrol edin.');
+    } finally {
+      setIsLoadingTables(false);
     }
   };
 
   const fetchMigrationStats = async () => {
+    setIsLoadingStats(true);
     try {
       const response = await fetch('/api/embeddings/stats');
       if (response.ok) {
@@ -108,6 +119,8 @@ export default function EmbeddingsManagerPage() {
       }
     } catch (error) {
       console.error('Failed to fetch stats:', error);
+    } finally {
+      setIsLoadingStats(false);
     }
   };
 
@@ -242,11 +255,19 @@ export default function EmbeddingsManagerPage() {
 
   return (
     <div className="p-6 lg:p-8 space-y-6">
-      <div>
-        <h1 className="text-xl font-semibold">RAG & Embeddings Yönetimi</h1>
-        <p className="text-sm text-muted-foreground mt-1">
-          Vektör Veritabanı İşlemleri
-        </p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-xl font-semibold">RAG & Embeddings Yönetimi</h1>
+          <p className="text-sm text-muted-foreground mt-1">
+            Vektör Veritabanı İşlemleri
+          </p>
+        </div>
+        <Link href="/dashboard/settings?tab=database">
+          <Button variant="outline" size="sm">
+            <Settings className="w-4 h-4 mr-2" />
+            Veritabanı Ayarları
+          </Button>
+        </Link>
       </div>
 
       {error && (
@@ -293,6 +314,11 @@ export default function EmbeddingsManagerPage() {
                 <p className="text-sm text-muted-foreground mt-1">
                   {availableTables.length} tabloda
                 </p>
+                {migrationStats?.database && (
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Database: {migrationStats.database}
+                  </p>
+                )}
               </CardContent>
             </Card>
 
@@ -331,11 +357,29 @@ export default function EmbeddingsManagerPage() {
               <CardDescription>Mevcut tablolar ve embedding durumu</CardDescription>
             </CardHeader>
             <CardContent>
+              {isLoadingTables ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="h-6 w-6 animate-spin text-muted-foreground mr-2" />
+                  <span className="text-sm text-muted-foreground">Tablolar yükleniyor...</span>
+                </div>
+              ) : availableTables.length === 0 ? (
+                <div className="text-center py-8">
+                  <Database className="h-12 w-12 text-muted-foreground mx-auto mb-3" />
+                  <p className="text-sm text-muted-foreground">Henüz veri tablosu bulunamadı</p>
+                  <Link href="/dashboard/settings?tab=database">
+                    <Button variant="outline" size="sm" className="mt-3">
+                      <Settings className="w-4 h-4 mr-2" />
+                      Veritabanı Bağlantısını Kontrol Et
+                    </Button>
+                  </Link>
+                </div>
+              ) : (
               <div className="space-y-4">
                 {availableTables.map((table) => {
                   const stats = migrationStats?.tables.find(t => t.name === table.name);
-                  const percentage = stats && stats.count > 0 
-                    ? Math.round((stats.embedded / stats.count) * 100) 
+                  // Use table's own embedded/total records for accurate percentage
+                  const percentage = table.totalRecords > 0 
+                    ? Math.round((table.embeddedRecords / table.totalRecords) * 100) 
                     : 0;
                   
                   return (
@@ -361,6 +405,7 @@ export default function EmbeddingsManagerPage() {
                   );
                 })}
               </div>
+              )}
             </CardContent>
           </Card>
 
@@ -369,12 +414,26 @@ export default function EmbeddingsManagerPage() {
               <CardTitle>Sistem Durumu</CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
-              <div className="flex items-center justify-between">
-                <span className="text-sm flex items-center gap-2">
-                  <Activity className="w-4 h-4" />
-                  Veritabanı Bağlantısı
-                </span>
-                <Badge variant="success">Aktif</Badge>
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm flex items-center gap-2">
+                    <Database className="w-4 h-4" />
+                    PostgreSQL Bağlantısı
+                  </span>
+                  <Badge variant="success">Aktif</Badge>
+                </div>
+                {migrationStats?.database && (
+                  <div className="pl-6 space-y-1">
+                    <div className="flex items-center justify-between text-xs text-muted-foreground">
+                      <span>Database:</span>
+                      <span className="font-mono">{migrationStats.database}</span>
+                    </div>
+                    <div className="flex items-center justify-between text-xs text-muted-foreground">
+                      <span>Host:</span>
+                      <span className="font-mono">localhost:5432</span>
+                    </div>
+                  </div>
+                )}
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-sm flex items-center gap-2">
@@ -389,6 +448,13 @@ export default function EmbeddingsManagerPage() {
                   pgvector Extension
                 </span>
                 <Badge variant="success">Yüklü</Badge>
+              </div>
+              <div className="pt-2 border-t">
+                <Link href="/dashboard/settings?tab=database" className="text-xs text-primary hover:underline flex items-center gap-1">
+                  <Settings className="w-3 h-3" />
+                  Veritabanı ayarlarını değiştir
+                  <ExternalLink className="w-3 h-3" />
+                </Link>
               </div>
             </CardContent>
           </Card>
@@ -443,12 +509,18 @@ export default function EmbeddingsManagerPage() {
                           className="mt-1 rounded"
                         />
                         <label htmlFor={`table-${table.name}`} className="text-sm cursor-pointer flex-1">
-                          <div className="font-medium">{table.displayName}</div>
+                          <div className="font-medium">
+                            {table.displayName}
+                            <span className="text-xs text-muted-foreground ml-2">
+                              ({table.database})
+                            </span>
+                          </div>
                           <div className="text-xs text-muted-foreground mt-1">
                             {table.totalRecords.toLocaleString('tr-TR')} kayıt
                             {table.embeddedRecords > 0 && (
                               <span className="text-green-600 dark:text-green-400">
                                 {' • '}{table.embeddedRecords.toLocaleString('tr-TR')} embed edilmiş
+                                ({Math.round((table.embeddedRecords / table.totalRecords) * 100)}%)
                               </span>
                             )}
                           </div>
@@ -543,7 +615,17 @@ export default function EmbeddingsManagerPage() {
                     <div className="p-3 bg-blue-50 dark:bg-blue-950 rounded-lg">
                       <p className="text-sm font-medium text-blue-900 dark:text-blue-100">
                         İşleniyor: {getCurrentTableInfo()?.displayName || progress.currentTable}
+                        {getCurrentTableInfo()?.database && (
+                          <span className="text-xs ml-2 opacity-75">
+                            ({getCurrentTableInfo()?.database})
+                          </span>
+                        )}
                       </p>
+                      {getCurrentTableInfo() && (
+                        <p className="text-xs text-blue-700 dark:text-blue-300 mt-1">
+                          {getCurrentTableInfo().embeddedRecords.toLocaleString('tr-TR')} / {getCurrentTableInfo().totalRecords.toLocaleString('tr-TR')} kayıt
+                        </p>
+                      )}
                     </div>
                   )}
 
