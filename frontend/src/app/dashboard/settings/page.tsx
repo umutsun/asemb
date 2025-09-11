@@ -76,7 +76,7 @@ interface Config {
   app: {
     name: string;
     description: string;
-    version: string;
+    logoUrl: string;
     locale: string;
   };
   database: {
@@ -167,7 +167,7 @@ export default function SettingsPage() {
     app: {
       name: 'Alice Semantic Bridge',
       description: 'AI-Powered Knowledge Management System',
-      version: '1.0.0',
+      logoUrl: '',
       locale: 'tr'
     },
     database: {
@@ -695,26 +695,27 @@ TASK:
                   placeholder={t('settings.appDescriptionPlaceholder')}
                 />
               </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="text-sm font-medium">{t('settings.versionLabel')}</label>
-                  <Input
-                    value={config.app.version}
-                    onChange={(e) => updateConfig('app', 'version', e.target.value)}
-                    placeholder="1.0.0"
-                  />
-                </div>
-                <div>
-                  <label className="text-sm font-medium">{t('settings.languageLabel')}</label>
-                  <select
-                    value={i18n.language}
-                    onChange={(e) => handleLanguageChange(e.target.value)}
-                    className="w-full p-2 border rounded-md"
-                  >
-                    <option value="tr">{t('settings.languageOptions.tr')}</option>
-                    <option value="en">{t('settings.languageOptions.en')}</option>
-                  </select>
-                </div>
+              <div>
+                <label className="text-sm font-medium">{t('settings.logoUrlLabel') || 'Logo URL'}</label>
+                <Input
+                  value={config.app.logoUrl}
+                  onChange={(e) => updateConfig('app', 'logoUrl', e.target.value)}
+                  placeholder="https://example.com/logo.png"
+                />
+                <p className="text-xs text-muted-foreground mt-1">
+                  {t('settings.logoUrlDescription') || 'Upload your company logo URL to customize the dashboard'}
+                </p>
+              </div>
+              <div>
+                <label className="text-sm font-medium">{t('settings.languageLabel')}</label>
+                <select
+                  value={i18n.language}
+                  onChange={(e) => handleLanguageChange(e.target.value)}
+                  className="w-full p-2 border rounded-md"
+                >
+                  <option value="tr">{t('settings.languageOptions.tr')}</option>
+                  <option value="en">{t('settings.languageOptions.en')}</option>
+                </select>
               </div>
             </CardContent>
           </Card>

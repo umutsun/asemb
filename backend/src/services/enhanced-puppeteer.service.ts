@@ -280,6 +280,22 @@ export class EnhancedPuppeteerService {
     const allSelectors = [
       ...(options.prioritySelectors || []),
       ...(options.customSelectors || []),
+      // Turkish government sites (GİB, e-devlet, etc.)
+      '.accordion-body',
+      '.panel-body',
+      '.tab-content',
+      '.tab-pane.active',
+      '[id*="icerik"]',
+      '[class*="icerik"]',
+      '.detay',
+      '.makale',
+      '.kanun-madde',
+      '.mevzuat-content',
+      '.law-content',
+      '.madde-metni',
+      '[class*="madde"]',
+      '[class*="kanun"]',
+      '[id*="madde"]',
       // MUI specific selectors
       '.MuiContainer-root',
       '.MuiGrid-root.MuiGrid-container',
@@ -303,7 +319,13 @@ export class EnhancedPuppeteerService {
       '#content',
       '.post',
       '.entry-content',
-      '.article-content'
+      '.article-content',
+      // Bootstrap common patterns
+      '.container .row',
+      '.col-md-8',
+      '.col-md-9',
+      '.col-lg-8',
+      '.col-lg-9'
     ];
 
     let contentParts: string[] = [];

@@ -1,40 +1,58 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { 
   Zap, 
-  Upload, 
   FileText, 
   Loader2,
   CheckCircle,
   AlertTriangle,
-  Download,
   Cpu,
   Database,
-  BarChart3,
-  Settings,
+  Brain,
   Play,
-  Pause,
-  RefreshCw
+  Search,
+  Hash
 } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { toast } from 'sonner';
 
 export default function EmbedderPage() {
   const [text, setText] = useState('');
   const [loading, setLoading] = useState(false);
-  const [progress, setProgress] = useState(0);
+  const [testLoading, setTestLoading] = useState(false);
+  const [searchLoading, setSearchLoading] = useState(false);
   const [result, setResult] = useState<any>(null);
+  const [testResult, setTestResult] = useState<any>(null);
+  const [searchResult, setSearchResult] = useState<any>(null);
   const [error, setError] = useState('');
-  const [selectedModel, setSelectedModel] = useState('text-embedding-ada-002');
+  const [selectedProvider, setSelectedProvider] = useState('openai');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [lightragStats, setLightragStats] = useState<any>(null);
+
+  useEffect(() => {
+    fetchLightRAGStats();
+  }, []);
+
+  const fetchLightRAGStats = async () => {
+    try {
+      const response = await fetch('/api/v2/lightrag/stats');
+      if (response.ok) {
+        const data = await response.json();
+        setLightragStats(data);
+      }
+    } catch (error) {
+      console.error('Failed to fetch LightRAG stats:', error);
+    }
+  };
 
   const handleGenerateEmbedding = async () => {
     if (!text.trim()) {
@@ -44,46 +62,138 @@ export default function EmbedderPage() {
 
     setLoading(true);
     setError('');
-    setProgress(0);
-
-    // Simulate progress
-    const progressInterval = setInterval(() => {
-      setProgress(prev => Math.min(prev + 10, 90));
-    }, 200);
+    setResult(null);
 
     try {
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      
-      setResult({
-        dimensions: 1536,
-        model: selectedModel,
-        tokens: 245,
-        processingTime: '0.8s',
-        vectorPreview: [0.0234, -0.0156, 0.0089, 0.0412, -0.0267],
-        cost: '$0.0002'
+      const endpoint = selectedProvider === 'lightrag' 
+        ? '/api/v2/lightrag/embed'
+        : '/api/v2/embeddings/generate';
+
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          text: text.trim(),
+          provider: selectedProvider 
+        })
       });
-      setProgress(100);
+
+      const data = await response.json();
+      
+      if (response.ok && data.success) {
+        setResult({
+          embedding: data.embedding,
+          dimensions: data.embedding?.length || 1536,
+          provider: selectedProvider,
+          tokens: data.tokens || Math.ceil(text.length / 4),
+          cached: data.cached || false,
+          processingTime: data.processingTime || '0.5s'
+        });
+        toast.success('Embedding başarıyla oluşturuldu');
+      } else {
+        setError(data.error || 'Embedding oluşturulamadı');
+        toast.error(data.error || 'Embedding oluşturulamadı');
+      }
     } catch (err) {
-      setError('Embedding oluşturulurken hata oluştu');
+      setError('Bağlantı hatası');
+      toast.error('Bağlantı hatası');
     } finally {
-      clearInterval(progressInterval);
       setLoading(false);
     }
   };
 
-  const stats = {
-    totalEmbeddings: 12543,
-    avgProcessingTime: '0.6s',
-    totalTokens: 3456789,
-    cacheHitRate: '78%'
+  const handleTestLightRAG = async () => {
+    setTestLoading(true);
+    setTestResult(null);
+
+    try {
+      // First, add a test document
+      const addResponse = await fetch('/api/v2/lightrag/documents', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          content: text.trim() || 'Bu bir test dokümandır. ASB sistemi yapay zeka tabanlı bir RAG sistemidir.',
+          metadata: {
+            source: 'embedder_test',
+            timestamp: new Date().toISOString()
+          }
+        })
+      });
+
+      if (!addResponse.ok) {
+        throw new Error('Doküman eklenemedi');
+      }
+
+      // Then query it
+      const queryResponse = await fetch('/api/v2/lightrag/query', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          query: 'ASB sistemi nedir?',
+          k: 3
+        })
+      });
+
+      const queryData = await queryResponse.json();
+      
+      setTestResult({
+        success: true,
+        documentAdded: true,
+        queryResult: queryData.answer || 'Sorgu sonucu alınamadı',
+        provider: lightragStats?.provider || 'unknown'
+      });
+
+      toast.success('LightRAG testi başarılı');
+      fetchLightRAGStats(); // Refresh stats
+    } catch (err: any) {
+      setTestResult({
+        success: false,
+        error: err.message
+      });
+      toast.error('LightRAG testi başarısız');
+    } finally {
+      setTestLoading(false);
+    }
   };
 
-  const recentJobs = [
-    { id: 1, name: 'Legal Documents Batch', status: 'completed', documents: 156, time: '2 dk önce' },
-    { id: 2, name: 'Client Contracts', status: 'processing', documents: 89, time: '5 dk önce' },
-    { id: 3, name: 'Case Studies', status: 'completed', documents: 234, time: '15 dk önce' },
-    { id: 4, name: 'Regulations Update', status: 'failed', documents: 45, time: '1 saat önce' }
-  ];
+  const handleSemanticSearch = async () => {
+    if (!searchQuery.trim()) {
+      toast.error('Lütfen arama sorgusu girin');
+      return;
+    }
+
+    setSearchLoading(true);
+    setSearchResult(null);
+
+    try {
+      const response = await fetch('/api/v2/search/semantic', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          query: searchQuery.trim(),
+          limit: 5,
+          threshold: 0.7
+        })
+      });
+
+      const data = await response.json();
+      
+      if (response.ok) {
+        setSearchResult({
+          results: data.results || [],
+          count: data.results?.length || 0,
+          executionTime: data.executionTime || 'N/A'
+        });
+        toast.success(`${data.results?.length || 0} sonuç bulundu`);
+      } else {
+        toast.error('Arama başarısız');
+      }
+    } catch (err) {
+      toast.error('Arama hatası');
+    } finally {
+      setSearchLoading(false);
+    }
+  };
 
   return (
     <div className="py-6 space-y-6">
@@ -91,230 +201,161 @@ export default function EmbedderPage() {
         <div>
           <h1 className="text-xl font-semibold tracking-tight">Embedder Service</h1>
           <p className="text-sm text-muted-foreground mt-1">
-            Metinleri vektör temsillerine dönüştürün
+            Vektör embedding oluştur ve test et
           </p>
         </div>
         <div className="flex gap-2">
           <Badge variant="outline" className="gap-1">
-            <Cpu className="h-3 w-3" />
-            OpenAI API
+            <Database className="h-3 w-3" />
+            pgvector
           </Badge>
-          <Badge variant="success" className="gap-1">
-            <Zap className="h-3 w-3" />
-            Aktif
-          </Badge>
+          {lightragStats?.initialized && (
+            <Badge variant="outline" className="gap-1">
+              <Brain className="h-3 w-3" />
+              LightRAG Active
+            </Badge>
+          )}
         </div>
       </div>
 
-      {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">Toplam Embedding</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.totalEmbeddings.toLocaleString()}</div>
-            <p className="text-xs text-muted-foreground mt-1">+12% bu hafta</p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">Ort. İşlem Süresi</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.avgProcessingTime}</div>
-            <p className="text-xs text-muted-foreground mt-1">%15 daha hızlı</p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">Token Kullanımı</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{(stats.totalTokens / 1000000).toFixed(1)}M</div>
-            <p className="text-xs text-muted-foreground mt-1">$34.56 maliyet</p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">Cache Hit Rate</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.cacheHitRate}</div>
-            <Progress value={78} className="mt-2" />
-          </CardContent>
-        </Card>
-      </div>
-
-      <Tabs defaultValue="single" className="space-y-4">
-        <TabsList className="grid w-full grid-cols-3 max-w-[400px]">
-          <TabsTrigger value="single">Tekli İşlem</TabsTrigger>
-          <TabsTrigger value="batch">Toplu İşlem</TabsTrigger>
-          <TabsTrigger value="jobs">İş Kuyruğu</TabsTrigger>
+      <Tabs defaultValue="generate" className="space-y-4">
+        <TabsList className="grid w-full grid-cols-3">
+          <TabsTrigger value="generate">
+            <Zap className="h-4 w-4 mr-2" />
+            Embedding Oluştur
+          </TabsTrigger>
+          <TabsTrigger value="test">
+            <Brain className="h-4 w-4 mr-2" />
+            LightRAG Test
+          </TabsTrigger>
+          <TabsTrigger value="search">
+            <Search className="h-4 w-4 mr-2" />
+            Semantic Ara
+          </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="single" className="space-y-4">
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <TabsContent value="generate" className="space-y-4">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
             <div className="lg:col-span-2 space-y-4">
               <Card>
                 <CardHeader>
-                  <CardTitle>Metin Girişi</CardTitle>
+                  <CardTitle>Metin Embedding</CardTitle>
                   <CardDescription>
-                    Vektör oluşturmak için metninizi girin
+                    Metni vektör temsiline dönüştür
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  <div className="space-y-2">
-                    <Label>Model Seçimi</Label>
-                    <Select value={selectedModel} onValueChange={setSelectedModel}>
+                  <div>
+                    <Label>Provider Seçin</Label>
+                    <Select value={selectedProvider} onValueChange={setSelectedProvider}>
                       <SelectTrigger>
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="text-embedding-ada-002">text-embedding-ada-002 (OpenAI)</SelectItem>
-                        <SelectItem value="text-embedding-3-small">text-embedding-3-small (OpenAI)</SelectItem>
-                        <SelectItem value="text-embedding-3-large">text-embedding-3-large (OpenAI)</SelectItem>
+                        <SelectItem value="openai">
+                          <div className="flex items-center gap-2">
+                            <Cpu className="h-4 w-4" />
+                            OpenAI (text-embedding-ada-002)
+                          </div>
+                        </SelectItem>
+                        <SelectItem value="lightrag">
+                          <div className="flex items-center gap-2">
+                            <Brain className="h-4 w-4" />
+                            LightRAG (Langchain)
+                          </div>
+                        </SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
 
-                  <div className="space-y-2">
-                    <Label>Metin ({text.length} karakter)</Label>
+                  <div>
+                    <Label>Metin</Label>
                     <Textarea
-                      placeholder="Embedding oluşturulacak metni buraya girin..."
+                      placeholder="Embedding oluşturmak istediğiniz metni girin..."
                       value={text}
                       onChange={(e) => setText(e.target.value)}
-                      className="min-h-[200px] font-mono text-sm"
+                      rows={6}
+                      className="font-mono text-sm"
                     />
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {text.length} karakter • ~{Math.ceil(text.length / 4)} token
+                    </p>
                   </div>
 
-                  {loading && (
-                    <div className="space-y-2">
-                      <div className="flex justify-between text-sm">
-                        <span>İşleniyor...</span>
-                        <span>{progress}%</span>
-                      </div>
-                      <Progress value={progress} />
-                    </div>
+                  <Button 
+                    onClick={handleGenerateEmbedding}
+                    disabled={loading || !text.trim()}
+                    className="w-full"
+                  >
+                    {loading ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        İşleniyor...
+                      </>
+                    ) : (
+                      <>
+                        <Hash className="h-4 w-4 mr-2" />
+                        Embedding Oluştur
+                      </>
+                    )}
+                  </Button>
+
+                  {result && (
+                    <Alert className="border-green-200">
+                      <CheckCircle className="h-4 w-4 text-green-600" />
+                      <AlertDescription>
+                        <div className="space-y-2">
+                          <p className="font-semibold">Embedding başarıyla oluşturuldu!</p>
+                          <div className="grid grid-cols-2 gap-2 text-sm">
+                            <div>Provider: {result.provider}</div>
+                            <div>Boyut: {result.dimensions}D</div>
+                            <div>Token: {result.tokens}</div>
+                            <div>Cache: {result.cached ? 'Evet' : 'Hayır'}</div>
+                          </div>
+                          {result.embedding && (
+                            <div className="mt-2 p-2 bg-muted rounded text-xs font-mono">
+                              [{result.embedding.slice(0, 5).map((v: number) => v.toFixed(4)).join(', ')}...]
+                            </div>
+                          )}
+                        </div>
+                      </AlertDescription>
+                    </Alert>
                   )}
 
-                  <div className="flex justify-between items-center">
-                    <div className="flex gap-2">
-                      <Button variant="outline" size="sm">
-                        <Upload className="h-4 w-4 mr-2" />
-                        Dosyadan Yükle
-                      </Button>
-                      <Button variant="outline" size="sm">
-                        <Settings className="h-4 w-4 mr-2" />
-                        Gelişmiş Ayarlar
-                      </Button>
-                    </div>
-                    <Button 
-                      onClick={handleGenerateEmbedding}
-                      disabled={loading || !text.trim()}
-                    >
-                      {loading ? (
-                        <>
-                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                          İşleniyor...
-                        </>
-                      ) : (
-                        <>
-                          <Zap className="h-4 w-4 mr-2" />
-                          Embedding Oluştur
-                        </>
-                      )}
-                    </Button>
-                  </div>
+                  {error && (
+                    <Alert variant="destructive">
+                      <AlertTriangle className="h-4 w-4" />
+                      <AlertDescription>{error}</AlertDescription>
+                    </Alert>
+                  )}
                 </CardContent>
               </Card>
-
-              {result && (
-                <Card className="border-green-200 dark:border-green-800">
-                  <CardHeader>
-                    <div className="flex justify-between items-start">
-                      <div>
-                        <CardTitle className="flex items-center gap-2">
-                          <CheckCircle className="h-5 w-5 text-green-600" />
-                          Embedding Başarıyla Oluşturuldu
-                        </CardTitle>
-                        <CardDescription className="mt-1">
-                          Model: {result.model}
-                        </CardDescription>
-                      </div>
-                      <Button variant="outline" size="sm">
-                        <Download className="h-4 w-4 mr-2" />
-                        İndir
-                      </Button>
-                    </div>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
-                      <div>
-                        <p className="text-sm text-muted-foreground">Boyut</p>
-                        <p className="font-semibold">{result.dimensions}D</p>
-                      </div>
-                      <div>
-                        <p className="text-sm text-muted-foreground">Token</p>
-                        <p className="font-semibold">{result.tokens}</p>
-                      </div>
-                      <div>
-                        <p className="text-sm text-muted-foreground">Süre</p>
-                        <p className="font-semibold">{result.processingTime}</p>
-                      </div>
-                      <div>
-                        <p className="text-sm text-muted-foreground">Maliyet</p>
-                        <p className="font-semibold">{result.cost}</p>
-                      </div>
-                    </div>
-
-                    <div className="p-3 bg-muted/50 rounded-md">
-                      <p className="text-sm font-medium mb-2">Vektör Önizleme (ilk 5 değer):</p>
-                      <code className="text-xs">
-                        [{result.vectorPreview.join(', ')}...]
-                      </code>
-                    </div>
-                  </CardContent>
-                </Card>
-              )}
-
-              {error && (
-                <Alert variant="destructive">
-                  <AlertTriangle className="h-4 w-4" />
-                  <AlertDescription>{error}</AlertDescription>
-                </Alert>
-              )}
             </div>
 
             <div>
               <Card>
                 <CardHeader>
-                  <CardTitle>Kullanım İstatistikleri</CardTitle>
+                  <CardTitle>Sistem Durumu</CardTitle>
                 </CardHeader>
-                <CardContent>
-                  <div className="space-y-4">
-                    <div>
-                      <div className="flex justify-between text-sm mb-1">
-                        <span>Günlük Limit</span>
-                        <span>8,543 / 10,000</span>
-                      </div>
-                      <Progress value={85} />
+                <CardContent className="space-y-4">
+                  <div className="space-y-2">
+                    <div className="flex justify-between text-sm">
+                      <span>OpenAI API</span>
+                      <Badge variant="success">Aktif</Badge>
                     </div>
-                    <div>
-                      <div className="flex justify-between text-sm mb-1">
-                        <span>Aylık Token</span>
-                        <span>2.3M / 5M</span>
-                      </div>
-                      <Progress value={46} />
+                    <div className="flex justify-between text-sm">
+                      <span>LightRAG</span>
+                      <Badge variant={lightragStats?.initialized ? "success" : "secondary"}>
+                        {lightragStats?.initialized ? 'Aktif' : 'Pasif'}
+                      </Badge>
                     </div>
-                    <div className="pt-2 border-t">
-                      <div className="flex justify-between text-sm">
-                        <span>API Durumu</span>
-                        <Badge variant="success">Çalışıyor</Badge>
-                      </div>
+                    <div className="flex justify-between text-sm">
+                      <span>Doküman Sayısı</span>
+                      <span className="font-mono">{lightragStats?.documentCount || 0}</span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span>Redis Cache</span>
+                      <Badge variant="success">Aktif</Badge>
                     </div>
                   </div>
                 </CardContent>
@@ -323,89 +364,146 @@ export default function EmbedderPage() {
           </div>
         </TabsContent>
 
-        <TabsContent value="batch" className="space-y-4">
+        <TabsContent value="test" className="space-y-4">
           <Card>
             <CardHeader>
-              <CardTitle>Toplu Embedding İşlemi</CardTitle>
+              <CardTitle>LightRAG Test</CardTitle>
               <CardDescription>
-                Birden fazla doküman için embedding oluşturun
+                LightRAG sistemini test edin
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="border-2 border-dashed rounded-lg p-8 text-center">
-                <Upload className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-                <p className="text-sm font-medium mb-2">
-                  Dosyaları sürükleyin veya tıklayın
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  CSV, TXT, JSON formatları desteklenir (Max: 100MB)
-                </p>
-                <Button variant="outline" className="mt-4">
-                  Dosya Seç
-                </Button>
+              <div>
+                <Label>Test Metni</Label>
+                <Textarea
+                  placeholder="Test için kullanılacak metin (boş bırakılırsa varsayılan kullanılır)"
+                  value={text}
+                  onChange={(e) => setText(e.target.value)}
+                  rows={4}
+                />
               </div>
 
-              <div className="flex justify-between">
-                <div className="text-sm text-muted-foreground">
-                  Desteklenen formatlar: .txt, .csv, .json, .pdf
-                </div>
-                <Button>
-                  <Play className="h-4 w-4 mr-2" />
-                  Toplu İşlemi Başlat
-                </Button>
-              </div>
+              <Button 
+                onClick={handleTestLightRAG}
+                disabled={testLoading}
+                className="w-full"
+              >
+                {testLoading ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Test ediliyor...
+                  </>
+                ) : (
+                  <>
+                    <Play className="h-4 w-4 mr-2" />
+                    LightRAG'i Test Et
+                  </>
+                )}
+              </Button>
+
+              {testResult && (
+                <Alert className={testResult.success ? "border-green-200" : "border-red-200"}>
+                  {testResult.success ? (
+                    <CheckCircle className="h-4 w-4 text-green-600" />
+                  ) : (
+                    <AlertTriangle className="h-4 w-4 text-red-600" />
+                  )}
+                  <AlertDescription>
+                    <div className="space-y-2">
+                      <p className="font-semibold">
+                        {testResult.success ? 'Test başarılı!' : 'Test başarısız!'}
+                      </p>
+                      {testResult.success ? (
+                        <>
+                          <p className="text-sm">Doküman eklendi: ✓</p>
+                          <p className="text-sm">Sorgu sonucu:</p>
+                          <div className="p-2 bg-muted rounded text-sm">
+                            {testResult.queryResult}
+                          </div>
+                          <p className="text-xs text-muted-foreground">
+                            Provider: {testResult.provider}
+                          </p>
+                        </>
+                      ) : (
+                        <p className="text-sm text-red-600">{testResult.error}</p>
+                      )}
+                    </div>
+                  </AlertDescription>
+                </Alert>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
 
-        <TabsContent value="jobs" className="space-y-4">
+        <TabsContent value="search" className="space-y-4">
           <Card>
             <CardHeader>
-              <div className="flex justify-between items-center">
-                <div>
-                  <CardTitle>İş Kuyruğu</CardTitle>
-                  <CardDescription>Aktif ve tamamlanan embedding işlemleri</CardDescription>
-                </div>
-                <Button variant="outline" size="sm">
-                  <RefreshCw className="h-4 w-4 mr-2" />
-                  Yenile
-                </Button>
-              </div>
+              <CardTitle>Semantic Search</CardTitle>
+              <CardDescription>
+                Vektör veritabanında anlamsal arama yapın
+              </CardDescription>
             </CardHeader>
-            <CardContent>
-              <div className="space-y-3">
-                {recentJobs.map((job) => (
-                  <div key={job.id} className="flex items-center justify-between p-3 border rounded-lg">
-                    <div className="flex items-center gap-3">
-                      <div>
-                        {job.status === 'completed' && <CheckCircle className="h-5 w-5 text-green-600" />}
-                        {job.status === 'processing' && <Loader2 className="h-5 w-5 text-blue-600 animate-spin" />}
-                        {job.status === 'failed' && <AlertTriangle className="h-5 w-5 text-red-600" />}
-                      </div>
-                      <div>
-                        <p className="font-medium text-sm">{job.name}</p>
-                        <p className="text-xs text-muted-foreground">
-                          {job.documents} doküman • {job.time}
-                        </p>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Badge variant={
-                        job.status === 'completed' ? 'success' :
-                        job.status === 'processing' ? 'default' : 'destructive'
-                      }>
-                        {job.status === 'completed' ? 'Tamamlandı' :
-                         job.status === 'processing' ? 'İşleniyor' : 'Başarısız'}
-                      </Badge>
-                      {job.status === 'processing' && (
-                        <Button variant="ghost" size="icon">
-                          <Pause className="h-4 w-4" />
-                        </Button>
-                      )}
-                    </div>
-                  </div>
-                ))}
+            <CardContent className="space-y-4">
+              <div>
+                <Label>Arama Sorgusu</Label>
+                <Textarea
+                  placeholder="Aramak istediğiniz soruyu yazın..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  rows={3}
+                />
               </div>
+
+              <Button 
+                onClick={handleSemanticSearch}
+                disabled={searchLoading || !searchQuery.trim()}
+                className="w-full"
+              >
+                {searchLoading ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Aranıyor...
+                  </>
+                ) : (
+                  <>
+                    <Search className="h-4 w-4 mr-2" />
+                    Ara
+                  </>
+                )}
+              </Button>
+
+              {searchResult && (
+                <div className="space-y-2">
+                  <div className="flex justify-between items-center">
+                    <p className="text-sm font-semibold">
+                      {searchResult.count} sonuç bulundu
+                    </p>
+                    <Badge variant="outline">
+                      {searchResult.executionTime}
+                    </Badge>
+                  </div>
+                  
+                  <div className="space-y-2">
+                    {searchResult.results.map((result: any, index: number) => (
+                      <Card key={index} className="p-3">
+                        <div className="space-y-1">
+                          <div className="flex justify-between items-start">
+                            <p className="text-sm font-medium">
+                              Benzerlik: {(result.similarity * 100).toFixed(1)}%
+                            </p>
+                            <Badge variant="outline" className="text-xs">
+                              {result.document_type}
+                            </Badge>
+                          </div>
+                          <p className="text-xs text-muted-foreground line-clamp-3">
+                            {result.content}
+                          </p>
+                        </div>
+                      </Card>
+                    ))}
+                  </div>
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>

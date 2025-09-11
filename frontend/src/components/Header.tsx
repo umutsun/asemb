@@ -29,6 +29,7 @@ import {
   Database,
   LogOut,
   User,
+  Users,
   Server,
   Cpu,
   Settings2,
@@ -77,6 +78,15 @@ export default function Header({ user, onLogout }: HeaderProps) {
   const [systemStatus, setSystemStatus] = useState<SystemStatus | null>(null);
   const [isConnecting, setIsConnecting] = useState(true);
   const [connectionProgress, setConnectionProgress] = useState(0);
+  const [currentUser, setCurrentUser] = useState<any>(null);
+  
+  useEffect(() => {
+    // Get user from localStorage
+    const storedUser = localStorage.getItem('user');
+    if (storedUser) {
+      setCurrentUser(JSON.parse(storedUser));
+    }
+  }, []);
 
   useEffect(() => {
     fetchSystemStatus();
@@ -135,12 +145,12 @@ export default function Header({ user, onLogout }: HeaderProps) {
   const menuItems = [
     { href: '/dashboard', label: t('header.menu.overview'), icon: Home },
     { href: '/dashboard/query', label: t('header.menu.ragQuery'), icon: Search },
-    { href: '/dashboard/documents', label: t('header.menu.documents'), icon: FileText },
-    { href: '/dashboard/prompts', label: t('header.menu.prompts'), icon: MessageSquare },
-    { href: '/dashboard/scraper', label: t('header.menu.webScraper'), icon: Globe },
-    { href: '/dashboard/settings', label: t('header.menu.settings'), icon: Settings2 },
+    { href: '/dashboard/documents', label: 'Documents', icon: FileText },
+    { href: '/dashboard/embedder', label: 'Embedder', icon: Cpu },
+    { href: '/dashboard/scraper', label: 'Scraper', icon: Globe },
     { href: '/dashboard/activity', label: t('header.menu.activities'), icon: Activity },
-    { href: '/', label: t('header.menu.chatbot'), icon: Brain },
+    ...(currentUser?.role === 'admin' ? [{ href: '/dashboard/users', label: 'Kullanıcılar', icon: Users }] : []),
+    { href: '/', label: 'Chatbot', icon: Brain },
   ];
 
   const allServicesActive = systemStatus?.database.connected && 
@@ -162,7 +172,15 @@ export default function Header({ user, onLogout }: HeaderProps) {
             <SheetContent side="left" className="w-[280px] sm:w-[350px]">
               <SheetHeader>
                 <SheetTitle className="flex items-center gap-2">
-                  <Brain className="h-6 w-6 text-primary" />
+                  {config?.app?.logoUrl ? (
+                    <img 
+                      src={config.app.logoUrl} 
+                      alt={config.app.name || 'Logo'} 
+                      className="h-6 w-auto object-contain"
+                    />
+                  ) : (
+                    <Brain className="h-6 w-6 text-primary" />
+                  )}
                   <span className="text-lg font-bold">{config?.app?.name || 'ASB'}</span>
                 </SheetTitle>
               </SheetHeader>
@@ -216,10 +234,18 @@ export default function Header({ user, onLogout }: HeaderProps) {
 
           {/* Logo - Responsive */}
           <Link href="/dashboard" className="flex items-center gap-2 lg:gap-3 hover:opacity-80 transition-opacity">
-            <div className="relative">
-              <Brain className="h-6 w-6 lg:h-8 lg:w-8 text-primary" />
-              <div className="absolute -top-1 -right-1 h-2 w-2 lg:h-3 lg:w-3 bg-green-500 rounded-full animate-pulse" />
-            </div>
+            {config?.app?.logoUrl ? (
+              <img 
+                src={config.app.logoUrl} 
+                alt={config.app.name || 'Logo'} 
+                className="h-8 w-auto lg:h-10 object-contain"
+              />
+            ) : (
+              <div className="relative">
+                <Brain className="h-6 w-6 lg:h-8 lg:w-8 text-primary" />
+                <div className="absolute -top-1 -right-1 h-2 w-2 lg:h-3 lg:w-3 bg-green-500 rounded-full animate-pulse" />
+              </div>
+            )}
             <div className="hidden sm:block">
               <h1 className="text-lg lg:text-xl font-bold bg-gradient-to-r from-primary to-purple-600 bg-clip-text text-transparent">
                 {config?.app?.name || 'Alice Semantic Bridge'}
@@ -301,7 +327,7 @@ export default function Header({ user, onLogout }: HeaderProps) {
                         <div>
                           <p className="text-xs font-medium">PostgreSQL</p>
                           <Badge variant={systemStatus?.database.connected ? "success" : "destructive"} className="text-xs">
-                            {systemStatus?.database.connected ? t('header.connected') : t('header.notConnected')}
+                            {systemStatus?.database.connected ? 'rag_chatbot' : t('header.notConnected')}
                           </Badge>
                         </div>
                       </div>
@@ -310,7 +336,7 @@ export default function Header({ user, onLogout }: HeaderProps) {
                         <div>
                           <p className="text-xs font-medium">Redis</p>
                           <Badge variant={systemStatus?.redis.connected ? "success" : "destructive"} className="text-xs">
-                            {systemStatus?.redis.connected ? t('header.connected') : t('header.notConnected')}
+                            {systemStatus?.redis.connected ? ':6379' : t('header.notConnected')}
                           </Badge>
                         </div>
                       </div>
@@ -319,16 +345,16 @@ export default function Header({ user, onLogout }: HeaderProps) {
                         <div>
                           <p className="text-xs font-medium">LightRAG</p>
                           <Badge variant={systemStatus?.lightrag.initialized ? "success" : "destructive"} className="text-xs">
-                            {systemStatus?.lightrag.initialized ? t('header.active') : t('header.inactive')}
+                            {systemStatus?.lightrag.initialized ? ':7687' : t('header.inactive')}
                           </Badge>
                         </div>
                       </div>
                       <div className="flex items-center gap-2">
                         <Cpu className="h-4 w-4 text-green-600" />
                         <div>
-                          <p className="text-xs font-medium">Embedder</p>
+                          <p className="text-xs font-medium">OpenAI</p>
                           <Badge variant={systemStatus?.embedder.active ? "success" : "destructive"} className="text-xs">
-                            {systemStatus?.embedder.active ? t('header.active') : t('header.inactive')}
+                            {systemStatus?.embedder.active ? 'ada-002' : t('header.inactive')}
                           </Badge>
                         </div>
                       </div>
@@ -339,8 +365,9 @@ export default function Header({ user, onLogout }: HeaderProps) {
                       <span className="text-xs text-muted-foreground">
                         {t('header.lastUpdated')}: {new Date().toLocaleTimeString()}
                       </span>
-                      <Link href="/dashboard/settings" className="text-xs text-primary hover:underline">
-                        {t('header.viewDetails')} →
+                      <Link href="/dashboard/settings" className="text-xs text-primary hover:underline flex items-center gap-1">
+                        <Settings2 className="w-3 h-3" />
+                        {t('header.settings')}
                       </Link>
                     </div>
                   </div>

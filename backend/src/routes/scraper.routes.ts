@@ -7,6 +7,8 @@ import { RecursiveCharacterTextSplitter } from '@langchain/textsplitters';
 import { encoding_for_model } from 'tiktoken';
 import advancedScraper from '../services/advanced-scraper.service';
 import puppeteerScraper from '../services/puppeteer-scraper.service';
+import { gibScraper } from '../services/gib-scraper.service';
+import { enhancedPuppeteer } from '../services/enhanced-puppeteer.service';
 
 const router = Router();
 
@@ -145,9 +147,14 @@ router.post('/api/v2/scraper', async (req: Request, res: Response) => {
       extractMode = 'best'
     } = req.body;
     
+    // Check if it's a Turkish government site
+    const isTurkishGovSite = /\.gov\.tr|gib\.gov|mevzuat|kanun|resmigazete|tbmm\.gov|hazine\.gov|tcmb\.gov|sgk\.gov|iskur\.gov/i.test(url);
+    
     // Auto-detect if we need dynamic scraping
     let useDynamic = mode === 'dynamic';
     let usePuppeteer = mode === 'puppeteer';
+    let useGibScraper = isTurkishGovSite && (mode === 'auto' || mode === 'gib');
+    let useEnhancedPuppeteer = false;
     
     if (mode === 'auto') {
       // Sites that typically need dynamic rendering  
@@ -167,10 +174,9 @@ router.post('/api/v2/scraper', async (req: Request, res: Response) => {
       // Check if URL matches any pattern that needs dynamic rendering
       useDynamic = dynamicPatterns.some(pattern => pattern.test(url));
       
-      // Use puppeteer for sites that need more advanced handling
-      // Government sites, sites with complex JS, etc.
-      if (useDynamic && /\.gov\./i.test(url)) {
-        usePuppeteer = true;
+      // Use enhanced puppeteer for sites with MUI or complex JS
+      if (useDynamic && !isTurkishGovSite) {
+        useEnhancedPuppeteer = true;
       }
     }
     
@@ -180,7 +186,203 @@ router.post('/api/v2/scraper', async (req: Request, res: Response) => {
     }
 
     console.log(`[SCRAPER] Starting scrape for: ${url}`);
-    console.log(`[SCRAPER] Mode: ${usePuppeteer ? 'puppeteer (advanced)' : (useDynamic ? 'dynamic (playwright)' : 'static (cheerio)')}`);
+    console.log(`[SCRAPER] Mode: ${useGibScraper ? 'GİB Specialized' : useEnhancedPuppeteer ? 'Enhanced Puppeteer' : usePuppeteer ? 'puppeteer (advanced)' : (useDynamic ? 'dynamic (playwright)' : 'static (cheerio)')}`);
+    
+    // Use GİB scraper for Turkish government sites
+    if (useGibScraper) {
+      console.log('[SCRAPER] Using GİB specialized scraper for Turkish government site');
+      const gibResult = await gibScraper.scrapeGibPage(url);
+      
+      if (gibResult.success && gibResult.content) {
+        // Save to database if requested
+        let savedId = null;
+        if (saveToDb) {
+          const insertResult = await pgPool.query(
+            `INSERT INTO scraped_pages (url, title, content, description, keywords, content_length, scraping_mode, metadata)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+             RETURNING id`,
+            [
+              url,
+              gibResult.title,
+              gibResult.content,
+              gibResult.description || '',
+              gibResult.keywords || '',
+              gibResult.content.length,
+              'gib-specialized',
+              JSON.stringify({
+                ...gibResult.metadata,
+                maddeler: gibResult.maddeler
+              })
+            ]
+          );
+          savedId = insertResult.rows[0].id;
+        }
+        
+        // Create chunks for the content
+        const textSplitter = new RecursiveCharacterTextSplitter({
+          chunkSize: 1000,
+          chunkOverlap: 200,
+          separators: ['\n\n', '\n', '.', '!', '?', ';', ':', ' ', '']
+        });
+        
+        const chunks = await textSplitter.splitText(gibResult.content);
+        
+        // Generate embeddings if requested
+        let embeddings: number[][] = [];
+        if (generateEmbeddings && savedId) {
+          // Here you would generate embeddings
+          // For now, we'll skip this part
+        }
+        
+        // Log activity
+        await logActivity(
+          'scrape',
+          url,
+          gibResult.title,
+          'success',
+          {
+            url,
+            title: gibResult.title,
+            description: gibResult.description,
+            scrapeMethod: 'gib-specialized',
+            articleCount: gibResult.maddeler?.length || 0
+          },
+          {
+            content_length: gibResult.content.length,
+            chunk_count: chunks.length,
+            embedding_count: embeddings.length,
+            scraping_mode: 'gib-specialized',
+            extraction_time_ms: Date.now() - startTime,
+            article_count: gibResult.maddeler?.length || 0
+          },
+          undefined
+        );
+        
+        return res.json({
+          success: true,
+          title: gibResult.title,
+          content: gibResult.content.substring(0, 5000),
+          contentPreview: gibResult.content.substring(0, 500) + '...',
+          description: gibResult.description || '',
+          keywords: gibResult.keywords || '',
+          url,
+          metadata: {
+            ...gibResult.metadata,
+            scrapingMode: 'gib-specialized',
+            articleCount: gibResult.maddeler?.length || 0
+          },
+          maddeler: gibResult.maddeler, // Include extracted law articles
+          metrics: {
+            contentLength: gibResult.content.length,
+            htmlLength: 0,
+            chunksCreated: chunks.length,
+            embeddingsGenerated: embeddings.length,
+            totalTokens: 0,
+            extractionTimeMs: Date.now() - startTime,
+            articleCount: gibResult.maddeler?.length || 0
+          },
+          savedToDb: saveToDb,
+          timestamp: new Date().toISOString()
+        });
+      } else {
+        // If GİB scraper fails, fall back to enhanced puppeteer
+        console.log('[SCRAPER] GİB scraper failed, falling back to enhanced puppeteer');
+        useEnhancedPuppeteer = true;
+      }
+    }
+    
+    // Use enhanced puppeteer for complex JS sites
+    if (useEnhancedPuppeteer) {
+      console.log('[SCRAPER] Using enhanced puppeteer for complex JS site');
+      const enhancedResult = await enhancedPuppeteer.scrape(url, {
+        customSelectors,
+        prioritySelectors,
+        extractMode,
+        scrollToBottom: true,
+        clickCookieConsent: true,
+        interceptRequests: false
+      });
+      
+      if (enhancedResult.success && enhancedResult.content) {
+        // Save to database if requested
+        let savedId = null;
+        if (saveToDb) {
+          const insertResult = await pgPool.query(
+            `INSERT INTO scraped_pages (url, title, content, description, keywords, content_length, scraping_mode, metadata)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+             RETURNING id`,
+            [
+              url,
+              enhancedResult.title,
+              enhancedResult.content,
+              enhancedResult.description || '',
+              enhancedResult.keywords || '',
+              enhancedResult.content.length,
+              'enhanced-puppeteer',
+              JSON.stringify(enhancedResult.metadata)
+            ]
+          );
+          savedId = insertResult.rows[0].id;
+        }
+        
+        // Create chunks
+        const textSplitter = new RecursiveCharacterTextSplitter({
+          chunkSize: 1000,
+          chunkOverlap: 200
+        });
+        
+        const chunks = await textSplitter.splitText(enhancedResult.content);
+        
+        // Log activity
+        await logActivity(
+          'scrape',
+          url,
+          enhancedResult.title,
+          'success',
+          {
+            url,
+            title: enhancedResult.title,
+            description: enhancedResult.description,
+            scrapeMethod: 'enhanced-puppeteer'
+          },
+          {
+            content_length: enhancedResult.content.length,
+            chunk_count: chunks.length,
+            scraping_mode: 'enhanced-puppeteer',
+            extraction_time_ms: Date.now() - startTime
+          },
+          undefined
+        );
+        
+        return res.json({
+          success: true,
+          title: enhancedResult.title,
+          content: enhancedResult.content.substring(0, 5000),
+          contentPreview: enhancedResult.content.substring(0, 500) + '...',
+          description: enhancedResult.description || '',
+          keywords: enhancedResult.keywords || '',
+          url,
+          metadata: {
+            ...enhancedResult.metadata,
+            scrapingMode: 'enhanced-puppeteer'
+          },
+          metrics: {
+            contentLength: enhancedResult.content.length,
+            htmlLength: 0,
+            chunksCreated: chunks.length,
+            embeddingsGenerated: 0,
+            totalTokens: 0,
+            extractionTimeMs: Date.now() - startTime
+          },
+          savedToDb: saveToDb,
+          timestamp: new Date().toISOString()
+        });
+      } else {
+        // Fall back to regular puppeteer
+        console.log('[SCRAPER] Enhanced puppeteer failed, falling back to regular puppeteer');
+        usePuppeteer = true;
+      }
+    }
     
     // Use advanced scraper for custom selectors
     if (customSelectors.length > 0 || prioritySelectors.length > 0) {

@@ -1,8 +1,17 @@
 import { Router, Request, Response } from 'express';
 import { Pool } from 'pg';
 import OpenAI from 'openai';
+import Redis from 'ioredis';
+import crypto from 'crypto';
 
 const router = Router();
+
+// Redis client for caching
+const redis = new Redis({
+  host: process.env.REDIS_HOST || 'localhost',
+  port: parseInt(process.env.REDIS_PORT || '6379'),
+  db: parseInt(process.env.REDIS_DB || '0')
+});
 
 // Source database (rag_chatbot) - where we read data from
 const sourcePool = new Pool({
@@ -47,6 +56,54 @@ let migrationProgress: any = {
   currentBatch: 0,
   totalBatches: 0
 };
+
+// Helper function to generate cache key for text
+function getEmbeddingCacheKey(text: string): string {
+  const hash = crypto.createHash('md5').update(text).digest('hex');
+  return `embedding:${hash}`;
+}
+
+// Get embedding from cache or generate new one
+async function getEmbeddingWithCache(text: string, openai: OpenAI): Promise<{ embedding: number[], cached: boolean, tokens: number }> {
+  const cacheKey = getEmbeddingCacheKey(text);
+  
+  // Check Redis cache first
+  try {
+    const cached = await redis.get(cacheKey);
+    if (cached) {
+      console.log(`Cache HIT for text (${text.substring(0, 50)}...)`);
+      return {
+        embedding: JSON.parse(cached),
+        cached: true,
+        tokens: 0 // No tokens used for cached embeddings
+      };
+    }
+  } catch (err) {
+    console.error('Redis cache read error:', err);
+  }
+  
+  // Generate new embedding if not cached
+  console.log(`Cache MISS for text (${text.substring(0, 50)}...)`);
+  const response = await openai.embeddings.create({
+    model: 'text-embedding-ada-002',
+    input: text.substring(0, 8000)
+  });
+  
+  const embedding = response.data[0].embedding;
+  
+  // Store in Redis cache (expire after 30 days)
+  try {
+    await redis.set(cacheKey, JSON.stringify(embedding), 'EX', 30 * 24 * 60 * 60);
+  } catch (err) {
+    console.error('Redis cache write error:', err);
+  }
+  
+  return {
+    embedding,
+    cached: false,
+    tokens: response.usage?.total_tokens || 0
+  };
+}
 
 // Get migration history
 router.get('/history', async (req: Request, res: Response) => {
@@ -407,6 +464,7 @@ router.post('/migrate', async (req: Request, res: Response) => {
       sourceName = 'rag_chatbot',  // specific source identifier
       tables, 
       batchSize = 10,
+      workerCount = 1,  // number of parallel workers
       filePath = null,  // for file-based sources
       options = {}  // additional source-specific options
     } = req.body;
@@ -455,11 +513,28 @@ router.post('/migrate', async (req: Request, res: Response) => {
       migrationId: migrationId
     };
     
-    // Start migration in background
-    processMigration(tables, batchSize, migrationId).catch(err => {
-      migrationProgress.status = 'error';
-      migrationProgress.error = err.message;
-      updateMigrationHistory(migrationId, 'failed', err.message);
+    // Start multiple workers in parallel
+    const workers = [];
+    const tablesPerWorker = Math.ceil(tables.length / workerCount);
+    
+    for (let i = 0; i < workerCount; i++) {
+      const workerTables = tables.slice(i * tablesPerWorker, (i + 1) * tablesPerWorker);
+      if (workerTables.length > 0) {
+        const workerPromise = processMigration(workerTables, batchSize, migrationId, i + 1).catch(err => {
+          console.error(`Worker ${i + 1} error:`, err);
+          migrationProgress.error = err.message;
+          updateMigrationHistory(migrationId, 'failed', err.message);
+        });
+        workers.push(workerPromise);
+      }
+    }
+    
+    // Wait for all workers to complete
+    Promise.all(workers).then(() => {
+      if (migrationProgress.status !== 'paused' && migrationProgress.status !== 'error') {
+        migrationProgress.status = 'completed';
+        updateMigrationHistory(migrationId, 'completed');
+      }
     });
     
     res.json({ message: 'Migration started', progress: migrationProgress });
@@ -681,8 +756,10 @@ async function updateMigrationHistory(
 }
 
 // Background migration process
-async function processMigration(tables: string[], batchSize: number, migrationId: string) {
+async function processMigration(tables: string[], batchSize: number, migrationId: string, workerId: number = 1) {
   try {
+    console.log(`Worker ${workerId} starting with tables:`, tables);
+    
     // Calculate total records to process from SOURCE database
     let totalToProcess = 0;
     for (const table of tables) {
@@ -696,7 +773,10 @@ async function processMigration(tables: string[], batchSize: number, migrationId
       totalToProcess += parseInt(countResult.rows[0].count);
     }
     
-    migrationProgress.total = totalToProcess;
+    // Only update total if not already set (first worker sets it)
+    if (migrationProgress.total === 0) {
+      migrationProgress.total = totalToProcess;
+    }
     
     // Process each table
     for (const table of tables) {
@@ -758,33 +838,98 @@ async function processMigration(tables: string[], batchSize: number, migrationId
           break;
         }
         
-        // Generate embeddings for batch
+        // Generate embeddings for entire batch at once
+        if (migrationProgress.status === 'paused') {
+          return;
+        }
+
+        // Prepare batch texts and filter empty ones
+        const batchTexts = [];
+        const validRows = [];
         for (const row of batchResult.rows) {
-          if (migrationProgress.status === 'paused') {
-            return;
+          const text = row.text_content;
+          if (text && text.trim() !== '') {
+            batchTexts.push(text.substring(0, 8000)); // Limit text length
+            validRows.push(row);
+          }
+        }
+
+        if (batchTexts.length === 0) {
+          offset += batchSize;
+          continue;
+        }
+
+        try {
+          // Get OpenAI client
+          const openai = await getOpenAIClient();
+          
+          // Check cache first and separate cached vs uncached
+          const embeddings: any[] = [];
+          const uncachedTexts: string[] = [];
+          const uncachedIndices: number[] = [];
+          let cachedCount = 0;
+          let totalTokensSaved = 0;
+          
+          // Check Redis cache for each text
+          for (let i = 0; i < batchTexts.length; i++) {
+            const cacheKey = getEmbeddingCacheKey(batchTexts[i]);
+            try {
+              const cached = await redis.get(cacheKey);
+              if (cached) {
+                embeddings[i] = { embedding: JSON.parse(cached), cached: true };
+                cachedCount++;
+                totalTokensSaved += 500; // Approximate tokens saved
+              } else {
+                uncachedTexts.push(batchTexts[i]);
+                uncachedIndices.push(i);
+              }
+            } catch (err) {
+              uncachedTexts.push(batchTexts[i]);
+              uncachedIndices.push(i);
+            }
           }
           
-          try {
-            const text = row.text_content;
-            if (!text || text.trim() === '') continue;
-            
-            // Get OpenAI client
-            const openai = await getOpenAIClient();
-            
-            // Generate embedding
+          // Generate embeddings only for uncached texts
+          if (uncachedTexts.length > 0) {
             const response = await openai.embeddings.create({
               model: 'text-embedding-ada-002',
-              input: text.substring(0, 8000), // Limit text length
+              input: uncachedTexts
             });
             
-            const embedding = response.data[0].embedding;
+            // Store new embeddings in cache and array
+            for (let j = 0; j < response.data.length; j++) {
+              const idx = uncachedIndices[j];
+              const embedding = response.data[j].embedding;
+              embeddings[idx] = { embedding, cached: false };
+              
+              // Cache the new embedding
+              const cacheKey = getEmbeddingCacheKey(uncachedTexts[j]);
+              try {
+                await redis.set(cacheKey, JSON.stringify(embedding), 'EX', 30 * 24 * 60 * 60);
+              } catch (err) {
+                console.error('Redis cache write error:', err);
+              }
+            }
             
-            // Track token usage
+            // Update token usage
             if (response.usage) {
               migrationProgress.tokensUsed += response.usage.total_tokens;
-              // Estimate cost: $0.0001 per 1K tokens for ada-002
               migrationProgress.estimatedCost = (migrationProgress.tokensUsed / 1000) * 0.0001;
             }
+          }
+          
+          if (cachedCount > 0) {
+            console.log(`Worker ${workerId}: Used ${cachedCount} cached embeddings, saved ~${totalTokensSaved} tokens`);
+          }
+          
+          // Process each embedding result
+          for (let i = 0; i < embeddings.length; i++) {
+            const { embedding, cached } = embeddings[i];
+            const row = validRows[i];
+            const text = batchTexts[i];
+            
+            // Track token usage (divided by batch size for per-record tracking)
+            const tokensPerRecord = cached ? 0 : Math.round(500); // Estimate 500 tokens per uncached record
             
             // Save embedding to unified_embeddings table in TARGET database (asemb)
             if (primaryKey !== 'ROW_NUMBER') {
@@ -822,7 +967,7 @@ async function processMigration(tables: string[], batchSize: number, migrationId
                       original_table: table,
                       migrated_at: new Date()
                     }),
-                    response.usage?.total_tokens || 0,
+                    tokensPerRecord,
                     'text-embedding-ada-002'
                   ]
                 );
@@ -846,9 +991,10 @@ async function processMigration(tables: string[], batchSize: number, migrationId
             
             // Calculate estimated time remaining
             const elapsed = Date.now() - migrationProgress.startTime;
-            const rate = migrationProgress.current / elapsed;
+            const ratePerMs = migrationProgress.current / elapsed; // records per millisecond
+            const ratePerSecond = ratePerMs * 1000; // records per second
             const remaining = migrationProgress.total - migrationProgress.current;
-            migrationProgress.estimatedTimeRemaining = Math.round(remaining / rate);
+            migrationProgress.estimatedTimeRemaining = Math.round(remaining / ratePerSecond); // seconds
             
             // Update migration history periodically (every 10 records)
             if (migrationProgress.current % 10 === 0) {
@@ -868,11 +1014,15 @@ async function processMigration(tables: string[], batchSize: number, migrationId
               ]);
             }
             
-            // Rate limiting to avoid API limits
-            await new Promise(resolve => setTimeout(resolve, 100));
-          } catch (err) {
-            console.error(`Error processing record:`, err);
           }
+          
+          // Rate limiting - reduce delay since we're processing batches (less delay if using cache)
+          const delay = cachedCount > 0 ? 20 : 50;
+          await new Promise(resolve => setTimeout(resolve, delay));
+          
+        } catch (error) {
+          console.error(`Error processing batch:`, error);
+          migrationProgress.error = error.message;
         }
         
         offset += batchSize;

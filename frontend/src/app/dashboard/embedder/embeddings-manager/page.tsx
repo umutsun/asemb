@@ -23,7 +23,8 @@ import {
   Zap,
   Loader2,
   Settings,
-  ExternalLink
+  ExternalLink,
+  Server
 } from 'lucide-react';
 import Link from 'next/link';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -79,7 +80,8 @@ export default function EmbeddingsManagerPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<any[]>([]);
   const [isSearching, setIsSearching] = useState(false);
-  const [batchSize, setBatchSize] = useState(10);
+  const [batchSize, setBatchSize] = useState(50);
+  const [workerCount, setWorkerCount] = useState(2);
   const [isLoadingTables, setIsLoadingTables] = useState(true);
   const [isLoadingStats, setIsLoadingStats] = useState(true);
 
@@ -164,6 +166,7 @@ export default function EmbeddingsManagerPage() {
         body: JSON.stringify({ 
           tables: tablesToMigrate,
           batchSize: batchSize,
+          workerCount: workerCount,
           resume: resume
         })
       });
@@ -302,51 +305,70 @@ export default function EmbeddingsManagerPage() {
 
         {/* RAG Status Tab */}
         <TabsContent value="overview" className="space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             <Card>
-              <CardHeader>
-                <CardTitle className="text-lg">Toplam Kayıt</CardTitle>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-sm">Toplam Kayıt</CardTitle>
               </CardHeader>
               <CardContent>
-                <p className="text-3xl font-bold">
+                <p className="text-2xl font-bold">
                   {migrationStats?.totalRecords.toLocaleString('tr-TR') || '0'}
                 </p>
-                <p className="text-sm text-muted-foreground mt-1">
+                <p className="text-xs text-muted-foreground mt-1">
                   {availableTables.length} tabloda
                 </p>
-                {migrationStats?.database && (
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Database: {migrationStats.database}
-                  </p>
-                )}
               </CardContent>
             </Card>
 
             <Card>
-              <CardHeader>
-                <CardTitle className="text-lg">Embedding Durumu</CardTitle>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-sm">İşlenmiş</CardTitle>
               </CardHeader>
               <CardContent>
-                <p className="text-3xl font-bold text-green-600">
-                  {migrationStats && migrationStats.totalRecords > 0 
+                <p className="text-2xl font-bold text-green-600">
+                  {migrationStats?.embeddedRecords.toLocaleString('tr-TR') || '0'}
+                </p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  %{migrationStats && migrationStats.totalRecords > 0 
                     ? Math.round((migrationStats.embeddedRecords / migrationStats.totalRecords) * 100) 
-                    : 0}%
-                </p>
-                <p className="text-sm text-muted-foreground mt-1">
-                  {migrationStats?.embeddedRecords.toLocaleString('tr-TR') || '0'} işlenmiş
+                    : 0} tamamlandı
                 </p>
               </CardContent>
             </Card>
 
             <Card>
-              <CardHeader>
-                <CardTitle className="text-lg">Bekleyen</CardTitle>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-sm">Bekleyen</CardTitle>
               </CardHeader>
               <CardContent>
-                <p className="text-3xl font-bold text-orange-600">
+                <p className="text-2xl font-bold text-orange-600">
                   {migrationStats?.pendingRecords.toLocaleString('tr-TR') || '0'}
                 </p>
-                <p className="text-sm text-muted-foreground mt-1">kayıt işlenecek</p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  işlenecek kayıt
+                </p>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-sm">Kullanım</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-1">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-muted-foreground">Token:</span>
+                    <span className="font-medium">
+                      {((migrationStats?.embeddedRecords || 0) * 500).toLocaleString('tr-TR')}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-muted-foreground">Maliyet:</span>
+                    <span className="font-medium">
+                      ${(((migrationStats?.embeddedRecords || 0) * 500) / 1000 * 0.0001).toFixed(2)}
+                    </span>
+                  </div>
+                </div>
               </CardContent>
             </Card>
           </div>
@@ -382,19 +404,25 @@ export default function EmbeddingsManagerPage() {
                     ? Math.round((table.embeddedRecords / table.totalRecords) * 100) 
                     : 0;
                   
+                  // Token ve maliyet tahmini
+                  const estimatedTokens = table.embeddedRecords * 500;
+                  const estimatedCost = (estimatedTokens / 1000) * 0.0001;
+                  
                   return (
-                    <div key={table.name} className="space-y-2">
+                    <div key={table.name} className="space-y-2 p-3 border rounded-lg">
                       <div className="flex items-center justify-between">
                         <div>
                           <span className="font-medium">{table.displayName}</span>
-                          <span className="text-xs text-muted-foreground ml-2">
-                            ({table.database})
-                          </span>
                         </div>
                         <div className="flex items-center gap-4">
-                          <span className="text-sm text-muted-foreground">
-                            {(table.embeddedRecords || 0).toLocaleString('tr-TR')} / {(table.totalRecords || 0).toLocaleString('tr-TR')}
-                          </span>
+                          <div className="text-right">
+                            <span className="text-sm font-medium">
+                              {(table.embeddedRecords || 0).toLocaleString('tr-TR')} / {(table.totalRecords || 0).toLocaleString('tr-TR')}
+                            </span>
+                            <p className="text-xs text-muted-foreground">
+                              ~{estimatedTokens.toLocaleString('tr-TR')} token • ${estimatedCost.toFixed(3)}
+                            </p>
+                          </div>
                           <Badge variant={percentage === 100 ? 'success' : 'secondary'}>
                             {percentage}%
                           </Badge>
@@ -404,58 +432,39 @@ export default function EmbeddingsManagerPage() {
                     </div>
                   );
                 })}
-              </div>
-              )}
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>Sistem Durumu</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm flex items-center gap-2">
-                    <Database className="w-4 h-4" />
-                    PostgreSQL Bağlantısı
-                  </span>
-                  <Badge variant="success">Aktif</Badge>
-                </div>
-                {migrationStats?.database && (
-                  <div className="pl-6 space-y-1">
-                    <div className="flex items-center justify-between text-xs text-muted-foreground">
-                      <span>Database:</span>
-                      <span className="font-mono">{migrationStats.database}</span>
-                    </div>
-                    <div className="flex items-center justify-between text-xs text-muted-foreground">
-                      <span>Host:</span>
-                      <span className="font-mono">localhost:5432</span>
+                
+                {/* Toplam Satırı */}
+                {availableTables.length > 0 && (
+                  <div className="p-3 border-2 border-primary/20 rounded-lg bg-primary/5">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <span className="font-semibold">TOPLAM</span>
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                          <div className="h-1.5 w-1.5 rounded-full bg-green-500" />
+                          <span>PostgreSQL (rag_chatbot)</span>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-4">
+                        <div className="text-right">
+                          <span className="text-sm font-bold">
+                            {migrationStats?.embeddedRecords.toLocaleString('tr-TR')} / {migrationStats?.totalRecords.toLocaleString('tr-TR')}
+                          </span>
+                          <p className="text-xs font-medium">
+                            ~{((migrationStats?.embeddedRecords || 0) * 500).toLocaleString('tr-TR')} token • 
+                            ${(((migrationStats?.embeddedRecords || 0) * 500) / 1000 * 0.0001).toFixed(2)}
+                          </p>
+                        </div>
+                        <Badge variant={migrationStats && migrationStats.totalRecords > 0 && migrationStats.embeddedRecords === migrationStats.totalRecords ? 'success' : 'default'}>
+                          {migrationStats && migrationStats.totalRecords > 0 
+                            ? Math.round((migrationStats.embeddedRecords / migrationStats.totalRecords) * 100) 
+                            : 0}%
+                        </Badge>
+                      </div>
                     </div>
                   </div>
                 )}
               </div>
-              <div className="flex items-center justify-between">
-                <span className="text-sm flex items-center gap-2">
-                  <Zap className="w-4 h-4" />
-                  OpenAI API
-                </span>
-                <Badge variant="success">Erişilebilir</Badge>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-sm flex items-center gap-2">
-                  <Database className="w-4 h-4" />
-                  pgvector Extension
-                </span>
-                <Badge variant="success">Yüklü</Badge>
-              </div>
-              <div className="pt-2 border-t">
-                <Link href="/dashboard/settings?tab=database" className="text-xs text-primary hover:underline flex items-center gap-1">
-                  <Settings className="w-3 h-3" />
-                  Veritabanı ayarlarını değiştir
-                  <ExternalLink className="w-3 h-3" />
-                </Link>
-              </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
@@ -470,9 +479,114 @@ export default function EmbeddingsManagerPage() {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              {/* Table Selection with Checkboxes */}
-              <div className="space-y-4">
-                <div>
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                {/* Sol kolon - İşlem Ayarları */}
+                <div className="space-y-4">
+                  <div>
+                    <h3 className="text-sm font-semibold mb-3">İşlem Ayarları</h3>
+                    <div className="space-y-3">
+                      <div>
+                        <Label htmlFor="batch-size" className="text-xs">Batch Size</Label>
+                        <Select value={batchSize.toString()} onValueChange={(v) => setBatchSize(parseInt(v))}>
+                          <SelectTrigger id="batch-size" className="mt-1">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="10">10 kayıt</SelectItem>
+                            <SelectItem value="25">25 kayıt</SelectItem>
+                            <SelectItem value="50">50 kayıt</SelectItem>
+                            <SelectItem value="100">100 kayıt</SelectItem>
+                            <SelectItem value="200">200 kayıt</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      <div>
+                        <Label htmlFor="worker-count" className="text-xs">Paralel Embedder</Label>
+                        <Select value={workerCount.toString()} onValueChange={(v) => setWorkerCount(parseInt(v))}>
+                          <SelectTrigger id="worker-count" className="mt-1">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="1">1 embedder</SelectItem>
+                            <SelectItem value="2">2 embedder</SelectItem>
+                            <SelectItem value="3">3 embedder</SelectItem>
+                            <SelectItem value="4">4 embedder</SelectItem>
+                            <SelectItem value="5">5 embedder</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      {/* Token ve Süre Tahmini */}
+                      <div className="p-3 bg-muted rounded-lg space-y-2">
+                        <h4 className="text-xs font-semibold">Tahminler</h4>
+                        <div className="space-y-1 text-xs">
+                          <div className="flex justify-between">
+                            <span className="text-muted-foreground">Süre:</span>
+                            <span className="font-medium">
+                              ~{Math.ceil((migrationStats?.pendingRecords || 0) / (batchSize * workerCount) * 0.5)} dk
+                            </span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-muted-foreground">Token:</span>
+                            <span className="font-medium">
+                              ~{((migrationStats?.pendingRecords || 0) * 500).toLocaleString('tr-TR')}
+                            </span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-muted-foreground">Maliyet:</span>
+                            <span className="font-medium">
+                              ~${(((migrationStats?.pendingRecords || 0) * 500) / 1000 * 0.0001).toFixed(2)}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {progress?.status === 'paused' ? (
+                        <Button 
+                          onClick={() => startMigration(true)} 
+                          disabled={isProcessing}
+                          className="w-full"
+                          variant="default"
+                        >
+                          <Play className="w-4 h-4 mr-2" />
+                          Devam Et
+                        </Button>
+                      ) : progress?.status === 'processing' ? (
+                        <Button 
+                          onClick={pauseMigration} 
+                          disabled={isProcessing}
+                          className="w-full"
+                          variant="secondary"
+                        >
+                          <Pause className="w-4 h-4 mr-2" />
+                          Duraklat
+                        </Button>
+                      ) : (
+                        <Button 
+                          onClick={() => startMigration(false)} 
+                          disabled={isProcessing || selectedTables.length === 0}
+                          className="w-full"
+                        >
+                          {isProcessing ? (
+                            <>
+                              <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                              İşleniyor...
+                            </>
+                          ) : (
+                            <>
+                              <Upload className="w-4 h-4 mr-2" />
+                              Migration Başlat
+                            </>
+                          )}
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Sağ kolon - Tablo Seçimi */}
+                <div className="lg:col-span-2">
                   <div className="flex items-center justify-between mb-2">
                     <Label>Tablo Seçimi ({selectedTables.length}/{availableTables.length} seçili)</Label>
                     <div className="flex gap-2">
@@ -480,6 +594,7 @@ export default function EmbeddingsManagerPage() {
                         size="sm" 
                         variant="outline"
                         onClick={() => setSelectedTables(availableTables.map(t => t.name))}
+                        disabled={isLoadingTables}
                       >
                         Tümünü Seç
                       </Button>
@@ -487,11 +602,29 @@ export default function EmbeddingsManagerPage() {
                         size="sm" 
                         variant="outline"
                         onClick={() => setSelectedTables([])}
+                        disabled={isLoadingTables}
                       >
                         Temizle
                       </Button>
                     </div>
                   </div>
+                  {isLoadingTables ? (
+                    <div className="flex items-center justify-center py-8 border rounded-lg">
+                      <Loader2 className="h-6 w-6 animate-spin text-muted-foreground mr-2" />
+                      <span className="text-sm text-muted-foreground">Tablolar yükleniyor...</span>
+                    </div>
+                  ) : availableTables.length === 0 ? (
+                    <div className="text-center py-8 border rounded-lg">
+                      <Database className="h-12 w-12 text-muted-foreground mx-auto mb-3" />
+                      <p className="text-sm text-muted-foreground">Henüz veri tablosu bulunamadı</p>
+                      <Link href="/dashboard/settings?tab=database">
+                        <Button variant="outline" size="sm" className="mt-3">
+                          <Settings className="w-4 h-4 mr-2" />
+                          Veritabanı Bağlantısını Kontrol Et
+                        </Button>
+                      </Link>
+                    </div>
+                  ) : (
                   <div className="grid grid-cols-2 gap-3">
                     {availableTables.map((table) => (
                       <div key={table.name} className="flex items-start space-x-2 p-3 border rounded-lg hover:bg-accent/50 transition-colors">
@@ -511,9 +644,6 @@ export default function EmbeddingsManagerPage() {
                         <label htmlFor={`table-${table.name}`} className="text-sm cursor-pointer flex-1">
                           <div className="font-medium">
                             {table.displayName}
-                            <span className="text-xs text-muted-foreground ml-2">
-                              ({table.database})
-                            </span>
                           </div>
                           <div className="text-xs text-muted-foreground mt-1">
                             {table.totalRecords.toLocaleString('tr-TR')} kayıt
@@ -528,68 +658,7 @@ export default function EmbeddingsManagerPage() {
                       </div>
                     ))}
                   </div>
-                </div>
-                
-                <div className="flex gap-4">
-                  <div className="flex-1">
-                    <Label htmlFor="batch-size">Batch Size</Label>
-                    <Select value={batchSize.toString()} onValueChange={(v) => setBatchSize(parseInt(v))}>
-                      <SelectTrigger id="batch-size" className="mt-1">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="5">5 kayıt/batch (çok yavaş)</SelectItem>
-                        <SelectItem value="10">10 kayıt/batch (yavaş)</SelectItem>
-                        <SelectItem value="25">25 kayıt/batch (orta)</SelectItem>
-                        <SelectItem value="50">50 kayıt/batch (hızlı)</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Daha büyük batch size daha hızlı ama API limitlerine dikkat
-                    </p>
-                  </div>
-
-                  <div className="flex items-end gap-2 flex-1">
-                  {progress?.status === 'paused' ? (
-                    <Button 
-                      onClick={() => startMigration(true)} 
-                      disabled={isProcessing}
-                      className="flex-1"
-                      variant="default"
-                    >
-                      <Play className="w-4 h-4 mr-2" />
-                      Devam Et
-                    </Button>
-                  ) : progress?.status === 'processing' ? (
-                    <Button 
-                      onClick={pauseMigration} 
-                      disabled={isProcessing}
-                      className="flex-1"
-                      variant="secondary"
-                    >
-                      <Pause className="w-4 h-4 mr-2" />
-                      Duraklat
-                    </Button>
-                  ) : (
-                    <Button 
-                      onClick={() => startMigration(false)} 
-                      disabled={isProcessing || selectedTables.length === 0}
-                      className="flex-1"
-                    >
-                      {isProcessing ? (
-                        <>
-                          <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
-                          İşleniyor...
-                        </>
-                      ) : (
-                        <>
-                          <Upload className="w-4 h-4 mr-2" />
-                          Migration Başlat
-                        </>
-                      )}
-                    </Button>
                   )}
-                  </div>
                 </div>
               </div>
 
