@@ -1,0 +1,1 @@
+# 📋 Claude Code - Görev Listesi (CTO Assignment)

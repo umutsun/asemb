@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { getApiUrl, API_CONFIG } from '@/lib/config';
+import api from '@/lib/api-client';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -57,13 +57,7 @@ export default function ActivityPage() {
     try {
       setRefreshing(true);
       const params = selectedType !== 'all' ? `?operation_type=${selectedType}` : '';
-      const response = await fetch(`http://localhost:3003/api/v2/activity/history${params}`);
-      
-      if (!response.ok) {
-        throw new Error('Failed to fetch activity history');
-      }
-      
-      const data = await response.json();
+      const data = await api.activity.getHistory(params);
       setActivities(data.activities || []);
       setStatistics(data.statistics || []);
     } catch (err) {
@@ -77,14 +71,8 @@ export default function ActivityPage() {
 
   const initializeTables = async () => {
     try {
-      const response = await fetch('http://localhost:3001/api/v2/activity/init-table', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-      });
-      
-      if (response.ok) {
-        await fetchActivities();
-      }
+      await api.activity.initTable();
+      await fetchActivities();
     } catch (err) {
       console.error('Error initializing tables:', err);
     }
@@ -167,7 +155,7 @@ export default function ActivityPage() {
     <div className="py-6 space-y-6">
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-3xl font-bold">Activity History</h1>
+          <h1 className="text-xl font-semibold">Activity History</h1>
           <p className="text-muted-foreground">Track all operations and metrics</p>
         </div>
         <Button

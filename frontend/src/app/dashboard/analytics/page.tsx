@@ -219,7 +219,7 @@ export default function AnalyticsDashboard() {
       {/* Header */}
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-3xl font-bold">Semantik Analiz & Görselleştirme</h1>
+          <h1 className="text-xl font-semibold">Semantik Analiz & Görselleştirme</h1>
           <p className="text-muted-foreground mt-1">
             Verilerinizin derinlemesine analizini ve ilişki haritasını keşfedin
           </p>

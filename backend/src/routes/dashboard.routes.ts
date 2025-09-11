@@ -112,6 +112,7 @@ router.delete('/api/v2/lightrag/clear', async (req: Request, res: Response) => {
 
 
 // --- Main Dashboard Route ---
+// Redirect v2 to main dashboard endpoint
 router.get('/api/v2/dashboard', async (req: Request, res: Response) => {
   try {
     const { pgPool, redis } = require('../server');
@@ -150,9 +151,13 @@ router.get('/api/v2/dashboard', async (req: Request, res: Response) => {
     
     // Recent activity
     const recentActivity = await pgPool.query(`
-      SELECT id, title, message_count, created_at 
-      FROM conversations 
-      ORDER BY created_at DESC 
+      SELECT c.id, c.title, 
+             COUNT(m.id) as message_count, 
+             c.created_at 
+      FROM conversations c
+      LEFT JOIN messages m ON m.conversation_id = c.id
+      GROUP BY c.id, c.title, c.created_at
+      ORDER BY c.created_at DESC 
       LIMIT 10
     `);
     

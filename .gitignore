@@ -1,21 +1,32 @@
 # Dependencies
 node_modules/
 */node_modules/
+.pnp
+.pnp.js
 
 # Production builds
 dist/
 build/
+dist*/
+build*/
 */dist/
 */build/
 frontend/.next/
 frontend/out/
+frontend/-p/
+asb-dashboard/.next/
+dashboard/.next/
+dashboard-next/.next/
+packages/dashboard/.next/
 
 # Environment variables
 .env
 .env.local
 .env.production
 .env.development
+.env.test
 *.env
+.env.*
 
 # Logs
 *.log
@@ -23,9 +34,16 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 lerna-debug.log*
+.next/
+.vercel/
 
 # OS files
 .DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
 Thumbs.db
 
 # IDE
@@ -33,26 +51,55 @@ Thumbs.db
 .idea/
 *.swp
 *.swo
+*~
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sublime-project
+*.sublime-workspace
 
 # Testing
 coverage/
 .nyc_output/
+junit.xml
+coverage.xml
+*.cover
+.hypothesis/
+.pytest_cache/
+.nyc_output/
+test-results/
+playwright-report/
+playwright/.cache/
 
 # Cache
 .npm/
 .eslintcache
+.stylelintcache
 .cache/
 *.tsbuildinfo
+.next/
+.parcel-cache/
 
 # Temporary files
 tmp/
 temp/
 *.tmp
+*.temp
 
 # Database
 *.sqlite
 *.sqlite3
 *.db
+*.mdb
+*.accdb
+*.backup
+*.bak
 
 # Python
 __pycache__/
@@ -64,9 +111,18 @@ env/
 venv/
 ENV/
 .venv
+pyvenv.cfg
+pip-log.txt
+pip-delete-this-directory.txt
+.tox
+.coverage
+.coverage.*
+.pytest_cache/
+.python-version
 
 # Jupyter Notebooks
 .ipynb_checkpoints
+*.ipynb
 
 # Distribution / packaging
 .Python
@@ -83,6 +139,7 @@ wheels/
 *.egg-info/
 .installed.cfg
 *.egg
+MANIFEST
 
 # PyInstaller
 *.manifest
@@ -147,6 +204,98 @@ dmypy.json
 # Pyre type checker
 .pyre/
 
+# TypeScript
+*.tsbuildinfo
+
+# React/Next.js
+.next/
+out/
+
+# Docker
+.dockerignore
+docker-compose.override.yml
+
+# Kubernetes
+*.kubeconfig
+kube/
+
+# Terraform
+*.tfstate
+*.tfstate.*
+.terraform/
+.terraform.lock.hcl
+
+# AWS
+.aws/
+aws-exports.js
+
+# Firebase
+.firebase/
+*.firebaserc
+
+# Vercel
+.vercel/
+
+# Netlify
+.netlify/
+
 # Custom
 *.local.*
 .secrets/
+uploads/
+*.log
+*.pid
+*.seed
+*.pid.lock
+.npm
+.eslintcache
+.stylelintcache
+.cache
+.parcel-cache
+.next
+dist
+build
+temp
+tmp
+*.tgz
+*.tar.gz
+
+# Playwright
+test-results/
+playwright-report/
+playwright/.cache/
+
+# Prettier
+.prettierrc
+.prettierrc.json
+.prettierrc.yml
+.prettierrc.yaml
+.prettierrc.json5
+.prettierignore
+.prettier.config.js
+.prettier.config.mjs
+.prettier.config.cjs
+.prettier.config.ts
+
+# ESLint
+.eslintcache
+.eslintrc.js
+.eslintrc.cjs
+.eslintrc.yaml
+.eslintrc.yml
+.eslintrc.json
+.eslintrc.json5
+
+# TypeScript
+*.tsbuildinfo
+
+# Jest
+jest.config.js
+jest.config.ts
+jest.config.json
+jest.config.mjs
+jest.config.cjs
+
+# Windows reserved filenames accidentally created
+/nul
+/frontend/nul

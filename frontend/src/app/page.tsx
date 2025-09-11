@@ -8,6 +8,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import config, { getEndpoint } from '@/config/api.config';
 import { 
   Send, 
   Bot, 
@@ -71,6 +72,17 @@ const getTableDisplayName = (tableName: string): string => {
 };
 
 export default function ChatInterface() {
+  // Chatbot settings state with loading indicator
+  const [chatbotSettings, setChatbotSettings] = useState({
+    title: '',
+    subtitle: '',
+    logoUrl: '',
+    welcomeMessage: '',
+    placeholder: 'Sorunuzu yazın...',
+    primaryColor: '#3B82F6'
+  });
+  const [settingsLoaded, setSettingsLoaded] = useState(false);
+
   // Default questions for fallback
   const defaultQuestions = [
     // KDV ve Satış Vergileri
@@ -127,7 +139,7 @@ export default function ChatInterface() {
   // Fetch popular questions from backend
   const fetchSuggestedQuestions = async () => {
     try {
-      const response = await fetch('http://localhost:3003/api/v2/chat/suggestions');
+      const response = await fetch(getEndpoint('chat', 'suggestions'));
       if (response.ok) {
         const data = await response.json();
         return data.suggestions || [];
@@ -172,6 +184,40 @@ export default function ChatInterface() {
     fetchSuggestedQuestions().then(questions => {
       setSuggestedQuestions(questions);
     });
+    
+    // Fetch chatbot settings
+    fetch('http://localhost:8083/api/v2/chatbot/settings')
+      .then(res => res.json())
+      .then(data => {
+        setChatbotSettings({
+          title: data.title || 'ASB Hukuki Asistan',
+          subtitle: data.subtitle || 'Yapay Zeka Asistanınız',
+          logoUrl: data.logoUrl || '',
+          welcomeMessage: data.welcomeMessage || 'Merhaba! Ben AI asistanınız. Veritabanımızdaki bilgiler doğrultusunda size yardımcı olabilirim.',
+          placeholder: data.placeholder || 'Sorunuzu yazın...',
+          primaryColor: data.primaryColor || '#3B82F6'
+        });
+        setSettingsLoaded(true);
+        
+        // Update initial message with dynamic welcome message
+        setMessages(prev => [{
+          ...prev[0],
+          content: data.welcomeMessage || prev[0].content
+        }]);
+      })
+      .catch(err => {
+        console.error('Failed to fetch chatbot settings:', err);
+        // Set default values on error
+        setChatbotSettings({
+          title: 'ASB Hukuki Asistan',
+          subtitle: 'Yapay Zeka Asistanınız',
+          logoUrl: '',
+          welcomeMessage: 'Merhaba! Ben AI asistanınız. Veritabanımızdaki bilgiler doğrultusunda size yardımcı olabilirim.',
+          placeholder: 'Sorunuzu yazın...',
+          primaryColor: '#3B82F6'
+        });
+        setSettingsLoaded(true);
+      });
   }, []);
 
   // Yeni sohbet başlatıldığında soruları yenile
@@ -195,6 +241,7 @@ export default function ChatInterface() {
     };
 
     setMessages(prev => [...prev, userMessage]);
+    const messageContent = inputText;
     setInputText('');
     setIsLoading(true);
     setShowSuggestions(false);
@@ -215,7 +262,7 @@ export default function ChatInterface() {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ message: inputText }),
+        body: JSON.stringify({ message: messageContent }),
       });
 
       if (!response.ok) throw new Error('Failed to get response');
@@ -290,10 +337,24 @@ export default function ChatInterface() {
         <div className="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="flex items-center gap-2">
-              <Brain className="w-8 h-8 text-primary" />
+              {settingsLoaded && chatbotSettings.logoUrl ? (
+                <img 
+                  src={chatbotSettings.logoUrl} 
+                  alt={chatbotSettings.title}
+                  className="w-8 h-8 object-contain"
+                  onError={(e) => {
+                    e.currentTarget.style.display = 'none';
+                    e.currentTarget.nextElementSibling?.classList.remove('hidden');
+                  }}
+                />
+              ) : null}
+              <Brain className={`w-8 h-8 text-primary ${settingsLoaded && chatbotSettings.logoUrl ? 'hidden' : ''}`} />
               <div>
-                <h1 className="text-xl font-bold">Alice Semantic Bridge</h1>
-                <p className="text-xs text-muted-foreground">Yapay Zeka Asistanınız</p>
+                <h1 className="text-xl font-bold">
+                  {settingsLoaded ? chatbotSettings.title : (
+                    <span className="inline-block w-32 h-6 bg-muted animate-pulse rounded"></span>
+                  )}
+                </h1>
               </div>
             </div>
           </div>
@@ -410,21 +471,23 @@ export default function ChatInterface() {
                             
                             {message.sources && message.sources.length > 0 && (
                               <div className="mt-4 pt-3 border-t border-border/50">
-                                <div className="flex items-center justify-between mb-3">
-                                  <p className="text-sm font-semibold">Referans Kaynaklar</p>
-                                  <span className="text-xs text-muted-foreground">
-                                    {message.sources.length} kaynak
-                                  </span>
-                                </div>
-                                <div className="space-y-2">
-                                  {(() => {
-                                    const sortedSources = message.sources.sort((a, b) => (b.score || 0) - (a.score || 0));
-                                    const visibleCount = visibleSourcesCount[message.id] || 7;
-                                    const visibleSources = sortedSources.slice(0, visibleCount);
-                                    const hasMore = sortedSources.length > visibleCount;
-                                    
-                                    return (
-                                      <>
+                                {(() => {
+                                  // Limit to max 15 sources even if more are returned
+                                  const limitedSources = message.sources.slice(0, 15);
+                                  const sortedSources = limitedSources.sort((a, b) => (b.score || 0) - (a.score || 0));
+                                  const visibleCount = visibleSourcesCount[message.id] || 7;
+                                  const visibleSources = sortedSources.slice(0, visibleCount);
+                                  const hasMore = sortedSources.length > visibleCount;
+                                  
+                                  return (
+                                    <>
+                                      <div className="flex items-center justify-between mb-3">
+                                        <p className="text-sm font-semibold">İlgili Konular</p>
+                                        <span className="text-xs text-muted-foreground">
+                                          {limitedSources.length} konu
+                                        </span>
+                                      </div>
+                                      <div className="space-y-2">
                                         {visibleSources.map((source, idx) => (
                                     <div 
                                       key={idx} 
@@ -434,8 +497,8 @@ export default function ChatInterface() {
                                       <div className="flex items-start gap-3">
                                         <div className="flex-shrink-0">
                                           <div className="flex flex-col items-center gap-1">
-                                            <span className="flex items-center justify-center w-10 h-7 text-xs font-bold rounded-md border text-slate-700 bg-slate-50 border-slate-300 dark:text-slate-300 dark:bg-slate-800 dark:border-slate-600 group-hover:bg-slate-100 dark:group-hover:bg-slate-700 transition-colors">
-                                              %{Math.round(source.score || 0)}
+                                            <span className="flex items-center justify-center w-7 h-7 text-xs font-medium rounded-full bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400">
+                                              {idx + 1}
                                             </span>
                                           </div>
                                         </div>
@@ -453,7 +516,7 @@ export default function ChatInterface() {
                                                   />
                                                 </div>
                                                 <span className="text-[10px] text-muted-foreground w-8 text-right">
-                                                  %{Math.round(source.score)}
+                                                  {Math.round(source.score)}
                                                 </span>
                                               </div>
                                             )}
@@ -502,13 +565,13 @@ export default function ChatInterface() {
                                             }}
                                           >
                                             <ChevronDown className="w-4 h-4 mr-2" />
-                                            Daha fazla göster ({sortedSources.length - visibleCount} kaynak daha)
+                                            Daha fazla göster ({sortedSources.length - visibleCount} konu daha)
                                           </Button>
                                         )}
-                                      </>
-                                    );
-                                  })()}
-                                </div>
+                                      </div>
+                                    </>
+                                  );
+                                })()}
                               </div>
                             )}
                             
@@ -548,12 +611,12 @@ export default function ChatInterface() {
               value={inputText}
               onChange={(e) => setInputText(e.target.value)}
               onKeyDown={handleKeyPress}
-              placeholder="Sorunuzu yazın..."
+              placeholder={chatbotSettings.placeholder}
               className="min-h-[60px] max-h-[120px] resize-none"
               disabled={isLoading}
             />
             <Button 
-              onClick={handleSendMessage}
+              onClick={() => handleSendMessage()}
               disabled={!inputText.trim() || isLoading}
               size="lg"
               className="px-8"

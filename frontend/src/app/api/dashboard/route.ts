@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-const ASB_API_URL = process.env.ASB_API_URL || process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+const ASB_API_URL = process.env.ASB_API_URL || process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8083';
 
 // Simple in-memory cache
 let cache: { data: any; timestamp: number } | null = null;
@@ -28,7 +28,7 @@ export async function GET() {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 10000); // Increased to 10 second timeout
 
-      const response = await fetch(`${ASB_API_URL}/api/v2/dashboard`, {
+      const response = await fetch(`${ASB_API_URL}/api/dashboard`, {
         headers: {
           'Accept': 'application/json',
         },
@@ -44,20 +44,7 @@ export async function GET() {
         throw new Error(`Backend responded with status: ${response.status}`);
       }
 
-      let data = await response.json();
-      
-      // Override with real database state
-      data = {
-        ...data,
-        database: {
-          documents: 0,  // Real count from database
-          conversations: 0,
-          messages: 0,
-          size: '0 MB'
-        },
-        note: 'Database is currently empty - no documents have been indexed yet',
-        timestamp: new Date().toISOString()
-      };
+      const data = await response.json();
       
       // Update cache
       cache = { data, timestamp: Date.now() };

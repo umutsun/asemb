@@ -75,13 +75,13 @@ export function SourceCitation({ sources }: SourceCitationProps) {
       <div className="flex items-center justify-between mb-3">
         <p className="text-xs font-medium text-gray-600 dark:text-gray-400 flex items-center gap-1">
           <span className="w-1 h-1 bg-blue-500 rounded-full"></span>
-          Kaynaklar ({sources.length})
+          İlgili Konular ({sources.length})
         </p>
         <div className="flex items-center gap-3 text-xs">
           <span className="flex items-center gap-1">
             <span className="text-gray-500 dark:text-gray-400">Güven:</span>
             <span className={`font-medium ${confidenceColor}`}>
-              {confidenceText} ({confidence}%)
+              {confidenceText} ({confidence})
             </span>
           </span>
         </div>
@@ -97,8 +97,8 @@ export function SourceCitation({ sources }: SourceCitationProps) {
           return (
             <div key={source.id} className="group">
               <div className="flex items-start gap-2 p-2 rounded-lg hover:bg-gray-50/50 dark:hover:bg-gray-700/30 transition-colors duration-200">
-                <div className="mt-0.5 text-blue-500 dark:text-blue-400 opacity-70 group-hover:opacity-100 transition-opacity">
-                  {getSourceIcon(source.sourceTable)}
+                <div className="flex items-center justify-center w-6 h-6 mt-0.5 text-xs font-medium text-gray-600 dark:text-gray-400 bg-gray-100 dark:bg-gray-700 rounded-full">
+                  {index + 1}
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 mb-1">
@@ -121,10 +121,6 @@ export function SourceCitation({ sources }: SourceCitationProps) {
                         {getSourceTableName(source.sourceTable)}
                       </span>
                     )}
-                    {/* Show similarity score */}
-                    <span className={`text-xs font-medium ${scoreColor}`}>
-                      %{scoreDisplay}
-                    </span>
                   </div>
                   {source.excerpt && (
                     <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 line-clamp-2 leading-relaxed">
@@ -153,9 +149,14 @@ export function SourceCitation({ sources }: SourceCitationProps) {
                   )}
                 </div>
                 <div className="flex flex-col items-end gap-1">
-                  <span className="text-xs text-gray-400 dark:text-gray-500 font-mono bg-gray-100 dark:bg-gray-700 px-1.5 py-0.5 rounded">
-                    {index + 1}
-                  </span>
+                  <div className="flex items-center gap-1">
+                    <div className="opacity-70 group-hover:opacity-100 transition-opacity">
+                      {getSourceIcon(source.sourceTable)}
+                    </div>
+                    <span className={`text-xs font-medium ${scoreColor}`}>
+                      {scoreDisplay}
+                    </span>
+                  </div>
                   {hasMetadata && (
                     <span className="text-xs text-green-600 dark:text-green-400">
                       ✓

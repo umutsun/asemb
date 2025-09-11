@@ -30,7 +30,21 @@ export class LightRAGService {
   }
 
   private initializeEmbeddings() {
-    // Try Deepseek first (OpenAI compatible)
+    // Try OpenAI first (primary)
+    if (process.env.OPENAI_API_KEY) {
+      try {
+        this.embeddings = new OpenAIEmbeddings({
+          openAIApiKey: process.env.OPENAI_API_KEY,
+          modelName: 'text-embedding-ada-002'
+        });
+        console.log('🎯 Using OpenAI for embeddings');
+        return;
+      } catch (error) {
+        console.log('⚠️ OpenAI embeddings initialization failed');
+      }
+    }
+
+    // Fallback to Deepseek (OpenAI compatible)
     if (process.env.DEEPSEEK_API_KEY) {
       try {
         this.embeddings = new OpenAIEmbeddings({
@@ -47,16 +61,6 @@ export class LightRAGService {
       }
     }
 
-    // Fallback to OpenAI if available
-    if (process.env.OPENAI_API_KEY) {
-      this.embeddings = new OpenAIEmbeddings({
-        openAIApiKey: process.env.OPENAI_API_KEY,
-        modelName: 'text-embedding-ada-002'
-      });
-      console.log('🎯 Using OpenAI for embeddings');
-      return;
-    }
-
     // If no embeddings available, we'll use a dummy one
     console.log('⚠️ No embedding provider available, using fallback');
     this.embeddings = {
@@ -66,9 +70,43 @@ export class LightRAGService {
   }
 
   private initializeLLM() {
-    // Priority order: Deepseek -> Gemini -> Claude -> OpenAI
+    // Priority order: OpenAI -> Gemini -> Deepseek -> Claude
     
-    // Try Deepseek (OpenAI compatible)
+    // Try OpenAI first (primary)
+    if (process.env.OPENAI_API_KEY) {
+      try {
+        this.llm = new ChatOpenAI({
+          openAIApiKey: process.env.OPENAI_API_KEY,
+          modelName: 'gpt-3.5-turbo',
+          temperature: 0.3,
+          maxTokens: 1000
+        });
+        this.currentProvider = 'openai';
+        console.log('🤖 LightRAG using OpenAI API');
+        return;
+      } catch (error) {
+        console.log('⚠️ OpenAI LLM initialization failed');
+      }
+    }
+
+    // Try Gemini as first fallback
+    if (process.env.GEMINI_API_KEY) {
+      try {
+        this.llm = new ChatGoogleGenerativeAI({
+          apiKey: process.env.GEMINI_API_KEY,
+          model: 'gemini-pro',
+          temperature: 0.3,
+          maxOutputTokens: 1000
+        });
+        this.currentProvider = 'gemini';
+        console.log('🤖 LightRAG using Gemini API');
+        return;
+      } catch (error) {
+        console.log('⚠️ Gemini LLM initialization failed');
+      }
+    }
+
+    // Try Deepseek as second fallback (OpenAI compatible)
     if (process.env.DEEPSEEK_API_KEY) {
       try {
         this.llm = new ChatOpenAI({
@@ -88,24 +126,7 @@ export class LightRAGService {
       }
     }
 
-    // Try Gemini
-    if (process.env.GEMINI_API_KEY) {
-      try {
-        this.llm = new ChatGoogleGenerativeAI({
-          apiKey: process.env.GEMINI_API_KEY,
-          model: 'gemini-pro',
-          temperature: 0.3,
-          maxOutputTokens: 1000
-        });
-        this.currentProvider = 'gemini';
-        console.log('🤖 LightRAG using Gemini API');
-        return;
-      } catch (error) {
-        console.log('⚠️ Gemini LLM initialization failed');
-      }
-    }
-
-    // Try Claude
+    // Try Claude as last fallback
     if (process.env.CLAUDE_API_KEY) {
       try {
         this.llm = new ChatAnthropic({
@@ -120,19 +141,6 @@ export class LightRAGService {
       } catch (error) {
         console.log('⚠️ Claude LLM initialization failed');
       }
-    }
-
-    // Try OpenAI
-    if (process.env.OPENAI_API_KEY) {
-      this.llm = new ChatOpenAI({
-        openAIApiKey: process.env.OPENAI_API_KEY,
-        modelName: 'gpt-3.5-turbo',
-        temperature: 0.3,
-        maxTokens: 1000
-      });
-      this.currentProvider = 'openai';
-      console.log('🤖 LightRAG using OpenAI API');
-      return;
     }
 
     console.log('❌ No LLM provider available');
@@ -495,7 +503,65 @@ export class LightRAGService {
     if (this.redis && this.redis.del) {
       await this.redis.del('lightrag:status');
     }
+    // Also clear from DB
+    if (this.pool && this.pool.query) {
+      try {
+        await this.pool.query('TRUNCATE TABLE rag_data.documents');
+      } catch (error) {
+        console.error('Error clearing documents from DB:', error);
+      }
+    }
     console.log('✅ LightRAG cleared');
+    await this.initialize(); // Re-initialize after clearing
+  }
+
+  /**
+   * List all documents from the database
+   */
+  async listDocuments(limit: number = 100, offset: number = 0) {
+    if (!this.pool || !this.pool.query) {
+      console.error('PostgreSQL pool not available');
+      return [];
+    }
+    try {
+      const query = `
+        SELECT id, title, created_at, updated_at, LENGTH(content) as content_length
+        FROM rag_data.documents
+        ORDER BY updated_at DESC
+        LIMIT $1 OFFSET $2
+      `;
+      const result = await this.pool.query(query, [limit, offset]);
+      return result.rows;
+    } catch (error) {
+      console.error('Error listing documents:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Delete a document by its ID
+   */
+  async deleteDocument(id: number) {
+    if (!this.pool || !this.pool.query) {
+      console.error('PostgreSQL pool not available');
+      throw new Error('Database connection not available');
+    }
+    try {
+      const query = 'DELETE FROM rag_data.documents WHERE id = $1';
+      const result = await this.pool.query(query, [id]);
+      
+      if (result.rowCount && result.rowCount > 0) {
+        console.log(`✅ Document with ID ${id} deleted. Re-initializing vector store...`);
+        // Re-initialize to update the in-memory vector store
+        await this.initialize();
+        return { success: true, message: `Document ${id} deleted.` };
+      } else {
+        return { success: false, message: `Document ${id} not found.` };
+      }
+    } catch (error) {
+      console.error(`Error deleting document ${id}:`, error);
+      throw error;
+    }
   }
 }
 

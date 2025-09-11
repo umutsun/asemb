@@ -118,7 +118,7 @@ export default function WorkflowsPage() {
   const fetchWorkflows = async () => {
     setLoading(true);
     try {
-      const response = await fetch('http://localhost:3001/api/v2/workflows');
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8083'}/api/v2/workflows`);
       const data = await response.json();
       setWorkflows(data.workflows || [
         // Demo data
@@ -158,7 +158,7 @@ export default function WorkflowsPage() {
     if (!newWorkflow.name) return;
 
     try {
-      const response = await fetch('http://localhost:3001/api/v2/workflows', {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8083'}/api/v2/workflows`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(newWorkflow),
@@ -176,7 +176,7 @@ export default function WorkflowsPage() {
 
   const handleDeployTemplate = async (template: WorkflowTemplate) => {
     try {
-      const response = await fetch('http://localhost:3001/api/v2/workflows/deploy', {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8083'}/api/v2/workflows/deploy`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ templateId: template.id }),
@@ -193,8 +193,8 @@ export default function WorkflowsPage() {
   const handleToggleWorkflow = async (workflow: Workflow) => {
     try {
       const newStatus = workflow.status === 'active' ? 'inactive' : 'active';
-      const response = await fetch(`http://localhost:3003/api/v2/workflows/${workflow.id}/status`, {
-        method: `PUT',
+      const response = await fetch('http://localhost:3003/api/v2/workflows/' + workflow.id + '/status', {
+        method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status: newStatus }),
       });
@@ -240,8 +240,8 @@ export default function WorkflowsPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold">n8n Workflows</h1>
-          <p className="text-muted-foreground mt-2">
+          <h1 className="text-xl font-semibold">n8n Workflows</h1>
+          <p className="text-sm text-muted-foreground mt-1">
             Otomasyon workflow'larını yönetin ve izleyin
           </p>
         </div>
@@ -465,7 +465,7 @@ export default function WorkflowsPage() {
                           size="icon"
                           asChild
                         >
-                          <a href={`http://localhost:5678/workflow/${workflow.id}`} target="_blank" rel="noopener noreferrer">
+                          <a href={'http://localhost:5678/workflow/' + workflow.id} target="_blank" rel="noopener noreferrer">
                             <Edit className="h-4 w-4" />
                           </a>
                         </Button>

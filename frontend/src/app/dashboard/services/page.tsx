@@ -128,14 +128,14 @@ export default function ServicesPage() {
     setLoading({ ...loading, [serviceId]: true });
     
     try {
-      const response = await fetch(`http://localhost:3003/api/v2/services/${serviceId}/${action}`, {
-        method: `POST',
+      const response = await fetch('http://localhost:3003/api/v2/services/' + serviceId + '/' + action, {
+        method: 'POST',
       });
 
       if (response.ok) {
         toast({
-          title: `${action === 'start' ? 'Başlatılıyor' : action === 'stop' ? 'Durduruluyor' : 'Yeniden Başlatılıyor'} ✨`,
-          description: `${services[serviceId].name} servisi ${action === 'start' ? 'başlatılıyor' : action === 'stop' ? 'durduruluyor' : 'yeniden başlatılıyor'}...`,
+          title: (action === 'start' ? 'Başlatılıyor' : action === 'stop' ? 'Durduruluyor' : 'Yeniden Başlatılıyor') + ' ✨',
+          description: services[serviceId].name + ' servisi ' + (action === 'start' ? 'başlatılıyor' : action === 'stop' ? 'durduruluyor' : 'yeniden başlatılıyor') + '...',
           duration: 2000,
         });
         
@@ -156,7 +156,7 @@ export default function ServicesPage() {
     } catch (error) {
       toast({
         title: 'Hata',
-        description: `${services[serviceId].name} servisi kontrol edilemedi`,
+        description: services[serviceId].name + ' servisi kontrol edilemedi',
         variant: 'destructive',
         duration: 3000,
       });
@@ -167,8 +167,8 @@ export default function ServicesPage() {
 
   const handleDockerAction = async (containerId: string, action: 'start' | 'stop' | 'restart' | 'remove') => {
     try {
-      const response = await fetch(`http://localhost:3003/api/v2/services/docker/${containerId}/${action}`, {
-        method: `POST',
+      const response = await fetch('http://localhost:3003/api/v2/services/docker/' + containerId + '/' + action, {
+        method: 'POST',
       });
 
       if (response.ok) {
@@ -216,8 +216,8 @@ export default function ServicesPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold">Servis Yönetimi</h1>
-          <p className="text-muted-foreground mt-2">
+          <h1 className="text-xl font-semibold">Servis Yönetimi</h1>
+          <p className="text-sm text-muted-foreground mt-1">
             Python servisleri, Docker container'ları ve sistem bileşenlerini yönetin
           </p>
         </div>

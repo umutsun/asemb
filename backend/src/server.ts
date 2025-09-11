@@ -14,6 +14,16 @@ import searchRoutes from './routes/search.routes';
 import chatRoutes from './routes/chat.routes';
 import dashboardRoutes from './routes/dashboard.routes';
 import scraperRoutes from './routes/scraper.routes';
+import chatbotSettingsRoutes from './routes/chatbot-settings.routes';
+import historyRoutes from './routes/history.routes';
+import documentsRoutes from './routes/documents.routes';
+import migrationRoutes from './routes/migration.routes';
+import embeddingsRoutes from './routes/embeddings.routes';
+import settingsRoutes from './routes/settings.routes';
+import migrationCheckRoutes from './routes/migration-check.routes';
+import ragConfigRoutes from './routes/rag-config.routes';
+import activityRoutes from './routes/activity.routes';
+import ragAnythingRoutes from './routes/raganything.routes';
 
 // Load environment variables
 dotenv.config();
@@ -22,10 +32,13 @@ dotenv.config();
 const app: Application = express();
 const httpServer = createServer(app);
 
+// Parse CORS origins from environment variable
+const corsOrigins = (process.env.CORS_ORIGIN || 'http://localhost:3000').split(',').map(origin => origin.trim());
+
 // Initialize Socket.io
 const io = new SocketServer(httpServer, {
   cors: {
-    origin: process.env.CORS_ORIGIN || 'http://localhost:3000',
+    origin: corsOrigins,
     credentials: true
   }
 });
@@ -50,7 +63,7 @@ app.use(helmet({
   contentSecurityPolicy: false // For development
 }));
 app.use(cors({
-  origin: process.env.CORS_ORIGIN || 'http://localhost:3000',
+  origin: corsOrigins,
   credentials: true
 }));
 app.use(compression());
@@ -90,6 +103,16 @@ app.use(searchRoutes);
 app.use(chatRoutes);
 app.use(dashboardRoutes);
 app.use(scraperRoutes);
+app.use('/api/v2/chatbot', chatbotSettingsRoutes);
+app.use(historyRoutes);
+app.use(documentsRoutes);
+app.use('/api/v2/migration', migrationRoutes);
+app.use('/api/v2/embeddings', embeddingsRoutes);
+app.use('/api/v2/settings', settingsRoutes);
+app.use('/api/v2/migration-check', migrationCheckRoutes);
+app.use('/api/v2/rag', ragConfigRoutes);
+app.use('/api/v2/activity', activityRoutes);
+app.use('/api/v2/raganything', ragAnythingRoutes);
 
 // Base route
 app.get('/api/v2', (req: Request, res: Response) => {

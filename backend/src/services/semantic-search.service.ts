@@ -185,7 +185,7 @@ export class SemanticSearchService {
           END as keyword_boost
         FROM rag_data.documents d
         WHERE d.embedding IS NOT NULL
-          AND (1 - (d.embedding <=> $1::vector)) > 0.3  -- Minimum 30% similarity threshold
+          AND (1 - (d.embedding <=> $1::vector)) > 0.5  -- Increased to 50% minimum similarity
         ORDER BY 
           (1 - (d.embedding <=> $1::vector)) + 
           CASE 

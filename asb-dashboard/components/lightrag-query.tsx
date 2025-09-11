@@ -9,7 +9,7 @@ import { useMutation } from "@tanstack/react-query";
 import { Toaster, toast } from "sonner";
 
 
-async function postQuery(query) {
+async function postQuery(query: string) {
   const response = await fetch("/api/lightrag/query", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -39,7 +39,7 @@ export function LightragQuery() {
     },
   });
 
-  const handleSubmit = (e) => {
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!query.trim()) {
       toast.warning("Please enter a query.");
@@ -75,24 +75,24 @@ export function LightragQuery() {
         </CardContent>
         {mutation.isSuccess && (
           <CardFooter className="flex flex-col items-start gap-4 rounded-lg bg-muted p-4">
-             <div className="w-full">
-                <p className="text-sm font-semibold text-primary">Query:</p>
-                <p className="text-sm text-muted-foreground">{mutation.data.query}</p>
+            <div className="w-full">
+              <p className="text-sm font-semibold text-primary">Query:</p>
+              <p className="text-sm text-muted-foreground">{mutation.data.query}</p>
             </div>
             <div className="w-full">
-                <p className="text-sm font-semibold text-primary">Answer:</p>
-                <p className="text-sm">{mutation.data.answer}</p>
+              <p className="text-sm font-semibold text-primary">Answer:</p>
+              <p className="text-sm">{mutation.data.answer}</p>
             </div>
-             <div className="w-full">
-                <p className="text-sm font-semibold text-primary">Source:</p>
-                <p className="text-xs uppercase font-mono tracking-wider rounded-md bg-secondary px-2 py-1 text-secondary-foreground">{mutation.data.source}</p>
+            <div className="w-full">
+              <p className="text-sm font-semibold text-primary">Source:</p>
+              <p className="text-xs uppercase font-mono tracking-wider rounded-md bg-secondary px-2 py-1 text-secondary-foreground">{mutation.data.source}</p>
             </div>
           </CardFooter>
         )}
-         {mutation.isError && (
-            <CardFooter>
-                 <p className="text-sm text-destructive">Error: {mutation.error.message}</p>
-            </CardFooter>
+        {mutation.isError && (
+          <CardFooter>
+            <p className="text-sm text-destructive">Error: {mutation.error.message}</p>
+          </CardFooter>
         )}
       </Card>
     </>

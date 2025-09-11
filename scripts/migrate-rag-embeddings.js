@@ -10,7 +10,7 @@ require('dotenv').config();
 const { Client } = require('pg');
 const OpenAI = require('openai');
 const cliProgress = require('cli-progress');
-const chalk = require('chalk');
+const chalk = require('chalk').default || require('chalk');
 
 // Configuration for each table
 const TABLE_CONFIGS = {
@@ -89,6 +89,11 @@ class RAGMigration {
       
       await this.targetDB.connect();
       console.log(chalk.green('✅ Connected to target database (asemb)'));
+
+      // Increase memory for this session to handle indexing
+      console.log(chalk.yellow('🔧 Setting maintenance_work_mem to 256MB for this session...'));
+      await this.targetDB.query("SET maintenance_work_mem = '256MB';");
+      console.log(chalk.green('✅ Session memory configured.'));
       
       return true;
     } catch (error) {

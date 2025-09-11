@@ -11,6 +11,7 @@ interface ChatInputProps {
 export function ChatInput({ onSend, disabled }: ChatInputProps) {
   const [message, setMessage] = useState('');
   const [sampleQuestions, setSampleQuestions] = useState<string[]>([]);
+  const [placeholder, setPlaceholder] = useState('Hukuki belgelerde arama yapın veya soru sorun...');
   
   // Hazır sorular havuzu
   const questionPool = [
@@ -48,6 +49,15 @@ export function ChatInput({ onSend, disabled }: ChatInputProps) {
   
   useEffect(() => {
     refreshQuestions();
+    // Fetch chatbot settings
+    fetch('http://localhost:8083/api/v2/chatbot/settings')
+      .then(res => res.json())
+      .then(data => {
+        if (data.placeholder) {
+          setPlaceholder(data.placeholder);
+        }
+      })
+      .catch(err => console.error('Failed to fetch chatbot settings:', err));
   }, []);
 
   const handleSend = () => {
@@ -104,7 +114,7 @@ export function ChatInput({ onSend, disabled }: ChatInputProps) {
             value={message}
             onChange={(e) => setMessage(e.target.value)}
             onKeyPress={handleKeyPress}
-            placeholder="Hukuki belgelerde arama yapın veya soru sorun..."
+            placeholder={placeholder}
             disabled={disabled}
             className="flex-1 min-h-[52px] max-h-[160px] p-3 bg-transparent resize-none focus:outline-none text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 disabled:opacity-50 transition-all duration-200"
             rows={1}

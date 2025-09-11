@@ -1,11 +1,8 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { getApiUrl, API_CONFIG } from '@/lib/config';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
@@ -20,184 +17,215 @@ import {
 } from '@/components/ui/table';
 import { 
   Brain, 
-  Zap, 
   Database,
   Play,
+  Pause,
+  StopCircle,
   Loader2,
   CheckCircle,
   AlertCircle,
-  BarChart3,
-  Hash,
-  FileText,
+  Clock,
+  DollarSign,
+  Zap,
   RefreshCw,
-  Download,
-  Upload,
-  Sparkles,
-  Info
+  Info,
+  TrendingUp,
+  Activity,
+  FileText,
+  Hash
 } from 'lucide-react';
 
-interface EmbeddingJob {
-  id: string;
-  text: string;
-  model: string;
-  dimensions: number;
-  status: 'pending' | 'processing' | 'completed' | 'failed';
-  createdAt: Date;
-  vector?: number[];
-  error?: string;
+interface TableInfo {
+  name: string;
+  displayName: string;
+  database: string;
+  totalRecords: number;
+  embeddedRecords: number;
+  textColumns: number;
 }
 
-interface EmbeddingStats {
-  totalEmbeddings: number;
-  totalDimensions: number;
-  averageProcessingTime: number;
-  modelsUsed: string[];
+interface MigrationProgress {
+  status: string;
+  current: number;
+  total: number;
+  percentage: number;
+  currentTable: string | null;
+  error: string | null;
+  tokensUsed: number;
+  estimatedCost: number;
+  startTime: number | null;
+  estimatedTimeRemaining: string | null;
+}
+
+interface MigrationHistory {
+  migration_id: string;
+  table_name: string;
+  total_records: number;
+  processed_records: number;
+  successful_records: number;
+  tokens_used: number;
+  estimated_cost: number;
+  status: string;
+  model_used: string;
+  started_at: string;
+  completed_at: string;
+  duration_seconds: number;
+  progress_percentage: number;
 }
 
 export default function EmbeddingsPage() {
-  const [text, setText] = useState('');
-  const [model, setModel] = useState('text-embedding-ada-002');
+  const [tables, setTables] = useState<TableInfo[]>([]);
+  const [selectedTables, setSelectedTables] = useState<string[]>([]);
+  const [batchSize, setBatchSize] = useState(10);
   const [loading, setLoading] = useState(false);
-  const [jobs, setJobs] = useState<EmbeddingJob[]>([]);
-  const [stats, setStats] = useState<EmbeddingStats>({
-    totalEmbeddings: 0,
-    totalDimensions: 1536,
-    averageProcessingTime: 0,
-    modelsUsed: ['text-embedding-ada-002'],
+  const [migrationProgress, setMigrationProgress] = useState<MigrationProgress | null>(null);
+  const [migrationHistory, setMigrationHistory] = useState<MigrationHistory[]>([]);
+  const [activeTab, setActiveTab] = useState('overview');
+  const [totalStats, setTotalStats] = useState({
+    totalRecords: 0,
+    totalEmbedded: 0,
+    totalPending: 0,
+    totalTokens: 0,
+    totalCost: 0,
+    avgTokensPerRecord: 0
   });
-  const [selectedVector, setSelectedVector] = useState<number[] | null>(null);
 
   useEffect(() => {
-    fetchStats();
-    fetchJobs();
-  }, []);
+    fetchTables();
+    fetchMigrationHistory();
+    fetchMigrationProgress();
+    
+    const interval = setInterval(() => {
+      if (migrationProgress?.status === 'processing') {
+        fetchMigrationProgress();
+      }
+    }, 2000);
+    
+    return () => clearInterval(interval);
+  }, [migrationProgress?.status]);
 
-  const fetchStats = async () => {
+  useEffect(() => {
+    // Calculate total stats
+    const stats = tables.reduce((acc, table) => ({
+      totalRecords: acc.totalRecords + table.totalRecords,
+      totalEmbedded: acc.totalEmbedded + table.embeddedRecords,
+      totalPending: acc.totalPending + (table.totalRecords - table.embeddedRecords)
+    }), { totalRecords: 0, totalEmbedded: 0, totalPending: 0 });
+
+    const historyStats = migrationHistory
+      .filter(h => h.status === 'completed')
+      .reduce((acc, h) => ({
+        totalTokens: acc.totalTokens + (h.tokens_used || 0),
+        totalCost: acc.totalCost + (h.estimated_cost || 0)
+      }), { totalTokens: 0, totalCost: 0 });
+
+    setTotalStats({
+      ...stats,
+      totalTokens: historyStats.totalTokens,
+      totalCost: historyStats.totalCost,
+      avgTokensPerRecord: stats.totalEmbedded > 0 
+        ? Math.round(historyStats.totalTokens / stats.totalEmbedded)
+        : 0
+    });
+  }, [tables, migrationHistory]);
+
+  const fetchTables = async () => {
     try {
-      const response = await fetch('http://localhost:3001/api/v2/embeddings/stats');
+      const response = await fetch('http://localhost:8083/api/v2/embeddings/tables');
       const data = await response.json();
-      setStats(data);
+      setTables(data.tables || []);
     } catch (error) {
-      console.error('Failed to fetch stats:', error);
+      console.error('Failed to fetch tables:', error);
     }
   };
 
-  const fetchJobs = async () => {
+  const fetchMigrationProgress = async () => {
     try {
-      const response = await fetch('http://localhost:3001/api/v2/embeddings/jobs');
+      const response = await fetch('http://localhost:8083/api/v2/embeddings/progress');
       const data = await response.json();
-      setJobs(data.jobs || []);
+      setMigrationProgress(data.progress);
     } catch (error) {
-      console.error('Failed to fetch jobs:', error);
+      console.error('Failed to fetch progress:', error);
     }
   };
 
-  const generateEmbedding = async () => {
-    if (!text.trim()) {
-      alert('Lütfen bir metin girin');
+  const fetchMigrationHistory = async () => {
+    try {
+      const response = await fetch('http://localhost:8083/api/v2/embeddings/history');
+      const data = await response.json();
+      setMigrationHistory(data.history || []);
+    } catch (error) {
+      console.error('Failed to fetch history:', error);
+    }
+  };
+
+  const startMigration = async () => {
+    if (selectedTables.length === 0) {
+      alert('Lütfen en az bir tablo seçin');
       return;
     }
 
     setLoading(true);
-    
-    const newJob: EmbeddingJob = {
-      id: Date.now().toString(),
-      text: text.substring(0, 100) + (text.length > 100 ? '...' : ''),
-      model,
-      dimensions: model === 'text-embedding-ada-002' ? 1536 : 768,
-      status: 'processing',
-      createdAt: new Date(),
-    };
-    
-    setJobs([newJob, ...jobs]);
-
     try {
-      const response = await fetch('http://localhost:3001/api/v2/embeddings', {
+      const response = await fetch('http://localhost:8083/api/v2/embeddings/migrate', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          text,
-          model,
-        }),
+          tables: selectedTables,
+          batchSize
+        })
       });
 
-      const data = await response.json();
-
       if (response.ok) {
-        setJobs(prevJobs =>
-          prevJobs.map(job =>
-            job.id === newJob.id
-              ? { ...job, status: 'completed', vector: data.embedding }
-              : job
-          )
-        );
-        
-        // Update stats
-        setStats(prev => ({
-          ...prev,
-          totalEmbeddings: prev.totalEmbeddings + 1,
-        }));
-      } else {
-        setJobs(prevJobs =>
-          prevJobs.map(job =>
-            job.id === newJob.id
-              ? { ...job, status: 'failed', error: data.error }
-              : job
-          )
-        );
+        fetchMigrationProgress();
+        fetchMigrationHistory();
       }
-    } catch (error: any) {
-      setJobs(prevJobs =>
-        prevJobs.map(job =>
-          job.id === newJob.id
-            ? { ...job, status: 'failed', error: error.message }
-            : job
-        )
-      );
+    } catch (error) {
+      console.error('Failed to start migration:', error);
     } finally {
       setLoading(false);
-      setText('');
     }
   };
 
-  const visualizeVector = (vector: number[]) => {
-    // Take first 50 dimensions for visualization
-    const sample = vector.slice(0, 50);
-    const max = Math.max(...sample.map(Math.abs));
-    
-    return (
-      <div className="space-y-2">
-        <div className="flex items-center justify-between text-sm text-muted-foreground mb-2">
-          <span>İlk 50 boyut</span>
-          <span>Min: {Math.min(...sample).toFixed(4)} | Max: {Math.max(...sample).toFixed(4)}</span>
-        </div>
-        <div className="flex gap-[1px] h-20 items-center">
-          {sample.map((value, index) => {
-            const height = Math.abs(value / max) * 100;
-            const isPositive = value > 0;
-            return (
-              <div
-                key={index}
-                className={`flex-1 ${isPositive ? 'bg-blue-500' : 'bg-red-500'}`}
-                style={{ height: `${height}%`, opacity: 0.7 }}
-                title={`Dimension ${index}: ${value.toFixed(4)}`}
-              />
-            );
-          })}
-        </div>
-      </div>
-    );
+  const pauseMigration = async () => {
+    try {
+      await fetch('http://localhost:8083/api/v2/embeddings/pause', { method: 'POST' });
+      fetchMigrationProgress();
+    } catch (error) {
+      console.error('Failed to pause migration:', error);
+    }
   };
 
-  const downloadVector = (vector: number[], jobId: string) => {
-    const blob = new Blob([JSON.stringify(vector, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `embedding_${jobId}.json`;
-    a.click();
+  const resumeMigration = async () => {
+    try {
+      await fetch('http://localhost:8083/api/v2/embeddings/resume', { method: 'POST' });
+      fetchMigrationProgress();
+    } catch (error) {
+      console.error('Failed to resume migration:', error);
+    }
+  };
+
+  const formatDuration = (seconds: number) => {
+    if (!seconds) return '-';
+    const hours = Math.floor(seconds / 3600);
+    const minutes = Math.floor((seconds % 3600) / 60);
+    const secs = seconds % 60;
+    
+    if (hours > 0) return `${hours}s ${minutes}d ${secs}sn`;
+    if (minutes > 0) return `${minutes}d ${secs}sn`;
+    return `${secs}sn`;
+  };
+
+  const formatCost = (cost: number) => {
+    if (!cost) return '$0.00';
+    return `$${cost.toFixed(4)}`;
+  };
+
+  const formatTokens = (tokens: number) => {
+    if (!tokens) return '0';
+    if (tokens > 1000000) return `${(tokens / 1000000).toFixed(2)}M`;
+    if (tokens > 1000) return `${(tokens / 1000).toFixed(1)}K`;
+    return tokens.toString();
   };
 
   return (
@@ -205,202 +233,418 @@ export default function EmbeddingsPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold">Embeddings</h1>
-          <p className="text-muted-foreground mt-2">
-            OpenAI API ile vektör embedding oluşturun
+          <h1 className="text-xl font-semibold">Embeddings Migration</h1>
+          <p className="text-sm text-muted-foreground mt-1">
+            Veritabanı tablolarından embedding oluşturun ve yönetin
           </p>
         </div>
-        <Badge variant="outline" className="gap-2">
-          <Brain className="h-4 w-4" />
-          OpenAI
-        </Badge>
+        <div className="flex items-center gap-2">
+          <Badge variant="outline" className="gap-2">
+            <Database className="h-4 w-4" />
+            {tables.find(t => t.database)?.database || 'rag_chatbot'}
+          </Badge>
+          <Badge variant="outline" className="gap-2">
+            <Brain className="h-4 w-4" />
+            text-embedding-ada-002
+          </Badge>
+        </div>
       </div>
 
-      {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      {/* Stats Overview */}
+      <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">
-              Toplam Embedding
+              Toplam Kayıt
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats.totalEmbeddings}</div>
+            <div className="text-2xl font-bold">{totalStats.totalRecords.toLocaleString()}</div>
+            <p className="text-xs text-muted-foreground mt-1">Tüm tablolar</p>
           </CardContent>
         </Card>
+        
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">
-              Boyut
+              Embed Edilmiş
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats.totalDimensions}</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              Ortalama Süre
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.averageProcessingTime}ms</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              Aktif Model
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-xl font-bold truncate">ada-002</div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Embedding Generator */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Sparkles className="h-5 w-5" />
-            Embedding Oluştur
-          </CardTitle>
-          <CardDescription>
-            Metninizi vektör temsiline dönüştürün
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <Textarea
-            placeholder="Embedding oluşturmak istediğiniz metni girin..."
-            value={text}
-            onChange={(e) => setText(e.target.value)}
-            rows={6}
-          />
-          
-          <div className="flex items-center gap-4">
-            <div className="flex-1">
-              <label className="text-sm font-medium">Model</label>
-              <select
-                value={model}
-                onChange={(e) => setModel(e.target.value)}
-                className="w-full mt-1 p-2 border rounded-md"
-              >
-                <option value="text-embedding-ada-002">text-embedding-ada-002 (1536 dim)</option>
-                <option value="text-embedding-3-small">text-embedding-3-small (768 dim)</option>
-                <option value="text-embedding-3-large">text-embedding-3-large (3072 dim)</option>
-              </select>
+            <div className="text-2xl font-bold text-green-600">
+              {totalStats.totalEmbedded.toLocaleString()}
             </div>
-            <Button 
-              onClick={generateEmbedding} 
-              disabled={loading || !text.trim()}
-              className="mt-6"
-            >
-              {loading ? (
+            <Progress 
+              value={(totalStats.totalEmbedded / totalStats.totalRecords) * 100} 
+              className="mt-1 h-1"
+            />
+          </CardContent>
+        </Card>
+        
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">
+              Bekleyen
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-orange-600">
+              {totalStats.totalPending.toLocaleString()}
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">
+              {((totalStats.totalPending / totalStats.totalRecords) * 100).toFixed(1)}%
+            </p>
+          </CardContent>
+        </Card>
+        
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">
+              Token Kullanımı
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{formatTokens(totalStats.totalTokens)}</div>
+            <p className="text-xs text-muted-foreground mt-1">
+              ~{totalStats.avgTokensPerRecord} token/kayıt
+            </p>
+          </CardContent>
+        </Card>
+        
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">
+              Toplam Maliyet
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-blue-600">
+              {formatCost(totalStats.totalCost)}
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">
+              ada-002 model
+            </p>
+          </CardContent>
+        </Card>
+        
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">
+              Durum
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-center gap-2">
+              {migrationProgress?.status === 'processing' ? (
                 <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  İşleniyor...
+                  <Activity className="h-5 w-5 text-green-500 animate-pulse" />
+                  <span className="font-semibold">Aktif</span>
+                </>
+              ) : migrationProgress?.status === 'paused' ? (
+                <>
+                  <Pause className="h-5 w-5 text-yellow-500" />
+                  <span className="font-semibold">Duraklatıldı</span>
                 </>
               ) : (
                 <>
-                  <Zap className="mr-2 h-4 w-4" />
-                  Oluştur
+                  <CheckCircle className="h-5 w-5 text-gray-400" />
+                  <span className="font-semibold">Hazır</span>
                 </>
               )}
-            </Button>
-          </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
 
-          <Alert>
-            <Info className="h-4 w-4" />
-            <AlertDescription>
-              Embedding'ler otomatik olarak pgvector veritabanına kaydedilir ve semantic search için kullanılabilir.
-            </AlertDescription>
-          </Alert>
-        </CardContent>
-      </Card>
+      {/* Migration Progress */}
+      {migrationProgress && migrationProgress.status !== 'idle' && (
+        <Card className="border-blue-200 bg-blue-50/50">
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <CardTitle className="flex items-center gap-2">
+                <Loader2 className="h-5 w-5 animate-spin" />
+                Migration İlerlemesi
+              </CardTitle>
+              <div className="flex gap-2">
+                {migrationProgress.status === 'processing' ? (
+                  <Button onClick={pauseMigration} variant="outline" size="sm">
+                    <Pause className="h-4 w-4 mr-2" />
+                    Duraklat
+                  </Button>
+                ) : (
+                  <Button onClick={resumeMigration} variant="outline" size="sm">
+                    <Play className="h-4 w-4 mr-2" />
+                    Devam Et
+                  </Button>
+                )}
+                <Button variant="destructive" size="sm">
+                  <StopCircle className="h-4 w-4 mr-2" />
+                  İptal
+                </Button>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div>
+              <div className="flex justify-between text-sm mb-2">
+                <span>Tablo: {migrationProgress.currentTable}</span>
+                <span>{migrationProgress.current} / {migrationProgress.total}</span>
+              </div>
+              <Progress value={migrationProgress.percentage} className="h-2" />
+            </div>
+            
+            <div className="grid grid-cols-4 gap-4 text-sm">
+              <div>
+                <span className="text-muted-foreground">Token Kullanımı:</span>
+                <p className="font-semibold">{formatTokens(migrationProgress.tokensUsed)}</p>
+              </div>
+              <div>
+                <span className="text-muted-foreground">Tahmini Maliyet:</span>
+                <p className="font-semibold">{formatCost(migrationProgress.estimatedCost)}</p>
+              </div>
+              <div>
+                <span className="text-muted-foreground">Kalan Süre:</span>
+                <p className="font-semibold">{migrationProgress.estimatedTimeRemaining || 'Hesaplanıyor...'}</p>
+              </div>
+              <div>
+                <span className="text-muted-foreground">Hız:</span>
+                <p className="font-semibold">
+                  {migrationProgress.startTime 
+                    ? `${Math.round(migrationProgress.current / ((Date.now() - migrationProgress.startTime) / 1000))} kayıt/sn`
+                    : '-'}
+                </p>
+              </div>
+            </div>
+            
+            {migrationProgress.error && (
+              <Alert variant="destructive">
+                <AlertCircle className="h-4 w-4" />
+                <AlertDescription>{migrationProgress.error}</AlertDescription>
+              </Alert>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
-      {/* Recent Embeddings */}
+      {/* Main Content */}
       <Card>
         <CardHeader>
-          <div className="flex items-center justify-between">
-            <CardTitle>Son Oluşturulan Embedding'ler</CardTitle>
-            <Button onClick={fetchJobs} variant="outline" size="sm">
-              <RefreshCw className="h-4 w-4 mr-2" />
-              Yenile
-            </Button>
-          </div>
+          <CardTitle>Veri Kaynakları ve Migration</CardTitle>
+          <CardDescription>
+            Embedding oluşturmak için tabloları seçin ve migration başlatın
+          </CardDescription>
         </CardHeader>
         <CardContent>
-          <Tabs defaultValue="list" className="w-full">
-            <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="list">Liste</TabsTrigger>
-              <TabsTrigger value="visualization">Görselleştirme</TabsTrigger>
+          <Tabs value={activeTab} onValueChange={setActiveTab}>
+            <TabsList className="grid w-full grid-cols-3">
+              <TabsTrigger value="overview">Genel Bakış</TabsTrigger>
+              <TabsTrigger value="tables">Tablolar</TabsTrigger>
+              <TabsTrigger value="history">Geçmiş</TabsTrigger>
             </TabsList>
             
-            <TabsContent value="list">
-              {jobs.length === 0 ? (
+            <TabsContent value="overview" className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                {tables.map((table) => (
+                  <Card key={table.name} className="cursor-pointer hover:border-blue-400 transition-colors">
+                    <CardHeader className="pb-3">
+                      <div className="flex items-center justify-between">
+                        <CardTitle className="text-base">{table.displayName}</CardTitle>
+                        <Badge variant={table.embeddedRecords === table.totalRecords ? "success" : "secondary"}>
+                          {table.embeddedRecords === table.totalRecords ? "Tamamlandı" : "Eksik"}
+                        </Badge>
+                      </div>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-2">
+                        <div className="flex justify-between text-sm">
+                          <span className="text-muted-foreground">Toplam Kayıt:</span>
+                          <span className="font-medium">{table.totalRecords.toLocaleString()}</span>
+                        </div>
+                        <div className="flex justify-between text-sm">
+                          <span className="text-muted-foreground">Embed Edilmiş:</span>
+                          <span className="font-medium text-green-600">
+                            {table.embeddedRecords.toLocaleString()}
+                          </span>
+                        </div>
+                        <div className="flex justify-between text-sm">
+                          <span className="text-muted-foreground">Bekleyen:</span>
+                          <span className="font-medium text-orange-600">
+                            {(table.totalRecords - table.embeddedRecords).toLocaleString()}
+                          </span>
+                        </div>
+                        <Progress 
+                          value={(table.embeddedRecords / table.totalRecords) * 100} 
+                          className="mt-2"
+                        />
+                        <p className="text-xs text-muted-foreground text-right">
+                          {((table.embeddedRecords / table.totalRecords) * 100).toFixed(1)}% tamamlandı
+                        </p>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            </TabsContent>
+            
+            <TabsContent value="tables">
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-4">
+                    <div>
+                      <label className="text-sm font-medium">Batch Boyutu</label>
+                      <input
+                        type="number"
+                        value={batchSize}
+                        onChange={(e) => setBatchSize(Number(e.target.value))}
+                        className="ml-2 w-20 p-1 border rounded"
+                        min="1"
+                        max="100"
+                      />
+                    </div>
+                  </div>
+                  <Button 
+                    onClick={startMigration} 
+                    disabled={loading || selectedTables.length === 0 || migrationProgress?.status === 'processing'}
+                  >
+                    {loading ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Başlatılıyor...
+                      </>
+                    ) : (
+                      <>
+                        <Play className="mr-2 h-4 w-4" />
+                        Migration Başlat
+                      </>
+                    )}
+                  </Button>
+                </div>
+                
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="w-12">
+                        <input
+                          type="checkbox"
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setSelectedTables(tables.map(t => t.name));
+                            } else {
+                              setSelectedTables([]);
+                            }
+                          }}
+                        />
+                      </TableHead>
+                      <TableHead>Tablo</TableHead>
+                      <TableHead>Veritabanı</TableHead>
+                      <TableHead>Toplam</TableHead>
+                      <TableHead>Embed</TableHead>
+                      <TableHead>Bekleyen</TableHead>
+                      <TableHead>İlerleme</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {tables.map((table) => (
+                      <TableRow key={table.name}>
+                        <TableCell>
+                          <input
+                            type="checkbox"
+                            checked={selectedTables.includes(table.name)}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setSelectedTables([...selectedTables, table.name]);
+                              } else {
+                                setSelectedTables(selectedTables.filter(t => t !== table.name));
+                              }
+                            }}
+                          />
+                        </TableCell>
+                        <TableCell className="font-medium">{table.displayName}</TableCell>
+                        <TableCell>
+                          <Badge variant="outline">{table.database}</Badge>
+                        </TableCell>
+                        <TableCell>{table.totalRecords.toLocaleString()}</TableCell>
+                        <TableCell className="text-green-600">
+                          {table.embeddedRecords.toLocaleString()}
+                        </TableCell>
+                        <TableCell className="text-orange-600">
+                          {(table.totalRecords - table.embeddedRecords).toLocaleString()}
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-2">
+                            <Progress 
+                              value={(table.embeddedRecords / table.totalRecords) * 100} 
+                              className="w-20"
+                            />
+                            <span className="text-xs text-muted-foreground">
+                              {((table.embeddedRecords / table.totalRecords) * 100).toFixed(0)}%
+                            </span>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            </TabsContent>
+            
+            <TabsContent value="history">
+              {migrationHistory.length === 0 ? (
                 <div className="text-center py-12">
-                  <Brain className="mx-auto h-12 w-12 text-muted-foreground" />
-                  <p className="mt-2 text-muted-foreground">Henüz embedding oluşturulmadı</p>
+                  <Clock className="mx-auto h-12 w-12 text-muted-foreground" />
+                  <p className="mt-2 text-muted-foreground">Henüz migration geçmişi yok</p>
                 </div>
               ) : (
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Metin</TableHead>
-                      <TableHead>Model</TableHead>
-                      <TableHead>Boyut</TableHead>
+                      <TableHead>Tablo</TableHead>
                       <TableHead>Durum</TableHead>
+                      <TableHead>Kayıtlar</TableHead>
+                      <TableHead>Token</TableHead>
+                      <TableHead>Maliyet</TableHead>
+                      <TableHead>Süre</TableHead>
+                      <TableHead>Model</TableHead>
                       <TableHead>Tarih</TableHead>
-                      <TableHead>İşlemler</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {jobs.map((job) => (
-                      <TableRow key={job.id}>
-                        <TableCell className="max-w-xs truncate">
-                          {job.text}
+                    {migrationHistory.map((history) => (
+                      <TableRow key={history.migration_id}>
+                        <TableCell className="font-medium">{history.table_name}</TableCell>
+                        <TableCell>
+                          <Badge 
+                            variant={
+                              history.status === 'completed' ? 'success' : 
+                              history.status === 'failed' ? 'destructive' : 
+                              'secondary'
+                            }
+                          >
+                            {history.status === 'completed' ? 'Tamamlandı' :
+                             history.status === 'failed' ? 'Başarısız' :
+                             history.status === 'processing' ? 'İşleniyor' : history.status}
+                          </Badge>
                         </TableCell>
                         <TableCell>
-                          <Badge variant="outline">{job.model}</Badge>
-                        </TableCell>
-                        <TableCell>{job.dimensions}</TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-2">
-                            {job.status === 'completed' && <CheckCircle className="h-4 w-4 text-green-500" />}
-                            {job.status === 'failed' && <AlertCircle className="h-4 w-4 text-red-500" />}
-                            {job.status === 'processing' && <Loader2 className="h-4 w-4 animate-spin" />}
-                            <span className="text-sm">
-                              {job.status === 'completed' ? 'Tamamlandı' :
-                               job.status === 'failed' ? 'Başarısız' : 'İşleniyor'}
+                          {history.processed_records}/{history.total_records}
+                          {history.progress_percentage && (
+                            <span className="text-xs text-muted-foreground ml-1">
+                              ({history.progress_percentage}%)
                             </span>
-                          </div>
+                          )}
                         </TableCell>
-                        <TableCell>
-                          {new Date(job.createdAt).toLocaleString('tr-TR')}
+                        <TableCell>{formatTokens(history.tokens_used)}</TableCell>
+                        <TableCell className="text-blue-600">
+                          {formatCost(history.estimated_cost)}
                         </TableCell>
+                        <TableCell>{formatDuration(history.duration_seconds)}</TableCell>
                         <TableCell>
-                          <div className="flex gap-2">
-                            {job.vector && (
-                              <>
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  onClick={() => setSelectedVector(job.vector!)}
-                                >
-                                  <BarChart3 className="h-4 w-4" />
-                                </Button>
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  onClick={() => downloadVector(job.vector!, job.id)}
-                                >
-                                  <Download className="h-4 w-4" />
-                                </Button>
-                              </>
-                            )}
-                          </div>
+                          <Badge variant="outline" className="text-xs">
+                            {history.model_used || 'ada-002'}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-xs">
+                          {new Date(history.started_at).toLocaleString('tr-TR')}
                         </TableCell>
                       </TableRow>
                     ))}
@@ -408,30 +652,19 @@ export default function EmbeddingsPage() {
                 </Table>
               )}
             </TabsContent>
-            
-            <TabsContent value="visualization">
-              {selectedVector ? (
-                <div className="space-y-4">
-                  <Alert>
-                    <Info className="h-4 w-4" />
-                    <AlertDescription>
-                      Vektörün ilk 50 boyutu görselleştirilmiştir. Pozitif değerler mavi, negatif değerler kırmızı renkte gösterilir.
-                    </AlertDescription>
-                  </Alert>
-                  {visualizeVector(selectedVector)}
-                </div>
-              ) : (
-                <div className="text-center py-12">
-                  <BarChart3 className="mx-auto h-12 w-12 text-muted-foreground" />
-                  <p className="mt-2 text-muted-foreground">
-                    Görselleştirmek için bir embedding seçin
-                  </p>
-                </div>
-              )}
-            </TabsContent>
           </Tabs>
         </CardContent>
       </Card>
+
+      {/* Info Alert */}
+      <Alert>
+        <Info className="h-4 w-4" />
+        <AlertDescription>
+          <strong>Migration Bilgileri:</strong> Embedding oluşturma işlemi OpenAI text-embedding-ada-002 modeli kullanır. 
+          Her 1000 token için yaklaşık $0.0001 maliyet oluşur. Ortalama bir kayıt 2000-3000 token kullanır.
+          Tüm embeddings asemb veritabanındaki unified_embeddings tablosuna kaydedilir.
+        </AlertDescription>
+      </Alert>
     </div>
   );
 }

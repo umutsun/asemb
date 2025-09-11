@@ -72,6 +72,10 @@ app.use('/api/v2/lightrag', lightragV2Router);
 const chatRouter = require('./chat-router');
 app.use('/api/v2', chatRouter);
 
+// Migration API Routes - NEW!
+const migrationRouter = require('./migration-api');
+app.use('/api/asb', migrationRouter);
+
 // Semantic Upsert
 app.post('/api/v1/semantic/upsert', async (req, res) => {
   try {

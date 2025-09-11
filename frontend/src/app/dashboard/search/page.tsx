@@ -95,8 +95,8 @@ export default function SemanticSearchPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold">Semantic Search</h1>
-          <p className="text-muted-foreground mt-2">
+          <h1 className="text-xl font-semibold">Semantic Search</h1>
+          <p className="text-sm text-muted-foreground mt-1">
             Vektör veritabanında anlamsal arama yapın
           </p>
         </div>

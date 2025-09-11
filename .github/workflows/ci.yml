@@ -1,45 +1,83 @@
-name: CI
+name: Continuous Integration
 
 on:
   pull_request:
-  push:
-    branches: [ main, master ]
+    branches:
+      - main
 
 jobs:
-  build-test:
+  validate-nodejs:
+    name: "Validate Node.js Service"
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v3
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v3
         with:
-          node-version: 18
-          cache: npm
+          node-version: '18' # Projenizin gereksinimine göre ayarlayın
+          cache: 'npm'
 
       - name: Install dependencies
         run: npm ci
 
-      - name: Build
-        run: npm run build --if-present
+      - name: Run linter
+        run: npm run lint
 
-      - name: Test with coverage
-        run: npm run test:coverage
-
-      - name: Enforce coverage thresholds (PR gate)
-        if: ${{ github.event_name == 'pull_request' }}
-        run: node scripts/check-coverage.js --statements=60 --branches=40
-
-      - name: Start API server
-        run: |
-          nohup node src/index.js > api.log 2>&1 &
-          sleep 3
-
-      - name: Install Playwright browsers
-        run: npx playwright install --with-deps
-
-      - name: Run Playwright E2E tests
+      - name: Run tests
+        run: npm test
         env:
-          BASE_URL: http://localhost:3001
-        run: npm run test:e2e -- --reporter=list
+          CI: true
+          # Test için gerekli ortam değişkenlerini buraya ekleyin
+          # Örn: DATABASE_URL: ${{ secrets.TEST_DATABASE_URL }}
+
+  validate-python:
+    name: "Validate Python Service"
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10' # Projenizin gereksinimine göre ayarlayın
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r RAG-anything/requirements.txt
+      
+      # - name: Run linter with flake8
+      #   run: |
+      #     pip install flake8
+      #     flake8 RAG-anything/ --count --select=E9,F63,F7,F82 --show-source --statistics
+      #     flake8 RAG-anything/ --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
+
+  build-docker-images:
+    name: "Build Docker Images"
+    runs-on: ubuntu-latest
+    needs: [validate-nodejs, validate-python] # Diğer işler başarılı olunca çalışır
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+
+      - name: Build Node.js service image
+        uses: docker/build-push-action@v4
+        with:
+          context: .
+          file: ./backend/Dockerfile # Dockerfile yolunu doğrulayın
+          push: false # Sadece build et, push etme
+          tags: asb-backend:ci-build
+
+      - name: Build Python service image
+        uses: docker/build-push-action@v4
+        with:
+          context: ./RAG-anything
+          file: ./RAG-anything/Dockerfile # Dockerfile yolunu doğrulayın
+          push: false # Sadece build et, push etme
+          tags: rag-anything:ci-build

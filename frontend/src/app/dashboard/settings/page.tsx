@@ -237,23 +237,29 @@ export default function SettingsPage() {
   const handleServiceAction = async (service: string, action: string) => {
     setServiceLoading({ ...serviceLoading, [service]: true });
     try {
-      const response = await fetch(`http://localhost:3003/api/v2/services/${service}/${action}`, {
-        method: `POST',
+      const response = await fetch(`http://localhost:8083/api/v2/services/${service}/${action}`, {
+        method: 'POST',
       });
 
       if (response.ok) {
         const result = await response.json();
         setServices({ ...services, [service]: { ...services[service], status: result.status } });
 
+        const actionText = action === 'start' ? 'başlatıldı' : action === 'stop' ? 'durduruldu' : 'yeniden başlatıldı';
+        const serviceName = service.charAt(0).toUpperCase() + service.slice(1);
+        
         toast({
           title: "İşlem Başarılı",
-          description: `${service.charAt(0).toUpperCase() + service.slice(1)} servisi ${action === 'start' ? 'başlatıldı' : action === 'stop' ? 'durduruldu' : 'yeniden başlatıldı'}.`,
+          description: `${serviceName} servisi ${actionText}.`,
           duration: 2500,
         });
       } else {
+        const failText = action === 'start' ? 'başlatılamadı' : action === 'stop' ? 'durdurulamadı' : 'yeniden başlatılamadı';
+        const serviceName = service.charAt(0).toUpperCase() + service.slice(1);
+        
         toast({
           title: "İşlem Başarısız",
-          description: `${service.charAt(0).toUpperCase() + service.slice(1)} servisi ${action === 'start' ? 'başlatılamadı' : action === 'stop' ? 'durdurulamadı' : 'yeniden başlatılamadı'}.`,
+          description: `${serviceName} servisi ${failText}.`,
           variant: "destructive",
           duration: 3000,
         });
@@ -272,11 +278,44 @@ export default function SettingsPage() {
 
   useEffect(() => {
     fetchConfig();
+    fetchServiceStatus();
   }, []);
+
+  const fetchServiceStatus = async () => {
+    try {
+      // Check PostgreSQL
+      const pgResponse = await fetch('http://localhost:8083/api/v2/services/postgres/status');
+      if (pgResponse.ok) {
+        const pgData = await pgResponse.json();
+        setServices(prev => ({ ...prev, postgres: { status: pgData.status || 'running' } }));
+      }
+
+      // Check Redis
+      const redisResponse = await fetch('http://localhost:8083/api/v2/services/redis/status');
+      if (redisResponse.ok) {
+        const redisData = await redisResponse.json();
+        setServices(prev => ({ ...prev, redis: { status: redisData.status || 'running' } }));
+      }
+
+      // Check other services
+      const servicesResponse = await fetch('http://localhost:8083/api/dashboard');
+      if (servicesResponse.ok) {
+        const data = await servicesResponse.json();
+        setServices(prev => ({
+          ...prev,
+          lightrag: { status: data.lightrag?.initialized ? 'running' : 'stopped' },
+          postgres: { status: data.database ? 'running' : 'stopped' },
+          redis: { status: data.redis?.connected ? 'running' : 'stopped' }
+        }));
+      }
+    } catch (error) {
+      console.error('Failed to fetch service status:', error);
+    }
+  };
 
   const fetchConfig = async () => {
     try {
-      const response = await fetch('http://localhost:3001/api/v2/config');
+      const response = await fetch('/api/config');
       const data = await response.json();
       setConfig(data);
     } catch (error) {
@@ -287,7 +326,7 @@ export default function SettingsPage() {
   const handleSave = async () => {
     setSaving(true);
     try {
-      const response = await fetch('http://localhost:3001/api/v2/config', {
+      const response = await fetch('/api/config', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(config),
@@ -316,8 +355,8 @@ export default function SettingsPage() {
   const testConnection = async (service: string) => {
     setTesting(service);
     try {
-      const response = await fetch(`http://localhost:3003/api/v2/config/test/${service}`, {
-        method: `POST',
+      const response = await fetch(`http://localhost:8083/api/v2/config/test/${service}`, {
+        method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(config[service as keyof Config]),
       });
@@ -367,8 +406,8 @@ export default function SettingsPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold">Ayarlar</h1>
-          <p className="text-muted-foreground mt-2">
+          <h1 className="text-xl font-semibold">Ayarlar</h1>
+          <p className="text-sm text-muted-foreground mt-1">
             ASB sistem konfigürasyonu ve bağlantı ayarları
           </p>
         </div>
@@ -457,54 +496,147 @@ export default function SettingsPage() {
 
         {/* Services Management Tab */}
         <TabsContent value="services" className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             {/* LightRAG Service */}
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-base flex items-center gap-2">
-                  <Brain className="h-4 w-4" />
-                  LightRAG
-                </CardTitle>
+            <Card className="border-slate-200">
+              <CardHeader className="pb-2 pt-3 px-3">
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-sm font-medium">LightRAG</CardTitle>
+                  <div className={`h-2 w-2 rounded-full ${services.lightrag?.status === 'running' ? 'bg-green-500' : 'bg-gray-400'}`} />
+                </div>
               </CardHeader>
-              <CardContent>
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <div className="h-2 w-2 rounded-full bg-gray-400" />
-                      <span className="text-sm">Durduruldu</span>
-                    </div>
-                    <Badge variant="outline" className="text-xs">8084</Badge>
+              <CardContent className="px-3 pb-3">
+                <div className="space-y-2">
+                  <div className="text-xs text-muted-foreground">
+                    {services.lightrag?.status === 'running' ? 'Çalışıyor' : 'Durduruldu'}
                   </div>
                   <div className="flex gap-1">
                     {services.lightrag?.status === 'stopped' || !services.lightrag ? (
                       <Button
-                        className="flex-1"
-                        size="sm"
+                        variant="outline"
+                        className="flex-1 h-7 text-xs"
                         onClick={() => handleServiceAction('lightrag', 'start')}
                         disabled={serviceLoading.lightrag}
                       >
-                        <Play className="h-3 w-3 mr-1" />
                         Başlat
                       </Button>
                     ) : (
                       <>
                         <Button
-                          variant="destructive"
-                          className="flex-1"
-                          size="sm"
+                          variant="outline"
+                          className="flex-1 h-7 text-xs"
                           onClick={() => handleServiceAction('lightrag', 'stop')}
                           disabled={serviceLoading.lightrag}
                         >
-                          <Square className="h-3 w-3 mr-1" />
                           Durdur
                         </Button>
                         <Button
-                          variant="outline"
-                          size="sm"
+                          variant="ghost"
+                          className="h-7 px-2"
                           onClick={() => handleServiceAction('lightrag', 'restart')}
                           disabled={serviceLoading.lightrag}
                         >
-                          <RefreshCw className={`h-3 w-3 ${serviceLoading.lightrag ? "animate-spin" : ""}`} />
+                          ↻
+                        </Button>
+                      </>
+                    )}
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* PostgreSQL */}
+            <Card className="border-slate-200">
+              <CardHeader className="pb-2 pt-3 px-3">
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-sm font-medium">PostgreSQL</CardTitle>
+                  <div className={`h-2 w-2 rounded-full ${services.postgres?.status === 'running' ? 'bg-green-500' : 'bg-gray-400'}`} />
+                </div>
+              </CardHeader>
+              <CardContent className="px-3 pb-3">
+                <div className="space-y-2">
+                  <div className="text-xs text-muted-foreground">
+                    {services.postgres?.status === 'running' ? 'Çalışıyor' : 'Durduruldu'}
+                  </div>
+                  <div className="flex gap-1">
+                    <Button
+                      variant="outline"
+                      className="flex-1 h-7 text-xs"
+                      disabled
+                    >
+                      5432
+                    </Button>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Redis */}
+            <Card className="border-slate-200">
+              <CardHeader className="pb-2 pt-3 px-3">
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-sm font-medium">Redis</CardTitle>
+                  <div className={`h-2 w-2 rounded-full ${services.redis?.status === 'running' ? 'bg-green-500' : 'bg-gray-400'}`} />
+                </div>
+              </CardHeader>
+              <CardContent className="px-3 pb-3">
+                <div className="space-y-2">
+                  <div className="text-xs text-muted-foreground">
+                    {services.redis?.status === 'running' ? 'Çalışıyor' : 'Durduruldu'}
+                  </div>
+                  <div className="flex gap-1">
+                    <Button
+                      variant="outline"
+                      className="flex-1 h-7 text-xs"
+                      disabled
+                    >
+                      6379
+                    </Button>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Embedder Service */}
+            <Card className="border-slate-200">
+              <CardHeader className="pb-2 pt-3 px-3">
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-sm font-medium">Embedder</CardTitle>
+                  <div className={`h-2 w-2 rounded-full ${services.embedder?.status === 'running' ? 'bg-green-500' : 'bg-gray-400'}`} />
+                </div>
+              </CardHeader>
+              <CardContent className="px-3 pb-3">
+                <div className="space-y-2">
+                  <div className="text-xs text-muted-foreground">
+                    {services.embedder?.status === 'running' ? 'Çalışıyor' : 'Durduruldu'}
+                  </div>
+                  <div className="flex gap-1">
+                    {services.embedder?.status === 'stopped' || !services.embedder ? (
+                      <Button
+                        variant="outline"
+                        className="flex-1 h-7 text-xs"
+                        onClick={() => handleServiceAction('embedder', 'start')}
+                        disabled={serviceLoading.embedder}
+                      >
+                        Başlat
+                      </Button>
+                    ) : (
+                      <>
+                        <Button
+                          variant="outline"
+                          className="flex-1 h-7 text-xs"
+                          onClick={() => handleServiceAction('embedder', 'stop')}
+                          disabled={serviceLoading.embedder}
+                        >
+                          Durdur
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          className="h-7 px-2"
+                          onClick={() => handleServiceAction('embedder', 'restart')}
+                          disabled={serviceLoading.embedder}
+                        >
+                          ↻
                         </Button>
                       </>
                     )}
@@ -514,176 +646,48 @@ export default function SettingsPage() {
             </Card>
 
             {/* RAGAnything Service */}
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-base flex items-center gap-2">
-                  <Package className="h-4 w-4" />
-                  RAGAnything
-                </CardTitle>
+            <Card className="border-slate-200">
+              <CardHeader className="pb-2 pt-3 px-3">
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-sm font-medium">RAGAnything</CardTitle>
+                  <div className={`h-2 w-2 rounded-full ${services.raganything?.status === 'running' ? 'bg-green-500' : 'bg-gray-400'}`} />
+                </div>
               </CardHeader>
-              <CardContent>
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <div className={"h-2 w-2 rounded-full " + (
-                        services.raganything?.status === 'running' ? 'bg-green-500 animate-pulse' :
-                          services.raganything?.status === 'starting' ? 'bg-yellow-500 animate-pulse' :
-                            services.raganything?.status === 'stopping' ? 'bg-orange-500 animate-pulse' :
-                              services.raganything?.status === 'error' ? 'bg-red-500' :
-                                'bg-gray-400'
-                      )} />
-                      <span className="text-sm">
-                        {services.raganything?.status === 'running' ? 'Çalışıyor' :
-                          services.raganything?.status === 'starting' ? 'Başlatılıyor' :
-                            services.raganything?.status === 'stopping' ? 'Durduruluyor' :
-                              services.raganything?.status === 'error' ? 'Hata' :
-                                'Durduruldu'}
-                      </span>
-                    </div>
-                    <Badge variant="outline" className="text-xs">8085</Badge>
+              <CardContent className="px-3 pb-3">
+                <div className="space-y-2">
+                  <div className="text-xs text-muted-foreground">
+                    {services.raganything?.status === 'running' ? 'Çalışıyor' : 'Durduruldu'}
                   </div>
                   <div className="flex gap-1">
                     {services.raganything?.status === 'stopped' || !services.raganything ? (
                       <Button
-                        className="flex-1"
-                        size="sm"
+                        variant="outline"
+                        className="flex-1 h-7 text-xs"
                         onClick={() => handleServiceAction('raganything', 'start')}
                         disabled={serviceLoading.raganything}
                       >
-                        <Play className="h-3 w-3 mr-1" />
                         Başlat
                       </Button>
                     ) : (
                       <>
                         <Button
-                          variant="destructive"
-                          className="flex-1"
-                          size="sm"
+                          variant="outline"
+                          className="flex-1 h-7 text-xs"
                           onClick={() => handleServiceAction('raganything', 'stop')}
                           disabled={serviceLoading.raganything}
                         >
-                          <Square className="h-3 w-3 mr-1" />
                           Durdur
                         </Button>
                         <Button
-                          variant="outline"
-                          size="sm"
+                          variant="ghost"
+                          className="h-7 px-2"
                           onClick={() => handleServiceAction('raganything', 'restart')}
                           disabled={serviceLoading.raganything}
                         >
-                          <RefreshCw className={`h-3 w-3 ${serviceLoading.raganything ? "animate-spin" : ""}`} />
+                          ↻
                         </Button>
                       </>
                     )}
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Embedder Service */}
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-base flex items-center gap-2">
-                  <FileCode className="h-4 w-4" />
-                  Embedder
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <div className={"h-2 w-2 rounded-full " + (
-                        services.embedder?.status === 'running' ? 'bg-green-500 animate-pulse' :
-                          services.embedder?.status === 'starting' ? 'bg-yellow-500 animate-pulse' :
-                            services.embedder?.status === 'stopping' ? 'bg-orange-500 animate-pulse' :
-                              services.embedder?.status === 'error' ? 'bg-red-500' :
-                                'bg-gray-400'
-                      )} />
-                      <span className="text-sm">
-                        {services.embedder?.status === 'running' ? 'Çalışıyor' :
-                          services.embedder?.status === 'starting' ? 'Başlatılıyor' :
-                            services.embedder?.status === 'stopping' ? 'Durduruluyor' :
-                              services.embedder?.status === 'error' ? 'Hata' :
-                                'Durduruldu'}
-                      </span>
-                    </div>
-                    <Badge variant="outline" className="text-xs">8086</Badge>
-                  </div>
-                  <div className="flex gap-1">
-                    {services.embedder?.status === 'stopped' || !services.embedder ? (
-                      <Button
-                        className="flex-1"
-                        size="sm"
-                        onClick={() => handleServiceAction('embedder', 'start')}
-                        disabled={serviceLoading.embedder}
-                      >
-                        <Play className="h-3 w-3 mr-1" />
-                        Başlat
-                      </Button>
-                    ) : (
-                      <>
-                        <Button
-                          variant="destructive"
-                          className="flex-1"
-                          size="sm"
-                          onClick={() => handleServiceAction('embedder', 'stop')}
-                          disabled={serviceLoading.embedder}
-                        >
-                          <Square className="h-3 w-3 mr-1" />
-                          Durdur
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleServiceAction('embedder', 'restart')}
-                          disabled={serviceLoading.embedder}
-                        >
-                          <RefreshCw className={`h-3 w-3 ${serviceLoading.embedder ? "animate-spin" : ""}`} />
-                        </Button>
-                      </>
-                    )}
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Docker Containers */}
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-base flex items-center gap-2">
-                  <Container className="h-4 w-4" />
-                  Docker
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <div className={"h-2 w-2 rounded-full " + (
-                        services.postgres?.status === 'running' ? 'bg-green-500' : 'bg-gray-400'
-                      )} />
-                      <span className="text-sm">PostgreSQL</span>
-                    </div>
-                    <Badge variant="outline" className="text-xs">5432</Badge>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <div className={"h-2 w-2 rounded-full " + (
-                        services.redis?.status === 'running' ? 'bg-green-500' : 'bg-gray-400'
-                      )} />
-                      <span className="text-sm">Redis</span>
-                    </div>
-                    <Badge variant="outline" className="text-xs">6379</Badge>
-                  </div>
-                  <div className="flex gap-1 mt-3">
-                    <Button className="flex-1" variant="outline" size="sm">
-                      <Play className="h-3 w-3 mr-1" />
-                      Up
-                    </Button>
-                    <Button className="flex-1" variant="outline" size="sm">
-                      <Square className="h-3 w-3 mr-1" />
-                      Down
-                    </Button>
                   </div>
                 </div>
               </CardContent>

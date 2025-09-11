@@ -66,21 +66,21 @@ export class RAGChatService {
 
       // 2. Search for relevant documents from rag_data using pgvector
       console.log('Searching rag_data.documents with pgvector...');
-      // Get all relevant sources without fixed limit
-      const allResults = await semanticSearch.hybridSearch(message, 50); // Get up to 50 relevant sources
+      // Get only highly relevant sources
+      const allResults = await semanticSearch.hybridSearch(message, 20); // Reduced from 50 to 20
       
-      // Filter sources with relevance above 40% (düşürdük çünkü çok fazla filtreleniyor)
+      // Filter sources with relevance above 60% for better quality
       let searchResults = allResults.filter(result => {
         const score = result.score || (result.similarity_score * 100) || 0;
-        return score >= 40; // %40'ın üstündekiler
+        return score >= 60; // Increased from 40% to 60%
       });
       
-      console.log(`Filtered ${searchResults.length} sources from ${allResults.length} (>40% relevance)`);
+      console.log(`Filtered ${searchResults.length} sources from ${allResults.length} (>60% relevance)`);
       
-      // Eğer hiç kaynak yoksa threshold'u daha da düşür
+      // If no high-quality results, take top 5 best matches
       if (searchResults.length === 0 && allResults.length > 0) {
-        console.log('No sources above 40%, including all available sources');
-        searchResults = allResults.slice(0, 10); // En iyi 10 kaynağı al
+        console.log('No sources above 60%, taking top 5 best matches');
+        searchResults = allResults.slice(0, 5); // Reduced from 10 to 5
       }
       
       // Kaynakları score'a göre sırala (yüksek score önce)

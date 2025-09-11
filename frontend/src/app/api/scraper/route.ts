@@ -214,7 +214,7 @@ export async function POST(request: NextRequest) {
     // If storeEmbeddings or saveToDb is true, save to database with embeddings
     if (saveToDb || storeEmbeddings) {
       try {
-        const ASB_API_URL = process.env.ASB_API_URL || process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+        const ASB_API_URL = process.env.ASB_API_URL || process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8083';
         
         // Parse the structured content
         let textToEmbed = '';

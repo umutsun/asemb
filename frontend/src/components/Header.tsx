@@ -29,8 +29,14 @@ import {
   User,
   Server,
   Cpu,
-  Settings2
+  Settings2,
+  MessageSquare,
+  Search,
+  FileText,
+  Globe,
+  Sparkles
 } from 'lucide-react';
+import ThemeToggle from '@/components/ThemeToggle';
 
 interface HeaderProps {
   user?: {
@@ -134,17 +140,14 @@ export default function Header({ user, onLogout }: HeaderProps) {
   };
 
   const menuItems = [
-    { href: '/dashboard', label: 'Genel Bakış' },
-    { href: '/dashboard/query', label: 'LightRAG Sorgu' },
-    { href: '/dashboard/documents', label: 'Dokümanlar' },
-    { href: '/dashboard/embedder', label: 'Embedder' },
-    { href: '/dashboard/scraper', label: 'Web Scraper' },
-    { href: '/dashboard/migration-tools', label: 'Migration & Embedding' },
-    { href: '/dashboard/database-config', label: 'Veritabanı Ayarları' },
-    { href: '/dashboard/rag', label: 'RAG Status' },
-    { href: '/dashboard/activity', label: 'Aktiviteler' },
-    { href: '/dashboard/analytics', label: 'Analitik' },
-    { href: '/dashboard/settings', label: 'Sistem Ayarları' },
+    { href: '/dashboard', label: 'Genel Bakış', icon: Home },
+    { href: '/dashboard/query', label: 'LightRAG Sorgu', icon: Search },
+    { href: '/dashboard/documents', label: 'Dokümanlar', icon: FileText },
+    { href: '/dashboard/embeddings-manager', label: 'Embeddings', icon: Brain },
+    { href: '/dashboard/scraper', label: 'Web Scraper', icon: Globe },
+    { href: '/dashboard/prompts', label: 'Ayarlar', icon: Settings2 },
+    { href: '/dashboard/activity', label: 'Aktiviteler', icon: Activity },
+    { href: '/', label: 'Chatbot', icon: MessageSquare },
   ];
 
   const allServicesActive = systemStatus?.database.connected && 
@@ -181,22 +184,29 @@ export default function Header({ user, onLogout }: HeaderProps) {
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="start" className="w-56">
-                {menuItems.map((item) => (
-                  <DropdownMenuItem key={item.href} asChild>
-                    <Link 
-                      href={item.href} 
-                      className={`cursor-pointer ${pathname === item.href ? 'bg-accent' : ''}`}
-                    >
-                      {item.label}
-                    </Link>
-                  </DropdownMenuItem>
-                ))}
+                {menuItems.map((item) => {
+                  const Icon = item.icon;
+                  return (
+                    <DropdownMenuItem key={item.href} asChild>
+                      <Link 
+                        href={item.href} 
+                        className={`cursor-pointer flex items-center gap-2 ${pathname === item.href ? 'bg-accent' : ''}`}
+                      >
+                        <Icon className="h-4 w-4" />
+                        {item.label}
+                      </Link>
+                    </DropdownMenuItem>
+                  );
+                })}
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
 
           {/* Right side elements */}
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2">
+            {/* Theme Toggle */}
+            <ThemeToggle />
+
             {/* System Status Indicator with Enhanced Dropdown */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>

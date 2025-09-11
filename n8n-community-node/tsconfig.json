@@ -12,11 +12,18 @@
     "resolveJsonModule": true,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true
-  ,\\n  " exclude\: [\\n \nodes/*Enhanced*.ts\,\\n \nodes/*optimized*.ts\,\\n \nodes/*.bak.ts\\\n ]\\n}\\n,
+  },
   "include": [
     "index.ts",
     "nodes/**/*.ts",
     "credentials/**/*.ts",
     "shared/**/*.ts"
+  ],
+  "exclude": [
+    "nodes/*Enhanced*.ts",
+    "nodes/*optimized*.ts",
+    "nodes/*.bak.ts",
+    "nodes/DocumentProcessor.node.ts"
   ]
-,\\n  " exclude\: [\\n \nodes/*Enhanced*.ts\,\\n \nodes/*optimized*.ts\,\\n \nodes/*.bak.ts\\\n ]\\n}\\n
+}
+

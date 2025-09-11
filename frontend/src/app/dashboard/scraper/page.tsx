@@ -22,8 +22,12 @@ import {
   RefreshCw,
   FileText,
   Database,
-  Hash
+  Hash,
+  History,
+  Download,
+  Calendar
 } from 'lucide-react';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 interface ScrapeJob {
   id: string;
@@ -43,11 +47,27 @@ interface ScrapeJob {
   };
 }
 
+interface HistoryEntry {
+  id: number;
+  url: string;
+  title?: string;
+  content?: string;
+  chunks_count: number;
+  embeddings_created: boolean;
+  success: boolean;
+  error_message?: string;
+  created_at: string;
+  metadata?: any;
+}
+
 export default function WebScraperPage() {
   const [url, setUrl] = useState('');
   const [loading, setLoading] = useState(false);
   const [jobs, setJobs] = useState<ScrapeJob[]>([]);
   const [selectedJob, setSelectedJob] = useState<ScrapeJob | null>(null);
+  const [history, setHistory] = useState<HistoryEntry[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [activeTab, setActiveTab] = useState('scraper');
   const [scrapeOptions, setScrapeOptions] = useState({
     storeEmbeddings: true,
     saveToDb: false,
@@ -56,22 +76,96 @@ export default function WebScraperPage() {
   const [scrapingHistory, setScrapingHistory] = useState<any[]>([]);
 
   useEffect(() => {
+    // Initialize history tables
+    initHistoryTables();
     // Fetch scraping history
     fetchHistory();
+    fetchSavedHistory();
     // Refresh every 5 seconds
     const interval = setInterval(fetchHistory, 5000);
     return () => clearInterval(interval);
   }, []);
 
+  const initHistoryTables = async () => {
+    try {
+      await fetch('http://localhost:8083/api/v2/history/init', {
+        method: 'POST'
+      });
+    } catch (error) {
+      console.error('Failed to init history tables:', error);
+    }
+  };
+
   const fetchHistory = async () => {
     try {
-      const response = await fetch('http://localhost:3001/api/v2/scraper?limit=50');
+      const response = await fetch('http://localhost:8083/api/v2/scraper?limit=50');
       if (response.ok) {
         const data = await response.json();
         setScrapingHistory(data.history || []);
       }
     } catch (error) {
       console.error('Failed to fetch history:', error);
+    }
+  };
+
+  const fetchSavedHistory = async () => {
+    setHistoryLoading(true);
+    try {
+      const response = await fetch('http://localhost:8083/api/v2/history/scraper');
+      if (response.ok) {
+        const data = await response.json();
+        setHistory(data.history || []);
+      }
+    } catch (error) {
+      console.error('Failed to fetch saved history:', error);
+    } finally {
+      setHistoryLoading(false);
+    }
+  };
+
+  const saveToHistory = async (job: ScrapeJob) => {
+    try {
+      await fetch('http://localhost:8083/api/v2/history/scraper', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          url: job.url,
+          title: job.metadata?.title,
+          content: job.content?.substring(0, 5000), // Store first 5000 chars
+          chunks_count: job.chunks || 0,
+          embeddings_created: scrapeOptions.storeEmbeddings,
+          success: job.status === 'completed',
+          error_message: job.error,
+          metadata: job.metadata
+        })
+      });
+      fetchSavedHistory();
+    } catch (error) {
+      console.error('Failed to save to history:', error);
+    }
+  };
+
+  const deleteHistoryEntry = async (id: number) => {
+    try {
+      await fetch(`http://localhost:8083/api/v2/history/scraper/${id}`, {
+        method: 'DELETE'
+      });
+      fetchSavedHistory();
+    } catch (error) {
+      console.error('Failed to delete history entry:', error);
+    }
+  };
+
+  const clearAllHistory = async () => {
+    if (!confirm('Tüm geçmiş silinecek. Emin misiniz?')) return;
+    
+    try {
+      await fetch('http://localhost:8083/api/v2/history/scraper', {
+        method: 'DELETE'
+      });
+      fetchSavedHistory();
+    } catch (error) {
+      console.error('Failed to clear history:', error);
     }
   };
 
@@ -89,7 +183,7 @@ export default function WebScraperPage() {
     setLoading(true);
     
     try {
-      const response = await fetch('http://localhost:3001/api/v2/scraper', {
+      const response = await fetch('http://localhost:8083/api/v2/scraper', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -118,17 +212,22 @@ export default function WebScraperPage() {
         
         // Show latest scraped content
         if (data.content) {
-          setSelectedJob({
+          const newJob: ScrapeJob = {
             id: `job_${Date.now()}`,
             url: url,
             status: 'completed',
             progress: 100,
             content: data.content,
             contentLength: data.contentLength || 0,
+            chunks: data.chunks,
             startTime: new Date(),
             endTime: new Date(),
             metadata: data.metadata
-          });
+          };
+          setSelectedJob(newJob);
+          
+          // Save to permanent history
+          await saveToHistory(newJob);
         }
       } else {
         alert(data?.error || 'Scraping failed');
@@ -162,13 +261,26 @@ export default function WebScraperPage() {
     <div className="py-6 space-y-6">
       {/* Header */}
       <div>
-        <h1 className="text-3xl font-bold">Web Scraper</h1>
-        <p className="text-muted-foreground mt-2">
+        <h1 className="text-xl font-semibold">Web Scraper</h1>
+        <p className="text-sm text-muted-foreground mt-1">
           Web sayfalarından içerik çekin ve analiz edin
         </p>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <Tabs value={activeTab} onValueChange={setActiveTab}>
+        <TabsList className="grid w-full grid-cols-2 max-w-md">
+          <TabsTrigger value="scraper">
+            <Globe className="w-4 h-4 mr-2" />
+            Scraper
+          </TabsTrigger>
+          <TabsTrigger value="history">
+            <History className="w-4 h-4 mr-2" />
+            Geçmiş
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="scraper" className="space-y-6">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Left Column - Scrape Input & Options */}
         <div className="space-y-6">
           {/* Input Card */}
@@ -330,6 +442,158 @@ export default function WebScraperPage() {
           </CardContent>
         </Card>
       </div>
+        </TabsContent>
+
+        <TabsContent value="history" className="space-y-6">
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <CardTitle>Kayıtlı Geçmiş</CardTitle>
+                <div className="flex gap-2">
+                  <Button 
+                    variant="ghost" 
+                    size="sm"
+                    onClick={fetchSavedHistory}
+                  >
+                    <RefreshCw className="h-4 w-4" />
+                  </Button>
+                  <Button 
+                    variant="ghost" 
+                    size="sm"
+                    onClick={clearAllHistory}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+              <CardDescription>
+                Daha önce scrape ettiğiniz web sayfaları
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {historyLoading ? (
+                <div className="text-center py-8">
+                  <Loader2 className="mx-auto h-8 w-8 animate-spin" />
+                  <p className="mt-2 text-muted-foreground">Yükleniyor...</p>
+                </div>
+              ) : history.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  <History className="mx-auto h-12 w-12 mb-2 opacity-50" />
+                  <p>Henüz kayıtlı geçmiş yok</p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {history.map((entry) => (
+                    <div 
+                      key={entry.id}
+                      className="border rounded-lg p-4 hover:bg-muted/50 transition-colors"
+                    >
+                      <div className="flex items-start justify-between mb-3">
+                        <div className="flex-1 min-w-0">
+                          <h3 className="font-semibold text-base mb-1">
+                            {entry.title || 'Başlıksız'}
+                          </h3>
+                          <p className="text-sm text-muted-foreground truncate">
+                            {entry.url}
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {entry.success ? (
+                            <Badge variant="success">Başarılı</Badge>
+                          ) : (
+                            <Badge variant="destructive">Başarısız</Badge>
+                          )}
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => deleteHistoryEntry(entry.id)}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </div>
+
+                      {entry.error_message && (
+                        <Alert className="mb-3">
+                          <AlertDescription>{entry.error_message}</AlertDescription>
+                        </Alert>
+                      )}
+
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-3">
+                        <div className="flex items-center gap-2 text-sm">
+                          <FileText className="h-4 w-4 text-muted-foreground" />
+                          <span>{entry.chunks_count} chunk</span>
+                        </div>
+                        <div className="flex items-center gap-2 text-sm">
+                          <Database className="h-4 w-4 text-muted-foreground" />
+                          <span>{entry.embeddings_created ? 'Embedding var' : 'Embedding yok'}</span>
+                        </div>
+                        <div className="flex items-center gap-2 text-sm">
+                          <Calendar className="h-4 w-4 text-muted-foreground" />
+                          <span>{formatDate(entry.created_at)}</span>
+                        </div>
+                        <div className="flex items-center gap-2 text-sm">
+                          <Hash className="h-4 w-4 text-muted-foreground" />
+                          <span>{entry.content ? entry.content.length : 0} karakter</span>
+                        </div>
+                      </div>
+
+                      {entry.content && (
+                        <div className="mt-3">
+                          <details className="cursor-pointer">
+                            <summary className="text-sm font-medium mb-2">İçerik Önizleme</summary>
+                            <div className="bg-muted/50 rounded-lg p-3 mt-2">
+                              <pre className="text-xs whitespace-pre-wrap font-mono">
+                                {entry.content.substring(0, 500)}
+                                {entry.content.length > 500 && '...'}
+                              </pre>
+                            </div>
+                          </details>
+                        </div>
+                      )}
+
+                      <div className="flex items-center gap-2 mt-3">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => setUrl(entry.url)}
+                        >
+                          <RefreshCw className="h-4 w-4 mr-2" />
+                          Tekrar Scrape Et
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => {
+                            const job: ScrapeJob = {
+                              id: `history_${entry.id}`,
+                              url: entry.url,
+                              status: entry.success ? 'completed' : 'failed',
+                              progress: 100,
+                              content: entry.content,
+                              contentLength: entry.content?.length || 0,
+                              chunks: entry.chunks_count,
+                              startTime: new Date(entry.created_at),
+                              endTime: new Date(entry.created_at),
+                              metadata: entry.metadata,
+                              error: entry.error_message
+                            };
+                            setSelectedJob(job);
+                            setActiveTab('scraper');
+                          }}
+                        >
+                          <Eye className="h-4 w-4 mr-2" />
+                          Detayları Gör
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

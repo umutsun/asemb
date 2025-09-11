@@ -106,8 +106,8 @@ export default function RedisCachePage() {
 
   const handleDeleteKey = async (key: string) => {
     try {
-      await fetch(`http://localhost:3003/api/v2/cache/keys/${encodeURIComponent(key)}`, { 
-        method: `DELETE' 
+      await fetch('http://localhost:3003/api/v2/cache/keys/' + encodeURIComponent(key), { 
+        method: 'DELETE' 
       });
       await fetchKeys();
     } catch (error) {
@@ -126,9 +126,9 @@ export default function RedisCachePage() {
     const hours = Math.floor((seconds % 86400) / 3600);
     const minutes = Math.floor((seconds % 3600) / 60);
     
-    if (days > 0) return `${days}d ${hours}h`;
-    if (hours > 0) return `${hours}h ${minutes}m`;
-    return `${minutes}m`;
+    if (days > 0) return days + 'd ' + hours + 'h';
+    if (hours > 0) return hours + 'h ' + minutes + 'm';
+    return minutes + 'm';
   };
 
   const hitRate = stats.hits + stats.misses > 0 
@@ -144,8 +144,8 @@ export default function RedisCachePage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold">Redis Cache</h1>
-          <p className="text-muted-foreground mt-2">
+          <h1 className="text-xl font-semibold">Redis Cache</h1>
+          <p className="text-sm text-muted-foreground mt-1">
             Cache yönetimi ve performans metrikleri
           </p>
         </div>

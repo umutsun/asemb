@@ -138,13 +138,13 @@ export default function DatabaseConfigPage() {
   };
 
   return (
-    <div className="container mx-auto p-6 max-w-4xl">
+    <div className="p-6 lg:p-8 container mx-auto p-6 max-w-4xl">
       <div className="mb-8">
-        <h1 className="text-3xl font-bold flex items-center gap-2">
+        <h1 className="text-xl font-semibold flex items-center gap-2">
           <Database className="h-8 w-8" />
           Veritabanı Yapılandırması
         </h1>
-        <p className="text-muted-foreground mt-2">
+        <p className="text-sm text-muted-foreground mt-1">
           Her müşteri için farklı veritabanı bağlantısı yapılandırabilirsiniz
         </p>
       </div>

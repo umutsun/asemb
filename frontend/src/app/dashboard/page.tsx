@@ -153,7 +153,7 @@ export default function EnhancedASBDashboard() {
   ] : [];
 
   return (
-    <div className="py-6 space-y-6">
+    <div className="p-6 lg:p-8 space-y-6">
         {/* Alerts */}
         {error && (
           <Alert variant="destructive">
@@ -292,16 +292,16 @@ export default function EnhancedASBDashboard() {
               </Card>
             </Link>
 
-            <Link href="/dashboard/embedder">
+            <Link href="/dashboard/embeddings-manager">
               <Card className="hover:shadow-lg transition-shadow cursor-pointer">
                 <CardHeader>
                   <div className="flex items-center justify-between">
-                    <CardTitle className="text-base">Embedder</CardTitle>
-                    <Zap className="h-5 w-5 text-muted-foreground" />
+                    <CardTitle className="text-base">Embeddings</CardTitle>
+                    <Brain className="h-5 w-5 text-muted-foreground" />
                   </div>
                 </CardHeader>
                 <CardContent>
-                  <p className="text-sm text-muted-foreground">Vektör oluşturun</p>
+                  <p className="text-sm text-muted-foreground">Vektör yönetimi</p>
                   <ArrowRight className="h-4 w-4 mt-2 text-primary" />
                 </CardContent>
               </Card>

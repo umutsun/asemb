@@ -179,8 +179,8 @@ export default function QueryPage() {
     <div className="py-6 space-y-6">
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">LightRAG Sorgu</h1>
-          <p className="text-muted-foreground mt-2">
+          <h1 className="text-xl font-semibold tracking-tight">LightRAG Sorgu</h1>
+          <p className="text-sm text-muted-foreground mt-1">
             Anlamsal arama ile dokümanlarınızdan bilgi çıkarın
           </p>
         </div>
