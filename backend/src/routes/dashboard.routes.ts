@@ -110,6 +110,265 @@ router.delete('/api/v2/lightrag/clear', async (req: Request, res: Response) => {
   }
 });
 
+// --- Embeddings Management Routes ---
+
+// Get available tables for embedding
+router.get('/api/v2/embeddings/tables', async (req: Request, res: Response) => {
+  try {
+    const { pgPool } = require('../server');
+    
+    // Mock data for available tables
+    const tables = [
+      {
+        name: 'documents',
+        displayName: 'Dokümanlar',
+        database: 'asemb',
+        totalRecords: 1500,
+        embeddedRecords: 1200,
+        textColumns: 3
+      },
+      {
+        name: 'knowledge_base',
+        displayName: 'Bilgi Tabanı',
+        database: 'asemb',
+        totalRecords: 850,
+        embeddedRecords: 850,
+        textColumns: 2
+      },
+      {
+        name: 'tax_regulations',
+        displayName: 'Vergi Mevzuatı',
+        database: 'asemb',
+        totalRecords: 2300,
+        embeddedRecords: 1800,
+        textColumns: 4
+      },
+      {
+        name: 'case_studies',
+        displayName: 'Örnek Olaylar',
+        database: 'asemb',
+        totalRecords: 450,
+        embeddedRecords: 0,
+        textColumns: 2
+      }
+    ];
+    
+    res.json({ tables });
+  } catch (error: any) {
+    console.error('Failed to get tables:', error);
+    res.status(500).json({ error: 'Failed to get tables' });
+  }
+});
+
+// Get migration progress
+router.get('/api/v2/embeddings/progress', async (req: Request, res: Response) => {
+  try {
+    // Return mock progress data
+    res.json({
+      progress: {
+        status: 'idle', // idle, processing, paused, completed
+        current: 0,
+        total: 0,
+        percentage: 0,
+        currentTable: null,
+        error: null,
+        tokensUsed: 0,
+        estimatedCost: 0,
+        startTime: null,
+        estimatedTimeRemaining: null
+      }
+    });
+  } catch (error: any) {
+    res.status(500).json({ error: 'Failed to get progress' });
+  }
+});
+
+// Get migration history
+router.get('/api/v2/embeddings/history', async (req: Request, res: Response) => {
+  try {
+    const { pgPool } = require('../server');
+    
+    // Mock history data
+    const history = [
+      {
+        migration_id: 'mig_001',
+        table_name: 'documents',
+        total_records: 500,
+        processed_records: 500,
+        successful_records: 500,
+        tokens_used: 125000,
+        estimated_cost: 0.0125,
+        status: 'completed',
+        model_used: 'text-embedding-ada-002',
+        started_at: new Date(Date.now() - 1000 * 60 * 60 * 24).toISOString(),
+        completed_at: new Date(Date.now() - 1000 * 60 * 60 * 23).toISOString(),
+        duration_seconds: 3600,
+        progress_percentage: 100
+      },
+      {
+        migration_id: 'mig_002',
+        table_name: 'knowledge_base',
+        total_records: 850,
+        processed_records: 850,
+        successful_records: 850,
+        tokens_used: 212500,
+        estimated_cost: 0.0213,
+        status: 'completed',
+        model_used: 'text-embedding-ada-002',
+        started_at: new Date(Date.now() - 1000 * 60 * 60 * 48).toISOString(),
+        completed_at: new Date(Date.now() - 1000 * 60 * 60 * 47).toISOString(),
+        duration_seconds: 3600,
+        progress_percentage: 100
+      }
+    ];
+    
+    res.json({ history });
+  } catch (error: any) {
+    console.error('Failed to get history:', error);
+    res.status(500).json({ error: 'Failed to get history' });
+  }
+});
+
+// Start migration
+router.post('/api/v2/embeddings/migrate', async (req: Request, res: Response) => {
+  try {
+    const { tables, batchSize } = req.body;
+    
+    // Mock migration start
+    console.log('Starting migration for tables:', tables);
+    console.log('Batch size:', batchSize);
+    
+    res.json({
+      success: true,
+      message: 'Migration started',
+      migrationId: `mig_${Date.now()}`
+    });
+  } catch (error: any) {
+    console.error('Failed to start migration:', error);
+    res.status(500).json({ error: 'Failed to start migration' });
+  }
+});
+
+// Pause migration
+router.post('/api/v2/embeddings/pause', async (req: Request, res: Response) => {
+  try {
+    res.json({
+      success: true,
+      message: 'Migration paused'
+    });
+  } catch (error: any) {
+    res.status(500).json({ error: 'Failed to pause migration' });
+  }
+});
+
+// Resume migration
+router.post('/api/v2/embeddings/resume', async (req: Request, res: Response) => {
+  try {
+    res.json({
+      success: true,
+      message: 'Migration resumed'
+    });
+  } catch (error: any) {
+    res.status(500).json({ error: 'Failed to resume migration' });
+  }
+});
+
+// Generate embedding for text
+router.post('/api/v2/embeddings/generate', async (req: Request, res: Response) => {
+  try {
+    const { text, provider } = req.body;
+    
+    if (!text) {
+      return res.status(400).json({ error: 'Text is required' });
+    }
+    
+    // Mock embedding generation
+    const embedding = new Array(1536).fill(0).map(() => Math.random() * 2 - 1);
+    
+    res.json({
+      success: true,
+      embedding,
+      dimensions: 1536,
+      provider: provider || 'openai',
+      tokens: Math.ceil(text.length / 4),
+      cached: false,
+      processingTime: '0.5s'
+    });
+  } catch (error: any) {
+    console.error('Failed to generate embedding:', error);
+    res.status(500).json({ error: 'Failed to generate embedding' });
+  }
+});
+
+// Semantic search
+router.post('/api/v2/search/semantic', async (req: Request, res: Response) => {
+  try {
+    const { query, limit = 5, threshold = 0.7 } = req.body;
+    
+    if (!query) {
+      return res.status(400).json({ error: 'Query is required' });
+    }
+    
+    // Mock search results
+    const results = [
+      {
+        content: 'ASB (Alice Semantic Bridge) yapay zeka destekli bir RAG sistemidir.',
+        similarity: 0.92,
+        document_type: 'documentation',
+        document_id: 'doc_001'
+      },
+      {
+        content: 'Sistem, dokümanları vektör veritabanında saklar ve anlamsal aramalar yapar.',
+        similarity: 0.85,
+        document_type: 'knowledge_base',
+        document_id: 'kb_002'
+      },
+      {
+        content: 'LightRAG modülü ile gelişmiş sorgulama yetenekleri sağlar.',
+        similarity: 0.78,
+        document_type: 'documentation',
+        document_id: 'doc_003'
+      }
+    ];
+    
+    res.json({
+      results: results.filter(r => r.similarity >= threshold).slice(0, limit),
+      executionTime: '125ms'
+    });
+  } catch (error: any) {
+    console.error('Failed to search:', error);
+    res.status(500).json({ error: 'Failed to perform search' });
+  }
+});
+
+// LightRAG embed endpoint
+router.post('/api/v2/lightrag/embed', async (req: Request, res: Response) => {
+  try {
+    const { text } = req.body;
+    
+    if (!text) {
+      return res.status(400).json({ error: 'Text is required' });
+    }
+    
+    // Mock LightRAG embedding
+    const embedding = new Array(1536).fill(0).map(() => Math.random() * 2 - 1);
+    
+    res.json({
+      success: true,
+      embedding,
+      dimensions: 1536,
+      provider: 'lightrag',
+      tokens: Math.ceil(text.length / 4),
+      cached: false,
+      processingTime: '0.3s'
+    });
+  } catch (error: any) {
+    console.error('Failed to generate LightRAG embedding:', error);
+    res.status(500).json({ error: 'Failed to generate embedding' });
+  }
+});
+
+
 
 // --- Main Dashboard Route ---
 // Redirect v2 to main dashboard endpoint
@@ -118,14 +377,42 @@ router.get('/api/v2/dashboard', async (req: Request, res: Response) => {
     const { pgPool, redis } = require('../server');
     const lightrag = await getLightRAG();
     
-    // Database stats
-    const dbStats = await pgPool.query(`
-      SELECT 
-        (SELECT COUNT(*) FROM rag_data.documents) as documents,
-        (SELECT COUNT(*) FROM conversations) as conversations,
-        (SELECT COUNT(*) FROM messages) as messages,
-        pg_database_size(current_database()) as db_size
-    `);
+    // Database stats - check what tables exist first
+    let documentsCount = 0;
+    let conversationsCount = 0;
+    let messagesCount = 0;
+    let dbSize = 0;
+    
+    try {
+      // Try to get documents count from embeddings table instead
+      const embeddingsResult = await pgPool.query(`
+        SELECT COUNT(DISTINCT document_id) as count FROM embeddings
+      `);
+      documentsCount = embeddingsResult.rows[0].count || 0;
+    } catch (err) {
+      console.log('Error counting documents:', err);
+    }
+    
+    try {
+      const convResult = await pgPool.query(`SELECT COUNT(*) as count FROM conversations`);
+      conversationsCount = convResult.rows[0].count || 0;
+    } catch (err) {
+      console.log('Error counting conversations:', err);
+    }
+    
+    try {
+      const msgResult = await pgPool.query(`SELECT COUNT(*) as count FROM messages`);
+      messagesCount = msgResult.rows[0].count || 0;
+    } catch (err) {
+      console.log('Error counting messages:', err);
+    }
+    
+    try {
+      const sizeResult = await pgPool.query(`SELECT pg_database_size(current_database()) as db_size`);
+      dbSize = sizeResult.rows[0].db_size || 0;
+    } catch (err) {
+      console.log('Error getting db size:', err);
+    }
     
     // Redis stats
     let redisStats = {
@@ -162,7 +449,6 @@ router.get('/api/v2/dashboard', async (req: Request, res: Response) => {
     `);
     
     // Format database size
-    const dbSize = dbStats.rows[0].db_size;
     const formattedSize = dbSize > 1073741824 
       ? `${(dbSize / 1073741824).toFixed(2)} GB`
       : dbSize > 1048576 
@@ -171,9 +457,9 @@ router.get('/api/v2/dashboard', async (req: Request, res: Response) => {
     
     res.json({
       database: {
-        documents: parseInt(dbStats.rows[0].documents) || 0,
-        conversations: parseInt(dbStats.rows[0].conversations) || 0,
-        messages: parseInt(dbStats.rows[0].messages) || 0,
+        documents: documentsCount,
+        conversations: conversationsCount,
+        messages: messagesCount,
         size: formattedSize,
         embeddings: 0,
         vectors: 0
