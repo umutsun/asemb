@@ -574,35 +574,57 @@ TASK:
   const testConnection = async (service: string) => {
     setTesting(service);
     try {
-      const response = await fetch(`http://localhost:8083/api/v2/config/test/${service}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(config[service as keyof Config]),
-      });
+      if (service === 'database') {
+        // Use Next proxy which maps to backend /api/v2/settings/database/test
+        const payload = {
+          host: config.database.host || 'localhost',
+          port: Number(config.database.port || 5432),
+          database: config.database.name || 'rag_chatbot',
+          user: config.database.user || 'postgres',
+          password: config.database.password || '',
+          // Treat boolean ssl as required/enabled
+          ssl: !!config.database.ssl,
+        };
 
-      const result = await response.json();
-      setTestResults({ ...testResults, [service]: result.success });
-
-      if (result.success) {
-        toast({
-          title: "Bağlantı Başarılı",
-          description: `${service.charAt(0).toUpperCase() + service.slice(1)} servisi başarıyla test edildi ve çalışıyor.`,
-          duration: 2500,
+        const resp = await fetch('/api/settings/database/test', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
         });
+
+        const result = await resp.json();
+        setTestResults({ ...testResults, database: !!result.success });
+
+        if (resp.ok && result.success) {
+          toast({
+            title: 'Bağlantı Başarılı',
+            description: `Veritabanı: ${result.database || payload.database} • Versiyon: ${result.version || ''}`,
+            duration: 2500,
+          });
+        } else {
+          toast({
+            title: 'Bağlantı Başarısız',
+            description: result.error || 'Database servisine bağlanılamadı. Ayarları kontrol edin.',
+            variant: 'destructive',
+            duration: 3000,
+          });
+        }
       } else {
-        toast({
-          title: "Bağlantı Başarısız",
-          description: service.charAt(0).toUpperCase() + service.slice(1) + " servisine bağlanılamadı. Ayarları kontrol edin.",
-          variant: "destructive",
-          duration: 3000,
+        // Fallback for other services keeps previous behavior
+        const response = await fetch(`http://localhost:8083/api/v2/config/test/${service}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(config[service as keyof Config]),
         });
+        const result = await response.json();
+        setTestResults({ ...testResults, [service]: !!result.success });
       }
     } catch (error) {
       setTestResults({ ...testResults, [service]: false });
       toast({
-        title: "Test Hatası",
-        description: service.charAt(0).toUpperCase() + service.slice(1) + " servisi test edilemedi. Bağlantı ayarlarını kontrol edin.",
-        variant: "destructive",
+        title: 'Test Hatası',
+        description: service.charAt(0).toUpperCase() + service.slice(1) + ' servisi test edilemedi. Bağlantı ayarlarını kontrol edin.',
+        variant: 'destructive',
         duration: 3000,
       });
     } finally {
