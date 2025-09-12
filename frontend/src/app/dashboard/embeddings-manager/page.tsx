@@ -117,6 +117,8 @@ export default function EmbeddingsManagerPage() {
       // Use Next.js API proxy to avoid CORS and centralize config
       const response = await fetch('/api/embeddings/tables');
       if (response.ok) {
+        // Open SSE stream for real-time updates after starting
+        try { connectToProgressStream(); } catch (_) {}
         const data = await response.json();
         setAvailableTables(data.tables || []);
         // Set first table as default if available
