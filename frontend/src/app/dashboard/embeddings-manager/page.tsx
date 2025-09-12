@@ -65,6 +65,11 @@ interface EmbeddingProgress {
   processedTables?: string[];
   currentBatch?: number;
   totalBatches?: number;
+  alreadyEmbedded?: number;
+  pendingCount?: number;
+  successCount?: number;
+  errorCount?: number;
+  newlyEmbedded?: number;
 }
 
 export default function EmbeddingsManagerPage() {
@@ -85,15 +90,31 @@ export default function EmbeddingsManagerPage() {
   const [isLoadingTables, setIsLoadingTables] = useState(true);
   const [isLoadingStats, setIsLoadingStats] = useState(true);
 
+  // Backend base URL for direct connections (SSE, pause, etc.)
+  const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8083';
+
   useEffect(() => {
     fetchAvailableTables();
     fetchMigrationStats();
     checkProgress();
+    
+    // Cleanup on unmount
+    return () => {
+      if ((window as any).currentEventSource) {
+        (window as any).currentEventSource.close();
+        (window as any).currentEventSource = null;
+      }
+      if ((window as any).currentPollInterval) {
+        clearInterval((window as any).currentPollInterval);
+        (window as any).currentPollInterval = null;
+      }
+    };
   }, []);
 
   const fetchAvailableTables = async () => {
     setIsLoadingTables(true);
     try {
+      // Use Next.js API proxy to avoid CORS and centralize config
       const response = await fetch('/api/embeddings/tables');
       if (response.ok) {
         const data = await response.json();
@@ -128,13 +149,18 @@ export default function EmbeddingsManagerPage() {
 
   const checkProgress = async () => {
     try {
+      console.log('Checking initial progress...');
+      // Align with backend route: embeddings/progress (not migration/progress)
       const response = await fetch('/api/embeddings/progress');
       if (response.ok) {
         const data = await response.json();
-        if (data.status === 'processing' || data.status === 'paused') {
+        console.log('Initial progress check:', data);
+        if (data && (data.status === 'processing' || data.status === 'paused')) {
           setProgress(data);
           if (data.status === 'processing') {
-            pollProgress();
+            console.log('Process is active, connecting to SSE...');
+            // Use SSE for active processes
+            connectToProgressStream();
           }
         }
       }
@@ -160,22 +186,82 @@ export default function EmbeddingsManagerPage() {
         return;
       }
       
-      const response = await fetch('/api/embeddings/migrate', {
+      // Set initial progress state immediately
+      setProgress({
+        status: 'processing',
+        current: 0,
+        total: 0,
+        percentage: 0,
+        currentTable: null,
+        error: null
+      });
+      
+      // Start or resume via proxy endpoint
+      const response = await fetch('/api/embeddings/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
           tables: tablesToMigrate,
           batchSize: batchSize,
           workerCount: workerCount,
-          resume: resume
+          resume: resume,
+          startOffset: resume ? (progress?.current || 0) : 0
         })
       });
 
       if (response.ok) {
-        const data = await response.json();
-        setProgress(data.progress);
+        // For SSE response, we need to handle the stream
+        const reader = response.body?.getReader();
+        const decoder = new TextDecoder();
+        
         setSuccess(resume ? 'Migration kaldığı yerden devam ediyor!' : 'Migration başlatıldı!');
-        pollProgress();
+        
+        if (reader) {
+          // Read SSE stream
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            
+            const text = decoder.decode(value);
+            const lines = text.split('\n');
+            
+            for (const line of lines) {
+              if (line.startsWith('data: ')) {
+                try {
+                  const data = JSON.parse(line.slice(6));
+                  console.log('SSE progress update:', data);
+                  setProgress(data);
+                  
+                  // Update stats dynamically
+                  if (data.status === 'processing' && data.current > 0) {
+                    setMigrationStats(prev => {
+                      if (!prev) return prev;
+                      return {
+                        ...prev,
+                        embeddedRecords: prev.embeddedRecords + 1,
+                        pendingRecords: Math.max(0, prev.pendingRecords - 1)
+                      };
+                    });
+                  }
+                  
+                  if (data.status === 'completed' || data.status === 'failed') {
+                    setIsProcessing(false);
+                    setProgress(null); // Clear progress state
+                    if (data.status === 'completed') {
+                      setSuccess('Migration tamamlandı!');
+                    } else {
+                      setError(data.error || 'Migration başarısız!');
+                    }
+                    fetchMigrationStats();
+                    fetchAvailableTables();
+                  }
+                } catch (e) {
+                  console.error('Error parsing SSE data:', e);
+                }
+              }
+            }
+          }
+        }
       } else {
         const error = await response.json();
         setError(error.error || 'Migration başlatılamadı');
@@ -189,38 +275,176 @@ export default function EmbeddingsManagerPage() {
 
   const pauseMigration = async () => {
     try {
-      const response = await fetch('/api/embeddings/stop', {
-        method: 'POST'
+      console.log('Pausing migration...');
+      // Pause endpoint lives under embeddings in backend
+      const response = await fetch(`${API_BASE}/api/v2/embeddings/pause`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
       });
 
       if (response.ok) {
         const data = await response.json();
-        setProgress(data.progress);
+        console.log('Pause response:', data);
+        if (data.progress) {
+          setProgress(data.progress);
+        }
         setSuccess('Migration duraklatıldı. Devam etmek için "Devam Et" butonuna tıklayın.');
+        setIsProcessing(false);
+        
+        // Stop SSE connection when paused
+        if ((window as any).currentEventSource) {
+          (window as any).currentEventSource.close();
+          (window as any).currentEventSource = null;
+        }
+        if ((window as any).currentPollInterval) {
+          clearInterval((window as any).currentPollInterval);
+          (window as any).currentPollInterval = null;
+        }
+      } else {
+        const error = await response.json();
+        setError(error.error || 'Duraklatma başarısız');
       }
     } catch (error) {
+      console.error('Pause error:', error);
       setError('Duraklatma başarısız');
     }
   };
 
-  const pollProgress = async () => {
-    const interval = setInterval(async () => {
+  // Server-Sent Events for real-time progress
+  const connectToProgressStream = () => {
+    // Close any existing connection
+    if ((window as any).currentEventSource) {
+      (window as any).currentEventSource.close();
+    }
+    
+    console.log('Connecting to SSE stream...');
+    // Use backend SSE stream aligned with embeddings namespace
+    const eventSource = new EventSource(`${API_BASE}/api/v2/embeddings/progress/stream`);
+    
+    eventSource.onopen = () => {
+      console.log('SSE connection opened');
+    };
+    
+    eventSource.onmessage = (event) => {
       try {
-        const response = await fetch('/api/embeddings/progress');
+        const data = JSON.parse(event.data);
+        console.log('SSE progress update:', data);
+        setProgress(data);
+        
+        // Update migration stats dynamically if progress is active
+        if (data.status === 'processing' && data.current > 0) {
+          setMigrationStats(prev => {
+            if (!prev) return prev;
+            return {
+              ...prev,
+              embeddedRecords: data.successCount || data.current,
+              pendingRecords: Math.max(0, prev.totalRecords - (data.successCount || data.current))
+            };
+          });
+        }
+        
+        if (data.status === 'completed' || data.status === 'error' || data.status === 'paused') {
+          console.log('Processing finished with status:', data.status);
+          eventSource.close();
+          fetchMigrationStats();
+          fetchAvailableTables();
+          
+          if (data.status === 'completed') {
+            setSuccess('Migration tamamlandı!');
+            setIsProcessing(false);
+            setProgress(null); // Clear progress state
+          } else if (data.status === 'error') {
+            setError(data.error || 'Migration sırasında hata oluştu');
+            setIsProcessing(false);
+            setProgress(null); // Clear progress state
+          } else if (data.status === 'paused') {
+            setSuccess('Migration duraklatıldı');
+            setIsProcessing(false);
+            // Keep progress state for pause/resume
+          }
+        }
+      } catch (error) {
+        console.error('Error parsing SSE data:', error, 'Raw data:', event.data);
+      }
+    };
+    
+    eventSource.onerror = (error) => {
+      console.error('SSE connection error:', error);
+      console.log('SSE readyState:', eventSource.readyState);
+      
+      // Only close and fallback if connection is truly lost
+      if (eventSource.readyState === EventSource.CLOSED) {
+        eventSource.close();
+        console.log('Falling back to polling...');
+        // Fallback to polling if SSE fails
+        pollProgress();
+      }
+    };
+    
+    // Store event source for cleanup
+    (window as any).currentEventSource = eventSource;
+  };
+
+  // Fallback polling method (kept for compatibility)
+  const pollProgress = async () => {
+    console.log('Starting polling fallback...');
+    
+    // Clear any existing polling interval
+    if ((window as any).currentPollInterval) {
+      clearInterval((window as any).currentPollInterval);
+    }
+    
+    const interval = setInterval(async () => {
+      // Skip if SSE is connected
+      if ((window as any).currentEventSource && (window as any).currentEventSource.readyState === EventSource.OPEN) {
+        return;
+      }
+      
+      try {
+      const response = await fetch('/api/embeddings/progress');
         if (response.ok) {
           const data = await response.json();
+          console.log('Polling progress update:', data);
           setProgress(data);
           
+          // Update migration stats dynamically if progress is active
+          if (data.status === 'processing' && data.current > 0) {
+            setMigrationStats(prev => {
+              if (!prev) return prev;
+              return {
+                ...prev,
+                embeddedRecords: data.successCount || data.current,
+                pendingRecords: Math.max(0, prev.totalRecords - (data.successCount || data.current))
+              };
+            });
+          }
+          
           if (data.status === 'completed' || data.status === 'error' || data.status === 'paused') {
+            console.log('Polling finished with status:', data.status);
             clearInterval(interval);
             fetchMigrationStats();
             fetchAvailableTables();
+            setIsProcessing(false);
+            
+            if (data.status === 'completed') {
+              setSuccess('Migration tamamlandı!');
+              setProgress(null); // Clear progress state
+            } else if (data.status === 'error') {
+              setError(data.error || 'Migration sırasında hata oluştu');
+              setProgress(null); // Clear progress state
+            } else if (data.status === 'paused') {
+              setSuccess('Migration duraklatıldı');
+              // Keep progress state for pause/resume
+            }
           }
         }
       } catch (error) {
         console.error('Progress fetch error:', error);
       }
     }, 1000);
+    
+    // Store interval for cleanup
+    (window as any).currentPollInterval = interval;
   };
 
   const searchEmbeddings = async () => {
@@ -230,7 +454,8 @@ export default function EmbeddingsManagerPage() {
     setSearchResults([]);
     
     try {
-      const response = await fetch('/api/rag/search', {
+      // Call backend directly; no Next proxy for search yet
+      const response = await fetch(`${API_BASE}/api/v2/embeddings/search`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
@@ -326,7 +551,9 @@ export default function EmbeddingsManagerPage() {
               </CardHeader>
               <CardContent>
                 <p className="text-2xl font-bold text-green-600">
-                  {migrationStats?.embeddedRecords.toLocaleString('tr-TR') || '0'}
+                  {progress?.status === 'processing' 
+                    ? progress.current.toLocaleString('tr-TR')
+                    : migrationStats?.embeddedRecords.toLocaleString('tr-TR') || '0'}
                 </p>
                 <p className="text-xs text-muted-foreground mt-1">
                   %{migrationStats && migrationStats.totalRecords > 0 
@@ -552,10 +779,10 @@ export default function EmbeddingsManagerPage() {
                           <Play className="w-4 h-4 mr-2" />
                           Devam Et
                         </Button>
-                      ) : progress?.status === 'processing' ? (
+                      ) : isProcessing || progress?.status === 'processing' ? (
                         <Button 
                           onClick={pauseMigration} 
-                          disabled={isProcessing}
+                          disabled={false}
                           className="w-full"
                           variant="secondary"
                         >
@@ -568,17 +795,8 @@ export default function EmbeddingsManagerPage() {
                           disabled={isProcessing || selectedTables.length === 0}
                           className="w-full"
                         >
-                          {isProcessing ? (
-                            <>
-                              <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
-                              İşleniyor...
-                            </>
-                          ) : (
-                            <>
-                              <Upload className="w-4 h-4 mr-2" />
-                              Migration Başlat
-                            </>
-                          )}
+                          <Upload className="w-4 h-4 mr-2" />
+                          Migration Başlat
                         </Button>
                       )}
                     </div>
@@ -662,7 +880,7 @@ export default function EmbeddingsManagerPage() {
                 </div>
               </div>
 
-              {progress && (
+              {progress && progress.status !== 'idle' && (
                 <div className="space-y-4">
                   <div className="space-y-2">
                     <div className="flex items-center justify-between">
@@ -673,8 +891,11 @@ export default function EmbeddingsManagerPage() {
                     </div>
                     <Progress value={progress.percentage} className="h-4" />
                     <div className="flex justify-between text-xs text-muted-foreground">
-                      <span>{progress.current.toLocaleString('tr-TR')} / {progress.total.toLocaleString('tr-TR')} kayıt</span>
-                      {progress.estimatedTimeRemaining && (
+                      <span>
+                        {(progress.current ?? 0).toLocaleString('tr-TR')} / {(progress.total ?? 0).toLocaleString('tr-TR')} kayıt
+                        {progress.alreadyEmbedded && progress.alreadyEmbedded > 0 && ` (${progress.alreadyEmbedded.toLocaleString('tr-TR')} önceden tamamlanmış)`}
+                      </span>
+                      {progress.estimatedTimeRemaining && progress.estimatedTimeRemaining > 0 && (
                         <span>Tahmini süre: {Math.ceil(progress.estimatedTimeRemaining / 60000)} dk</span>
                       )}
                     </div>
@@ -690,9 +911,14 @@ export default function EmbeddingsManagerPage() {
                           </span>
                         )}
                       </p>
-                      {getCurrentTableInfo() && (
+                      {progress.currentBatch && progress.totalBatches && (
                         <p className="text-xs text-blue-700 dark:text-blue-300 mt-1">
-                          {getCurrentTableInfo().embeddedRecords.toLocaleString('tr-TR')} / {getCurrentTableInfo().totalRecords.toLocaleString('tr-TR')} kayıt
+                          Batch {progress.currentBatch} / {progress.totalBatches}
+                        </p>
+                      )}
+                      {progress.alreadyEmbedded && progress.alreadyEmbedded > 0 && (
+                        <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">
+                          {progress.alreadyEmbedded} kayıt zaten embed edilmiş (atlanıyor)
                         </p>
                       )}
                     </div>
@@ -703,10 +929,11 @@ export default function EmbeddingsManagerPage() {
                     <div className="p-3 bg-green-50 dark:bg-green-950 rounded-lg">
                       <p className="text-xs text-green-700 dark:text-green-300">Token Kullanımı</p>
                       <p className="text-lg font-bold text-green-900 dark:text-green-100">
-                        {progress.tokensUsed ? progress.tokensUsed.toLocaleString('tr-TR') : '0'}
+                        {progress.tokensUsed ? Math.round(progress.tokensUsed).toLocaleString('tr-TR') : '0'}
                       </p>
                       <p className="text-xs text-green-600 dark:text-green-400 mt-1">
-                        ~{progress.tokensUsed && progress.current ? Math.round(progress.tokensUsed / progress.current) : 0} token/kayıt
+                        {progress.newlyEmbedded ? `${progress.newlyEmbedded} yeni kayıt` : 
+                         progress.tokensUsed && progress.current ? `~${Math.round(progress.tokensUsed / progress.current)} token/kayıt` : '0 token/kayıt'}
                       </p>
                     </div>
                     <div className="p-3 bg-orange-50 dark:bg-orange-950 rounded-lg">
