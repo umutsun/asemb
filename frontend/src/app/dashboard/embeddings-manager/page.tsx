@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { getApiUrl } from '@/lib/config';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -10,11 +11,11 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { 
-  Database, 
-  Upload, 
-  RefreshCw, 
-  CheckCircle, 
+import {
+  Database,
+  Upload,
+  RefreshCw,
+  CheckCircle,
   AlertCircle,
   Activity,
   Search,
@@ -73,6 +74,7 @@ interface EmbeddingProgress {
 }
 
 export default function EmbeddingsManagerPage() {
+  const { t } = useTranslation();
   const [activeTab, setActiveTab] = useState('overview');
   const [migrationStats, setMigrationStats] = useState<MigrationStats | null>(null);
   const [progress, setProgress] = useState<EmbeddingProgress | null>(null);
@@ -127,7 +129,7 @@ export default function EmbeddingsManagerPage() {
       }
     } catch (error) {
       console.error('Failed to fetch tables:', error);
-      setError('Veritabanı tabloları yüklenemedi. Veritabanı bağlantınızı kontrol edin.');
+      setError(t('embeddings_manager.migrationError'));
     } finally {
       setIsLoadingTables(false);
     }
@@ -156,13 +158,19 @@ export default function EmbeddingsManagerPage() {
       if (response.ok) {
         const data = await response.json();
         console.log('Initial progress check:', data);
-        if (data && (data.status === 'processing' || data.status === 'paused')) {
+        if (data) {
           setProgress(data);
-          if (data.status === 'processing') {
+          // Keep isProcessing state in sync with backend
+          const active = data.status === 'processing';
+          setIsProcessing(active);
+          if (active) {
             console.log('Process is active, connecting to SSE...');
-            // Use SSE for active processes
             connectToProgressStream();
           }
+        } else {
+          // No progress info -> reset local state
+          setIsProcessing(false);
+          setProgress(null);
         }
       }
     } catch (error) {
@@ -182,7 +190,7 @@ export default function EmbeddingsManagerPage() {
         : (selectedTable === 'all' ? availableTables.map(t => t.name) : [selectedTable]);
         
       if (tablesToMigrate.length === 0) {
-        setError('En az bir tablo seçmelisiniz');
+        setError(t('embeddings_manager.selectAtLeastOneTable'));
         setIsProcessing(false);
         return;
       }
@@ -201,7 +209,7 @@ export default function EmbeddingsManagerPage() {
       const response = await fetch('/api/embeddings/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
+        body: JSON.stringify({
           tables: tablesToMigrate,
           batchSize: batchSize,
           workerCount: workerCount,
@@ -215,7 +223,7 @@ export default function EmbeddingsManagerPage() {
         const reader = response.body?.getReader();
         const decoder = new TextDecoder();
         
-        setSuccess(resume ? 'Migration kaldığı yerden devam ediyor!' : 'Migration başlatıldı!');
+        setSuccess(resume ? t('embeddings_manager.migrationResumed') : t('embeddings_manager.migrationStarted'));
         
         if (reader) {
           // Read SSE stream
@@ -249,9 +257,9 @@ export default function EmbeddingsManagerPage() {
                     setIsProcessing(false);
                     setProgress(null); // Clear progress state
                     if (data.status === 'completed') {
-                      setSuccess('Migration tamamlandı!');
+                      setSuccess(t('embeddings_manager.migrationCompleted'));
                     } else {
-                      setError(data.error || 'Migration başarısız!');
+                      setError(data.error || t('embeddings_manager.migrationError'));
                     }
                     fetchMigrationStats();
                     fetchAvailableTables();
@@ -265,10 +273,10 @@ export default function EmbeddingsManagerPage() {
         }
       } else {
         const error = await response.json();
-        setError(error.error || 'Migration başlatılamadı');
+        setError(error.error || t('embeddings_manager.migrationError'));
       }
     } catch (error) {
-      setError('Bir hata oluştu');
+      setError(t('error'));
     } finally {
       setIsProcessing(false);
     }
@@ -289,7 +297,7 @@ export default function EmbeddingsManagerPage() {
         if (data.progress) {
           setProgress(data.progress);
         }
-        setSuccess('Migration duraklatıldı. Devam etmek için "Devam Et" butonuna tıklayın.');
+        setSuccess(t('embeddings_manager.migrationPaused'));
         setIsProcessing(false);
         
         // Stop SSE connection when paused
@@ -303,11 +311,11 @@ export default function EmbeddingsManagerPage() {
         }
       } else {
         const error = await response.json();
-        setError(error.error || 'Duraklatma başarısız');
+        setError(error.error || t('embeddings_manager.pauseError'));
       }
     } catch (error) {
       console.error('Pause error:', error);
-      setError('Duraklatma başarısız');
+      setError(t('embeddings_manager.pauseError'));
     }
   };
 
@@ -320,7 +328,8 @@ export default function EmbeddingsManagerPage() {
     
     console.log('Connecting to SSE stream...');
     // Use backend SSE stream aligned with embeddings namespace
-    const eventSource = new EventSource(`${API_BASE}/api/v2/embeddings/progress/stream`);
+    // Use same-origin proxy to avoid CORS/infra issues
+    const eventSource = new EventSource(`/api/embeddings/progress/stream`);
     
     eventSource.onopen = () => {
       console.log('SSE connection opened');
@@ -351,15 +360,15 @@ export default function EmbeddingsManagerPage() {
           fetchAvailableTables();
           
           if (data.status === 'completed') {
-            setSuccess('Migration tamamlandı!');
+            setSuccess(t('embeddings_manager.migrationCompleted'));
             setIsProcessing(false);
             setProgress(null); // Clear progress state
           } else if (data.status === 'error') {
-            setError(data.error || 'Migration sırasında hata oluştu');
+            setError(data.error || t('embeddings_manager.migrationError'));
             setIsProcessing(false);
             setProgress(null); // Clear progress state
           } else if (data.status === 'paused') {
-            setSuccess('Migration duraklatıldı');
+            setSuccess(t('embeddings_manager.migrationPaused'));
             setIsProcessing(false);
             // Keep progress state for pause/resume
           }
@@ -428,13 +437,13 @@ export default function EmbeddingsManagerPage() {
             setIsProcessing(false);
             
             if (data.status === 'completed') {
-              setSuccess('Migration tamamlandı!');
+              setSuccess(t('embeddings_manager.migrationCompleted'));
               setProgress(null); // Clear progress state
             } else if (data.status === 'error') {
-              setError(data.error || 'Migration sırasında hata oluştu');
+              setError(data.error || t('embeddings_manager.migrationError'));
               setProgress(null); // Clear progress state
             } else if (data.status === 'paused') {
-              setSuccess('Migration duraklatıldı');
+              setSuccess(t('embeddings_manager.migrationPaused'));
               // Keep progress state for pause/resume
             }
           }
@@ -459,7 +468,7 @@ export default function EmbeddingsManagerPage() {
       const response = await fetch(`${API_BASE}/api/v2/embeddings/search`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
+        body: JSON.stringify({
           query: searchQuery,
           tables: availableTables.map(t => t.name),
           limit: 5
@@ -471,7 +480,7 @@ export default function EmbeddingsManagerPage() {
         setSearchResults(data.results || []);
       }
     } catch (error) {
-      setError('Arama başarısız');
+      setError(t('embeddings_manager.searchError'));
     } finally {
       setIsSearching(false);
     }
@@ -486,15 +495,15 @@ export default function EmbeddingsManagerPage() {
     <div className="p-6 lg:p-8 space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-semibold">RAG & Embeddings Yönetimi</h1>
+          <h1 className="text-xl font-semibold">{t('embeddings_manager.title')}</h1>
           <p className="text-sm text-muted-foreground mt-1">
-            Vektör Veritabanı İşlemleri
+            {t('embeddings_manager.subtitle')}
           </p>
         </div>
         <Link href="/dashboard/settings?tab=database">
           <Button variant="outline" size="sm">
             <Settings className="w-4 h-4 mr-2" />
-            Veritabanı Ayarları
+            {t('embeddings_manager.databaseSettings')}
           </Button>
         </Link>
       </div>
@@ -517,15 +526,15 @@ export default function EmbeddingsManagerPage() {
         <TabsList className="grid w-full grid-cols-3 max-w-2xl">
           <TabsTrigger value="overview">
             <Database className="w-4 h-4 mr-2" />
-            RAG Durumu
+            {t('embeddings_manager.status')}
           </TabsTrigger>
           <TabsTrigger value="migration">
             <Upload className="w-4 h-4 mr-2" />
-            Embedding İşlemleri
+            {t('embeddings_manager.migration')}
           </TabsTrigger>
           <TabsTrigger value="search">
             <Search className="w-4 h-4 mr-2" />
-            Test & Arama
+            {t('embeddings_manager.search')}
           </TabsTrigger>
         </TabsList>
 
@@ -534,21 +543,21 @@ export default function EmbeddingsManagerPage() {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             <Card>
               <CardHeader className="pb-3">
-                <CardTitle className="text-sm">Toplam Kayıt</CardTitle>
+                <CardTitle className="text-sm">{t('embeddings_manager.totalRecords')}</CardTitle>
               </CardHeader>
               <CardContent>
                 <p className="text-2xl font-bold">
                   {migrationStats?.totalRecords.toLocaleString('tr-TR') || '0'}
                 </p>
                 <p className="text-xs text-muted-foreground mt-1">
-                  {availableTables.length} tabloda
+                  {t('embeddings_manager.inTables', { count: availableTables.length })}
                 </p>
               </CardContent>
             </Card>
 
             <Card>
               <CardHeader className="pb-3">
-                <CardTitle className="text-sm">İşlenmiş</CardTitle>
+                <CardTitle className="text-sm">{t('embeddings_manager.processed')}</CardTitle>
               </CardHeader>
               <CardContent>
                 <p className="text-2xl font-bold text-green-600">
@@ -557,41 +566,41 @@ export default function EmbeddingsManagerPage() {
                     : migrationStats?.embeddedRecords.toLocaleString('tr-TR') || '0'}
                 </p>
                 <p className="text-xs text-muted-foreground mt-1">
-                  %{migrationStats && migrationStats.totalRecords > 0 
+                  {t('embeddings_manager.completedPercentage', { percentage: migrationStats && migrationStats.totalRecords > 0 
                     ? Math.round((migrationStats.embeddedRecords / migrationStats.totalRecords) * 100) 
-                    : 0} tamamlandı
+                    : 0 })}
                 </p>
               </CardContent>
             </Card>
 
             <Card>
               <CardHeader className="pb-3">
-                <CardTitle className="text-sm">Bekleyen</CardTitle>
+                <CardTitle className="text-sm">{t('embeddings_manager.pending')}</CardTitle>
               </CardHeader>
               <CardContent>
                 <p className="text-2xl font-bold text-orange-600">
                   {migrationStats?.pendingRecords.toLocaleString('tr-TR') || '0'}
                 </p>
                 <p className="text-xs text-muted-foreground mt-1">
-                  işlenecek kayıt
+                  {t('embeddings_manager.recordsToProcess')}
                 </p>
               </CardContent>
             </Card>
 
             <Card>
               <CardHeader className="pb-3">
-                <CardTitle className="text-sm">Kullanım</CardTitle>
+                <CardTitle className="text-sm">{t('embeddings_manager.usage')}</CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="space-y-1">
                   <div className="flex items-center justify-between text-xs">
-                    <span className="text-muted-foreground">Token:</span>
+                    <span className="text-muted-foreground">{t('embeddings_manager.token')}:</span>
                     <span className="font-medium">
                       {((migrationStats?.embeddedRecords || 0) * 500).toLocaleString('tr-TR')}
                     </span>
                   </div>
                   <div className="flex items-center justify-between text-xs">
-                    <span className="text-muted-foreground">Maliyet:</span>
+                    <span className="text-muted-foreground">{t('embeddings_manager.cost')}:</span>
                     <span className="font-medium">
                       ${(((migrationStats?.embeddedRecords || 0) * 500) / 1000 * 0.0001).toFixed(2)}
                     </span>
@@ -603,23 +612,23 @@ export default function EmbeddingsManagerPage() {
 
           <Card>
             <CardHeader>
-              <CardTitle>Veri Tabloları</CardTitle>
-              <CardDescription>Mevcut tablolar ve embedding durumu</CardDescription>
+              <CardTitle>{t('embeddings_manager.tables')}</CardTitle>
+              <CardDescription>{t('embeddings_manager.tablesDescription')}</CardDescription>
             </CardHeader>
             <CardContent>
               {isLoadingTables ? (
                 <div className="flex items-center justify-center py-8">
                   <Loader2 className="h-6 w-6 animate-spin text-muted-foreground mr-2" />
-                  <span className="text-sm text-muted-foreground">Tablolar yükleniyor...</span>
+                  <span className="text-sm text-muted-foreground">{t('embeddings_manager.tablesLoading')}</span>
                 </div>
               ) : availableTables.length === 0 ? (
                 <div className="text-center py-8">
                   <Database className="h-12 w-12 text-muted-foreground mx-auto mb-3" />
-                  <p className="text-sm text-muted-foreground">Henüz veri tablosu bulunamadı</p>
+                  <p className="text-sm text-muted-foreground">{t('embeddings_manager.noTablesFound')}</p>
                   <Link href="/dashboard/settings?tab=database">
                     <Button variant="outline" size="sm" className="mt-3">
                       <Settings className="w-4 h-4 mr-2" />
-                      Veritabanı Bağlantısını Kontrol Et
+                      {t('embeddings_manager.checkDatabase')}
                     </Button>
                   </Link>
                 </div>
@@ -666,7 +675,7 @@ export default function EmbeddingsManagerPage() {
                   <div className="p-3 border-2 border-primary/20 rounded-lg bg-primary/5">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-3">
-                        <span className="font-semibold">TOPLAM</span>
+                        <span className="font-semibold">{t('embeddings_manager.total')}</span>
                         <div className="flex items-center gap-2 text-xs text-muted-foreground">
                           <div className="h-1.5 w-1.5 rounded-full bg-green-500" />
                           <span>PostgreSQL (rag_chatbot)</span>
@@ -701,9 +710,9 @@ export default function EmbeddingsManagerPage() {
         <TabsContent value="migration" className="space-y-6">
           <Card>
             <CardHeader>
-              <CardTitle>Embedding Migration</CardTitle>
+              <CardTitle>{t('embeddings_manager.embeddingMigration')}</CardTitle>
               <CardDescription>
-                Tabloları vektör veritabanına aktarın
+                {t('embeddings_manager.migrateTablesToVector')}
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -711,58 +720,58 @@ export default function EmbeddingsManagerPage() {
                 {/* Sol kolon - İşlem Ayarları */}
                 <div className="space-y-4">
                   <div>
-                    <h3 className="text-sm font-semibold mb-3">İşlem Ayarları</h3>
+                    <h3 className="text-sm font-semibold mb-3">{t('embeddings_manager.processSettings')}</h3>
                     <div className="space-y-3">
                       <div>
-                        <Label htmlFor="batch-size" className="text-xs">Batch Size</Label>
+                        <Label htmlFor="batch-size" className="text-xs">{t('embeddings_manager.batchSize')}</Label>
                         <Select value={batchSize.toString()} onValueChange={(v) => setBatchSize(parseInt(v))}>
                           <SelectTrigger id="batch-size" className="mt-1">
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="10">10 kayıt</SelectItem>
-                            <SelectItem value="25">25 kayıt</SelectItem>
-                            <SelectItem value="50">50 kayıt</SelectItem>
-                            <SelectItem value="100">100 kayıt</SelectItem>
-                            <SelectItem value="200">200 kayıt</SelectItem>
+                            <SelectItem value="10">10 {t('embeddings_manager.record')}</SelectItem>
+                            <SelectItem value="25">25 {t('embeddings_manager.record')}</SelectItem>
+                            <SelectItem value="50">50 {t('embeddings_manager.record')}</SelectItem>
+                            <SelectItem value="100">100 {t('embeddings_manager.record')}</SelectItem>
+                            <SelectItem value="200">200 {t('embeddings_manager.record')}</SelectItem>
                           </SelectContent>
                         </Select>
                       </div>
 
                       <div>
-                        <Label htmlFor="worker-count" className="text-xs">Paralel Embedder</Label>
+                        <Label htmlFor="worker-count" className="text-xs">{t('embeddings_manager.parallelEmbedder')}</Label>
                         <Select value={workerCount.toString()} onValueChange={(v) => setWorkerCount(parseInt(v))}>
                           <SelectTrigger id="worker-count" className="mt-1">
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="1">1 embedder</SelectItem>
-                            <SelectItem value="2">2 embedder</SelectItem>
-                            <SelectItem value="3">3 embedder</SelectItem>
-                            <SelectItem value="4">4 embedder</SelectItem>
-                            <SelectItem value="5">5 embedder</SelectItem>
+                            <SelectItem value="1">1 {t('embeddings_manager.embedder')}</SelectItem>
+                            <SelectItem value="2">2 {t('embeddings_manager.embedder')}</SelectItem>
+                            <SelectItem value="3">3 {t('embeddings_manager.embedder')}</SelectItem>
+                            <SelectItem value="4">4 {t('embeddings_manager.embedder')}</SelectItem>
+                            <SelectItem value="5">5 {t('embeddings_manager.embedder')}</SelectItem>
                           </SelectContent>
                         </Select>
                       </div>
 
                       {/* Token ve Süre Tahmini */}
                       <div className="p-3 bg-muted rounded-lg space-y-2">
-                        <h4 className="text-xs font-semibold">Tahminler</h4>
+                        <h4 className="text-xs font-semibold">{t('embeddings_manager.estimates')}</h4>
                         <div className="space-y-1 text-xs">
                           <div className="flex justify-between">
-                            <span className="text-muted-foreground">Süre:</span>
+                            <span className="text-muted-foreground">{t('embeddings_manager.duration')}:</span>
                             <span className="font-medium">
-                              ~{Math.ceil((migrationStats?.pendingRecords || 0) / (batchSize * workerCount) * 0.5)} dk
+                              ~{Math.ceil((migrationStats?.pendingRecords || 0) / (batchSize * workerCount) * 0.5)} {t('embeddings_manager.minutes')}
                             </span>
                           </div>
                           <div className="flex justify-between">
-                            <span className="text-muted-foreground">Token:</span>
+                            <span className="text-muted-foreground">{t('embeddings_manager.token')}:</span>
                             <span className="font-medium">
                               ~{((migrationStats?.pendingRecords || 0) * 500).toLocaleString('tr-TR')}
                             </span>
                           </div>
                           <div className="flex justify-between">
-                            <span className="text-muted-foreground">Maliyet:</span>
+                            <span className="text-muted-foreground">{t('embeddings_manager.cost')}:</span>
                             <span className="font-medium">
                               ~${(((migrationStats?.pendingRecords || 0) * 500) / 1000 * 0.0001).toFixed(2)}
                             </span>
@@ -778,7 +787,7 @@ export default function EmbeddingsManagerPage() {
                           variant="default"
                         >
                           <Play className="w-4 h-4 mr-2" />
-                          Devam Et
+                          {t('embeddings_manager.resumeMigration')}
                         </Button>
                       ) : isProcessing || progress?.status === 'processing' ? (
                         <Button 
@@ -788,7 +797,7 @@ export default function EmbeddingsManagerPage() {
                           variant="secondary"
                         >
                           <Pause className="w-4 h-4 mr-2" />
-                          Duraklat
+                          {t('embeddings_manager.pauseMigration')}
                         </Button>
                       ) : (
                         <Button 
@@ -797,7 +806,7 @@ export default function EmbeddingsManagerPage() {
                           className="w-full"
                         >
                           <Upload className="w-4 h-4 mr-2" />
-                          Migration Başlat
+                          {t('embeddings_manager.startMigration')}
                         </Button>
                       )}
                     </div>
@@ -807,7 +816,7 @@ export default function EmbeddingsManagerPage() {
                 {/* Sağ kolon - Tablo Seçimi */}
                 <div className="lg:col-span-2">
                   <div className="flex items-center justify-between mb-2">
-                    <Label>Tablo Seçimi ({selectedTables.length}/{availableTables.length} seçili)</Label>
+                    <Label>{t('embeddings_manager.selectedTables', { selected: selectedTables.length, total: availableTables.length })}</Label>
                     <div className="flex gap-2">
                       <Button 
                         size="sm" 
@@ -815,7 +824,7 @@ export default function EmbeddingsManagerPage() {
                         onClick={() => setSelectedTables(availableTables.map(t => t.name))}
                         disabled={isLoadingTables}
                       >
-                        Tümünü Seç
+                        {t('selectAll')}
                       </Button>
                       <Button 
                         size="sm" 
@@ -823,23 +832,23 @@ export default function EmbeddingsManagerPage() {
                         onClick={() => setSelectedTables([])}
                         disabled={isLoadingTables}
                       >
-                        Temizle
+                        {t('embeddings_manager.clearSelection')}
                       </Button>
                     </div>
                   </div>
                   {isLoadingTables ? (
                     <div className="flex items-center justify-center py-8 border rounded-lg">
                       <Loader2 className="h-6 w-6 animate-spin text-muted-foreground mr-2" />
-                      <span className="text-sm text-muted-foreground">Tablolar yükleniyor...</span>
+                      <span className="text-sm text-muted-foreground">{t('embeddings_manager.tablesLoading')}</span>
                     </div>
                   ) : availableTables.length === 0 ? (
                     <div className="text-center py-8 border rounded-lg">
                       <Database className="h-12 w-12 text-muted-foreground mx-auto mb-3" />
-                      <p className="text-sm text-muted-foreground">Henüz veri tablosu bulunamadı</p>
+                      <p className="text-sm text-muted-foreground">{t('embeddings_manager.noTablesFound')}</p>
                       <Link href="/dashboard/settings?tab=database">
                         <Button variant="outline" size="sm" className="mt-3">
                           <Settings className="w-4 h-4 mr-2" />
-                          Veritabanı Bağlantısını Kontrol Et
+                          {t('embeddings_manager.checkDatabase')}
                         </Button>
                       </Link>
                     </div>
@@ -865,10 +874,10 @@ export default function EmbeddingsManagerPage() {
                             {table.displayName}
                           </div>
                           <div className="text-xs text-muted-foreground mt-1">
-                            {table.totalRecords.toLocaleString('tr-TR')} kayıt
+                            {table.totalRecords.toLocaleString('tr-TR')} {t('embeddings_manager.record')}
                             {table.embeddedRecords > 0 && (
                               <span className="text-green-600 dark:text-green-400">
-                                {' • '}{table.embeddedRecords.toLocaleString('tr-TR')} embed edilmiş
+                                {' • '}{table.embeddedRecords.toLocaleString('tr-TR')} {t('embeddings_manager.embedded')}
                                 ({Math.round((table.embeddedRecords / table.totalRecords) * 100)}%)
                               </span>
                             )}
@@ -885,7 +894,7 @@ export default function EmbeddingsManagerPage() {
                 <div className="space-y-4">
                   <div className="space-y-2">
                     <div className="flex items-center justify-between">
-                      <span className="text-sm font-medium">Genel İlerleme</span>
+                      <span className="text-sm font-medium">{t('embeddings_manager.generalProgress')}</span>
                       <span className="text-sm font-bold text-primary">
                         {progress.percentage}%
                       </span>
@@ -893,11 +902,11 @@ export default function EmbeddingsManagerPage() {
                     <Progress value={progress.percentage} className="h-4" />
                     <div className="flex justify-between text-xs text-muted-foreground">
                       <span>
-                        {(progress.current ?? 0).toLocaleString('tr-TR')} / {(progress.total ?? 0).toLocaleString('tr-TR')} kayıt
-                        {progress.alreadyEmbedded && progress.alreadyEmbedded > 0 && ` (${progress.alreadyEmbedded.toLocaleString('tr-TR')} önceden tamamlanmış)`}
+                        {(progress.current ?? 0).toLocaleString('tr-TR')} / {(progress.total ?? 0).toLocaleString('tr-TR')} {t('embeddings_manager.record')}
+                        {progress.alreadyEmbedded && progress.alreadyEmbedded > 0 && ` (${progress.alreadyEmbedded.toLocaleString('tr-TR')} ${t('embeddings_manager.recordsPreviouslyCompleted')})`}
                       </span>
                       {progress.estimatedTimeRemaining && progress.estimatedTimeRemaining > 0 && (
-                        <span>Tahmini süre: {Math.ceil(progress.estimatedTimeRemaining / 60000)} dk</span>
+                        <span>{t('embeddings_manager.estimatedTime')}: {Math.ceil(progress.estimatedTimeRemaining / 60000)} {t('embeddings_manager.minutes')}</span>
                       )}
                     </div>
                   </div>
@@ -905,7 +914,7 @@ export default function EmbeddingsManagerPage() {
                   {progress.currentTable && (
                     <div className="p-3 bg-blue-50 dark:bg-blue-950 rounded-lg">
                       <p className="text-sm font-medium text-blue-900 dark:text-blue-100">
-                        İşleniyor: {getCurrentTableInfo()?.displayName || progress.currentTable}
+                        {t('embeddings_manager.processingTable')}: {getCurrentTableInfo()?.displayName || progress.currentTable}
                         {getCurrentTableInfo()?.database && (
                           <span className="text-xs ml-2 opacity-75">
                             ({getCurrentTableInfo()?.database})
@@ -914,12 +923,12 @@ export default function EmbeddingsManagerPage() {
                       </p>
                       {progress.currentBatch && progress.totalBatches && (
                         <p className="text-xs text-blue-700 dark:text-blue-300 mt-1">
-                          Batch {progress.currentBatch} / {progress.totalBatches}
+                          {t('embeddings_manager.batch')} {progress.currentBatch} / {progress.totalBatches}
                         </p>
                       )}
                       {progress.alreadyEmbedded && progress.alreadyEmbedded > 0 && (
                         <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">
-                          {progress.alreadyEmbedded} kayıt zaten embed edilmiş (atlanıyor)
+                          {progress.alreadyEmbedded} {t('embeddings_manager.alreadyEmbedded')}
                         </p>
                       )}
                     </div>
@@ -928,17 +937,17 @@ export default function EmbeddingsManagerPage() {
                   {/* Detailed Metrics */}
                   <div className="grid grid-cols-3 gap-3">
                     <div className="p-3 bg-green-50 dark:bg-green-950 rounded-lg">
-                      <p className="text-xs text-green-700 dark:text-green-300">Token Kullanımı</p>
+                      <p className="text-xs text-green-700 dark:text-green-300">{t('embeddings_manager.tokenUsage')}</p>
                       <p className="text-lg font-bold text-green-900 dark:text-green-100">
                         {progress.tokensUsed ? Math.round(progress.tokensUsed).toLocaleString('tr-TR') : '0'}
                       </p>
                       <p className="text-xs text-green-600 dark:text-green-400 mt-1">
-                        {progress.newlyEmbedded ? `${progress.newlyEmbedded} yeni kayıt` : 
-                         progress.tokensUsed && progress.current ? `~${Math.round(progress.tokensUsed / progress.current)} token/kayıt` : '0 token/kayıt'}
+                        {progress.newlyEmbedded ? `${progress.newlyEmbedded} ${t('embeddings_manager.newRecords')}` : 
+                         progress.tokensUsed && progress.current ? `~${Math.round(progress.tokensUsed / progress.current)} ${t('embeddings_manager.tokensPerRecord')}` : `0 ${t('embeddings_manager.tokensPerRecord')}`}
                       </p>
                     </div>
                     <div className="p-3 bg-orange-50 dark:bg-orange-950 rounded-lg">
-                      <p className="text-xs text-orange-700 dark:text-orange-300">Tahmini Maliyet</p>
+                      <p className="text-xs text-orange-700 dark:text-orange-300">{t('embeddings_manager.estimatedCost')}</p>
                       <p className="text-lg font-bold text-orange-900 dark:text-orange-100">
                         ${progress.estimatedCost ? progress.estimatedCost.toFixed(4) : '0.00'}
                       </p>
@@ -947,14 +956,14 @@ export default function EmbeddingsManagerPage() {
                       </p>
                     </div>
                     <div className="p-3 bg-purple-50 dark:bg-purple-950 rounded-lg">
-                      <p className="text-xs text-purple-700 dark:text-purple-300">İşleme Hızı</p>
+                      <p className="text-xs text-purple-700 dark:text-purple-300">{t('embeddings_manager.processingSpeed')}</p>
                       <p className="text-lg font-bold text-purple-900 dark:text-purple-100">
                         {progress.current && progress.startTime 
                           ? Math.round(progress.current / ((Date.now() - progress.startTime) / 1000) * 60)
-                          : 0} kayıt/dk
+                          : 0} {t('embeddings_manager.recordsPerMinute')}
                       </p>
                       <p className="text-xs text-purple-600 dark:text-purple-400 mt-1">
-                        Batch Size: {batchSize}
+                        {t('embeddings_manager.batchSize')}: {batchSize}
                       </p>
                     </div>
                   </div>
@@ -962,7 +971,7 @@ export default function EmbeddingsManagerPage() {
                   {/* Per-table Progress */}
                   {progress.processedTables && progress.processedTables.length > 0 && (
                     <div className="p-3 bg-gray-50 dark:bg-gray-900 rounded-lg">
-                      <p className="text-xs font-medium mb-2">İşlenen Tablolar</p>
+                      <p className="text-xs font-medium mb-2">{t('embeddings_manager.processedTables')}</p>
                       <div className="space-y-1">
                         {progress.processedTables.map((tableName) => {
                           const table = availableTables.find(t => t.name === tableName);
@@ -982,7 +991,7 @@ export default function EmbeddingsManagerPage() {
               <Alert>
                 <AlertCircle className="h-4 w-4" />
                 <AlertDescription>
-                  Migration işlemi kaldığı yerden devam edebilir. Zaten embed edilmiş kayıtlar tekrar işlenmez.
+                  {t('embeddings_manager.migrationCanBeResumed')}
                 </AlertDescription>
               </Alert>
             </CardContent>
@@ -993,20 +1002,20 @@ export default function EmbeddingsManagerPage() {
         <TabsContent value="search" className="space-y-6">
           <Card>
             <CardHeader>
-              <CardTitle>Vektör Arama Testi</CardTitle>
+              <CardTitle>{t('embeddings_manager.vectorSearchTest')}</CardTitle>
               <CardDescription>
-                Embedding'ler üzerinde semantik arama yapın
+                {t('embeddings_manager.semanticSearchOnEmbeddings')}
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="search-query">Arama Sorgusu</Label>
+                <Label htmlFor="search-query">{t('embeddings_manager.searchQuery')}</Label>
                 <div className="flex gap-2">
                   <Input
                     id="search-query"
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    placeholder="Örn: KDV oranları nelerdir?"
+                    placeholder={t('embeddings_manager.searchQueryPlaceholder')}
                     onKeyPress={(e) => e.key === 'Enter' && searchEmbeddings()}
                   />
                   <Button onClick={searchEmbeddings} disabled={isSearching}>
@@ -1021,7 +1030,7 @@ export default function EmbeddingsManagerPage() {
 
               {searchResults.length > 0 && (
                 <div className="space-y-3">
-                  <p className="text-sm font-medium">Sonuçlar ({searchResults.length})</p>
+                  <p className="text-sm font-medium">{t('embeddings_manager.resultsCount', { count: searchResults.length })}</p>
                   {searchResults.map((result, index) => {
                     const tableInfo = availableTables.find(t => t.name === result.tableName);
                     return (
@@ -1031,7 +1040,7 @@ export default function EmbeddingsManagerPage() {
                             {tableInfo?.displayName || result.tableName}
                           </Badge>
                           <Badge variant="secondary">
-                            Benzerlik: {(result.similarity * 100).toFixed(1)}%
+                            {t('embeddings_manager.similarityScore')}: {(result.similarity * 100).toFixed(1)}%
                           </Badge>
                         </div>
                         <p className="text-sm text-muted-foreground line-clamp-3">
