@@ -22,9 +22,14 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
     }
 
     if (value !== undefined) {
+      // Explicit controlled input
       ;(normalizedProps as any).value = value ?? ""
     } else if (defaultValue !== undefined) {
+      // Uncontrolled with defaultValue
       ;(normalizedProps as any).defaultValue = defaultValue
+    } else {
+      // Neither value nor defaultValue provided -> keep controlled with empty string
+      ;(normalizedProps as any).value = ""
     }
 
     return <input {...(normalizedProps as any)} />
