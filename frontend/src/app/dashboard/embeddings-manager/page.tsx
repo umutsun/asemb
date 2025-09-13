@@ -210,58 +210,12 @@ export default function EmbeddingsManagerPage() {
       });
 
       if (response.ok) {
-        // For SSE response, we need to handle the stream
-        const reader = response.body?.getReader();
-        const decoder = new TextDecoder();
-        
-        setSuccess(resume ? 'Migration kald─▒─ƒ─▒ yerden devam ediyor!' : 'Migration ba┼ƒlat─▒ld─▒!');
-        
-        if (reader) {
-          // Read SSE stream
-          while (true) {
-            const { done, value } = await reader.read();
-            if (done) break;
-            
-            const text = decoder.decode(value);
-            const lines = text.split('\n');
-            
-            for (const line of lines) {
-              if (line.startsWith('data: ')) {
-                try {
-                  const data = JSON.parse(line.slice(6));
-                  console.log('SSE progress update:', data);
-                  setProgress(data);
-                  
-                  // Update stats dynamically
-                  if (data.status === 'processing' && data.current > 0) {
-                    setMigrationStats(prev => {
-                      if (!prev) return prev;
-                      return {
-                        ...prev,
-                        embeddedRecords: prev.embeddedRecords + 1,
-                        pendingRecords: Math.max(0, prev.pendingRecords - 1)
-                      };
-                    });
-                  }
-                  
-                  if (data.status === 'completed' || data.status === 'failed') {
-                    setIsProcessing(false);
-                    setProgress(null); // Clear progress state
-                    if (data.status === 'completed') {
-                      setSuccess('Migration tamamland─▒!');
-                    } else {
-                      setError(data.error || 'Migration ba┼ƒar─▒s─▒z!');
-                    }
-                    fetchMigrationStats();
-                    fetchAvailableTables();
-                  }
-                } catch (e) {
-                  console.error('Error parsing SSE data:', e);
-                }
-              }
-            }
-          }
-        }
+        setSuccess(resume ? 'Migration kaldığı yerden devam ediyor!' : 'Migration başlatıldı!');
+        try {
+          const payload = await response.json();
+          if (payload?.progress) { setProgress(payload.progress); }
+        } catch {}
+        connectToProgressStream();
       } else {
         const error = await response.json();
         setError(error.error || 'Migration ba┼ƒlat─▒lamad─▒');
@@ -1048,3 +1002,4 @@ export default function EmbeddingsManagerPage() {
     </div>
   );
 }
+
