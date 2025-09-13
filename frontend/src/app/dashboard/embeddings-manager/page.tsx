@@ -1,7 +1,6 @@
-'use client';
+﻿'use client';
 
 import { useState, useEffect } from 'react';
-import { useTranslation } from 'react-i18next';
 import { getApiUrl } from '@/lib/config';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -11,11 +10,11 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import {
-  Database,
-  Upload,
-  RefreshCw,
-  CheckCircle,
+import { 
+  Database, 
+  Upload, 
+  RefreshCw, 
+  CheckCircle, 
   AlertCircle,
   Activity,
   Search,
@@ -74,7 +73,6 @@ interface EmbeddingProgress {
 }
 
 export default function EmbeddingsManagerPage() {
-  const { t } = useTranslation();
   const [activeTab, setActiveTab] = useState('overview');
   const [migrationStats, setMigrationStats] = useState<MigrationStats | null>(null);
   const [progress, setProgress] = useState<EmbeddingProgress | null>(null);
@@ -119,7 +117,6 @@ export default function EmbeddingsManagerPage() {
       // Use Next.js API proxy to avoid CORS and centralize config
       const response = await fetch('/api/embeddings/tables');
       if (response.ok) {
-        try { connectToProgressStream(); } catch (_) {}
         const data = await response.json();
         setAvailableTables(data.tables || []);
         // Set first table as default if available
@@ -129,7 +126,7 @@ export default function EmbeddingsManagerPage() {
       }
     } catch (error) {
       console.error('Failed to fetch tables:', error);
-      setError(t('embeddings_manager.migrationError'));
+      setError('Veritaban─▒ tablolar─▒ y├╝klenemedi. Veritaban─▒ ba─ƒlant─▒n─▒z─▒ kontrol edin.');
     } finally {
       setIsLoadingTables(false);
     }
@@ -158,19 +155,13 @@ export default function EmbeddingsManagerPage() {
       if (response.ok) {
         const data = await response.json();
         console.log('Initial progress check:', data);
-        if (data) {
+        if (data && (data.status === 'processing' || data.status === 'paused')) {
           setProgress(data);
-          // Keep isProcessing state in sync with backend
-          const active = data.status === 'processing';
-          setIsProcessing(active);
-          if (active) {
+          if (data.status === 'processing') {
             console.log('Process is active, connecting to SSE...');
+            // Use SSE for active processes
             connectToProgressStream();
           }
-        } else {
-          // No progress info -> reset local state
-          setIsProcessing(false);
-          setProgress(null);
         }
       }
     } catch (error) {
@@ -190,7 +181,7 @@ export default function EmbeddingsManagerPage() {
         : (selectedTable === 'all' ? availableTables.map(t => t.name) : [selectedTable]);
         
       if (tablesToMigrate.length === 0) {
-        setError(t('embeddings_manager.selectAtLeastOneTable'));
+        setError('En az bir tablo se├ºmelisiniz');
         setIsProcessing(false);
         return;
       }
@@ -209,7 +200,7 @@ export default function EmbeddingsManagerPage() {
       const response = await fetch('/api/embeddings/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+        body: JSON.stringify({ 
           tables: tablesToMigrate,
           batchSize: batchSize,
           workerCount: workerCount,
@@ -223,7 +214,7 @@ export default function EmbeddingsManagerPage() {
         const reader = response.body?.getReader();
         const decoder = new TextDecoder();
         
-        setSuccess(resume ? t('embeddings_manager.migrationResumed') : t('embeddings_manager.migrationStarted'));
+        setSuccess(resume ? 'Migration kald─▒─ƒ─▒ yerden devam ediyor!' : 'Migration ba┼ƒlat─▒ld─▒!');
         
         if (reader) {
           // Read SSE stream
@@ -257,9 +248,9 @@ export default function EmbeddingsManagerPage() {
                     setIsProcessing(false);
                     setProgress(null); // Clear progress state
                     if (data.status === 'completed') {
-                      setSuccess(t('embeddings_manager.migrationCompleted'));
+                      setSuccess('Migration tamamland─▒!');
                     } else {
-                      setError(data.error || t('embeddings_manager.migrationError'));
+                      setError(data.error || 'Migration ba┼ƒar─▒s─▒z!');
                     }
                     fetchMigrationStats();
                     fetchAvailableTables();
@@ -273,10 +264,10 @@ export default function EmbeddingsManagerPage() {
         }
       } else {
         const error = await response.json();
-        setError(error.error || t('embeddings_manager.migrationError'));
+        setError(error.error || 'Migration ba┼ƒlat─▒lamad─▒');
       }
     } catch (error) {
-      setError(t('error'));
+      setError('Bir hata olu┼ƒtu');
     } finally {
       setIsProcessing(false);
     }
@@ -297,7 +288,7 @@ export default function EmbeddingsManagerPage() {
         if (data.progress) {
           setProgress(data.progress);
         }
-        setSuccess(t('embeddings_manager.migrationPaused'));
+        setSuccess('Migration duraklat─▒ld─▒. Devam etmek i├ºin "Devam Et" butonuna t─▒klay─▒n.');
         setIsProcessing(false);
         
         // Stop SSE connection when paused
@@ -311,11 +302,11 @@ export default function EmbeddingsManagerPage() {
         }
       } else {
         const error = await response.json();
-        setError(error.error || t('embeddings_manager.pauseError'));
+        setError(error.error || 'Duraklatma ba┼ƒar─▒s─▒z');
       }
     } catch (error) {
       console.error('Pause error:', error);
-      setError(t('embeddings_manager.pauseError'));
+      setError('Duraklatma ba┼ƒar─▒s─▒z');
     }
   };
 
@@ -328,8 +319,7 @@ export default function EmbeddingsManagerPage() {
     
     console.log('Connecting to SSE stream...');
     // Use backend SSE stream aligned with embeddings namespace
-    // Use same-origin proxy to avoid CORS/infra issues
-    const eventSource = new EventSource(`/api/embeddings/progress/stream`);
+    const eventSource = new EventSource(`${API_BASE}/api/v2/embeddings/progress/stream`);
     
     eventSource.onopen = () => {
       console.log('SSE connection opened');
@@ -360,15 +350,15 @@ export default function EmbeddingsManagerPage() {
           fetchAvailableTables();
           
           if (data.status === 'completed') {
-            setSuccess(t('embeddings_manager.migrationCompleted'));
+            setSuccess('Migration tamamland─▒!');
             setIsProcessing(false);
             setProgress(null); // Clear progress state
           } else if (data.status === 'error') {
-            setError(data.error || t('embeddings_manager.migrationError'));
+            setError(data.error || 'Migration s─▒ras─▒nda hata olu┼ƒtu');
             setIsProcessing(false);
             setProgress(null); // Clear progress state
           } else if (data.status === 'paused') {
-            setSuccess(t('embeddings_manager.migrationPaused'));
+            setSuccess('Migration duraklat─▒ld─▒');
             setIsProcessing(false);
             // Keep progress state for pause/resume
           }
@@ -437,13 +427,13 @@ export default function EmbeddingsManagerPage() {
             setIsProcessing(false);
             
             if (data.status === 'completed') {
-              setSuccess(t('embeddings_manager.migrationCompleted'));
+              setSuccess('Migration tamamland─▒!');
               setProgress(null); // Clear progress state
             } else if (data.status === 'error') {
-              setError(data.error || t('embeddings_manager.migrationError'));
+              setError(data.error || 'Migration s─▒ras─▒nda hata olu┼ƒtu');
               setProgress(null); // Clear progress state
             } else if (data.status === 'paused') {
-              setSuccess(t('embeddings_manager.migrationPaused'));
+              setSuccess('Migration duraklat─▒ld─▒');
               // Keep progress state for pause/resume
             }
           }
@@ -468,7 +458,7 @@ export default function EmbeddingsManagerPage() {
       const response = await fetch(`${API_BASE}/api/v2/embeddings/search`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+        body: JSON.stringify({ 
           query: searchQuery,
           tables: availableTables.map(t => t.name),
           limit: 5
@@ -480,7 +470,7 @@ export default function EmbeddingsManagerPage() {
         setSearchResults(data.results || []);
       }
     } catch (error) {
-      setError(t('embeddings_manager.searchError'));
+      setError('Arama ba┼ƒar─▒s─▒z');
     } finally {
       setIsSearching(false);
     }
@@ -495,15 +485,15 @@ export default function EmbeddingsManagerPage() {
     <div className="p-6 lg:p-8 space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-semibold">{t('embeddings_manager.title')}</h1>
+          <h1 className="text-xl font-semibold">RAG & Embeddings Y├╢netimi</h1>
           <p className="text-sm text-muted-foreground mt-1">
-            {t('embeddings_manager.subtitle')}
+            Vekt├╢r Veritaban─▒ ─░┼ƒlemleri
           </p>
         </div>
         <Link href="/dashboard/settings?tab=database">
           <Button variant="outline" size="sm">
             <Settings className="w-4 h-4 mr-2" />
-            {t('embeddings_manager.databaseSettings')}
+            Veritaban─▒ Ayarlar─▒
           </Button>
         </Link>
       </div>
@@ -526,15 +516,15 @@ export default function EmbeddingsManagerPage() {
         <TabsList className="grid w-full grid-cols-3 max-w-2xl">
           <TabsTrigger value="overview">
             <Database className="w-4 h-4 mr-2" />
-            {t('embeddings_manager.status')}
+            RAG Durumu
           </TabsTrigger>
           <TabsTrigger value="migration">
             <Upload className="w-4 h-4 mr-2" />
-            {t('embeddings_manager.migration')}
+            Embedding ─░┼ƒlemleri
           </TabsTrigger>
           <TabsTrigger value="search">
             <Search className="w-4 h-4 mr-2" />
-            {t('embeddings_manager.search')}
+            Test & Arama
           </TabsTrigger>
         </TabsList>
 
@@ -543,21 +533,21 @@ export default function EmbeddingsManagerPage() {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             <Card>
               <CardHeader className="pb-3">
-                <CardTitle className="text-sm">{t('embeddings_manager.totalRecords')}</CardTitle>
+                <CardTitle className="text-sm">Toplam Kay─▒t</CardTitle>
               </CardHeader>
               <CardContent>
                 <p className="text-2xl font-bold">
                   {migrationStats?.totalRecords.toLocaleString('tr-TR') || '0'}
                 </p>
                 <p className="text-xs text-muted-foreground mt-1">
-                  {t('embeddings_manager.inTables', { count: availableTables.length })}
+                  {availableTables.length} tabloda
                 </p>
               </CardContent>
             </Card>
 
             <Card>
               <CardHeader className="pb-3">
-                <CardTitle className="text-sm">{t('embeddings_manager.processed')}</CardTitle>
+                <CardTitle className="text-sm">─░┼ƒlenmi┼ƒ</CardTitle>
               </CardHeader>
               <CardContent>
                 <p className="text-2xl font-bold text-green-600">
@@ -566,41 +556,41 @@ export default function EmbeddingsManagerPage() {
                     : migrationStats?.embeddedRecords.toLocaleString('tr-TR') || '0'}
                 </p>
                 <p className="text-xs text-muted-foreground mt-1">
-                  {t('embeddings_manager.completedPercentage', { percentage: migrationStats && migrationStats.totalRecords > 0 
+                  %{migrationStats && migrationStats.totalRecords > 0 
                     ? Math.round((migrationStats.embeddedRecords / migrationStats.totalRecords) * 100) 
-                    : 0 })}
+                    : 0} tamamland─▒
                 </p>
               </CardContent>
             </Card>
 
             <Card>
               <CardHeader className="pb-3">
-                <CardTitle className="text-sm">{t('embeddings_manager.pending')}</CardTitle>
+                <CardTitle className="text-sm">Bekleyen</CardTitle>
               </CardHeader>
               <CardContent>
                 <p className="text-2xl font-bold text-orange-600">
                   {migrationStats?.pendingRecords.toLocaleString('tr-TR') || '0'}
                 </p>
                 <p className="text-xs text-muted-foreground mt-1">
-                  {t('embeddings_manager.recordsToProcess')}
+                  i┼ƒlenecek kay─▒t
                 </p>
               </CardContent>
             </Card>
 
             <Card>
               <CardHeader className="pb-3">
-                <CardTitle className="text-sm">{t('embeddings_manager.usage')}</CardTitle>
+                <CardTitle className="text-sm">Kullan─▒m</CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="space-y-1">
                   <div className="flex items-center justify-between text-xs">
-                    <span className="text-muted-foreground">{t('embeddings_manager.token')}:</span>
+                    <span className="text-muted-foreground">Token:</span>
                     <span className="font-medium">
                       {((migrationStats?.embeddedRecords || 0) * 500).toLocaleString('tr-TR')}
                     </span>
                   </div>
                   <div className="flex items-center justify-between text-xs">
-                    <span className="text-muted-foreground">{t('embeddings_manager.cost')}:</span>
+                    <span className="text-muted-foreground">Maliyet:</span>
                     <span className="font-medium">
                       ${(((migrationStats?.embeddedRecords || 0) * 500) / 1000 * 0.0001).toFixed(2)}
                     </span>
@@ -612,23 +602,23 @@ export default function EmbeddingsManagerPage() {
 
           <Card>
             <CardHeader>
-              <CardTitle>{t('embeddings_manager.tables')}</CardTitle>
-              <CardDescription>{t('embeddings_manager.tablesDescription')}</CardDescription>
+              <CardTitle>Veri Tablolar─▒</CardTitle>
+              <CardDescription>Mevcut tablolar ve embedding durumu</CardDescription>
             </CardHeader>
             <CardContent>
               {isLoadingTables ? (
                 <div className="flex items-center justify-center py-8">
                   <Loader2 className="h-6 w-6 animate-spin text-muted-foreground mr-2" />
-                  <span className="text-sm text-muted-foreground">{t('embeddings_manager.tablesLoading')}</span>
+                  <span className="text-sm text-muted-foreground">Tablolar y├╝kleniyor...</span>
                 </div>
               ) : availableTables.length === 0 ? (
                 <div className="text-center py-8">
                   <Database className="h-12 w-12 text-muted-foreground mx-auto mb-3" />
-                  <p className="text-sm text-muted-foreground">{t('embeddings_manager.noTablesFound')}</p>
+                  <p className="text-sm text-muted-foreground">Hen├╝z veri tablosu bulunamad─▒</p>
                   <Link href="/dashboard/settings?tab=database">
                     <Button variant="outline" size="sm" className="mt-3">
                       <Settings className="w-4 h-4 mr-2" />
-                      {t('embeddings_manager.checkDatabase')}
+                      Veritaban─▒ Ba─ƒlant─▒s─▒n─▒ Kontrol Et
                     </Button>
                   </Link>
                 </div>
@@ -657,7 +647,7 @@ export default function EmbeddingsManagerPage() {
                               {(table.embeddedRecords || 0).toLocaleString('tr-TR')} / {(table.totalRecords || 0).toLocaleString('tr-TR')}
                             </span>
                             <p className="text-xs text-muted-foreground">
-                              ~{estimatedTokens.toLocaleString('tr-TR')} token • ${estimatedCost.toFixed(3)}
+                              ~{estimatedTokens.toLocaleString('tr-TR')} token ΓÇó ${estimatedCost.toFixed(3)}
                             </p>
                           </div>
                           <Badge variant={percentage === 100 ? 'success' : 'secondary'}>
@@ -670,12 +660,12 @@ export default function EmbeddingsManagerPage() {
                   );
                 })}
                 
-                {/* Toplam Satırı */}
+                {/* Toplam Sat─▒r─▒ */}
                 {availableTables.length > 0 && (
                   <div className="p-3 border-2 border-primary/20 rounded-lg bg-primary/5">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-3">
-                        <span className="font-semibold">{t('embeddings_manager.total')}</span>
+                        <span className="font-semibold">TOPLAM</span>
                         <div className="flex items-center gap-2 text-xs text-muted-foreground">
                           <div className="h-1.5 w-1.5 rounded-full bg-green-500" />
                           <span>PostgreSQL (rag_chatbot)</span>
@@ -687,7 +677,7 @@ export default function EmbeddingsManagerPage() {
                             {migrationStats?.embeddedRecords.toLocaleString('tr-TR')} / {migrationStats?.totalRecords.toLocaleString('tr-TR')}
                           </span>
                           <p className="text-xs font-medium">
-                            ~{((migrationStats?.embeddedRecords || 0) * 500).toLocaleString('tr-TR')} token • 
+                            ~{((migrationStats?.embeddedRecords || 0) * 500).toLocaleString('tr-TR')} token ΓÇó 
                             ${(((migrationStats?.embeddedRecords || 0) * 500) / 1000 * 0.0001).toFixed(2)}
                           </p>
                         </div>
@@ -710,68 +700,68 @@ export default function EmbeddingsManagerPage() {
         <TabsContent value="migration" className="space-y-6">
           <Card>
             <CardHeader>
-              <CardTitle>{t('embeddings_manager.embeddingMigration')}</CardTitle>
+              <CardTitle>Embedding Migration</CardTitle>
               <CardDescription>
-                {t('embeddings_manager.migrateTablesToVector')}
+                Tablolar─▒ vekt├╢r veritaban─▒na aktar─▒n
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                {/* Sol kolon - İşlem Ayarları */}
+                {/* Sol kolon - ─░┼ƒlem Ayarlar─▒ */}
                 <div className="space-y-4">
                   <div>
-                    <h3 className="text-sm font-semibold mb-3">{t('embeddings_manager.processSettings')}</h3>
+                    <h3 className="text-sm font-semibold mb-3">─░┼ƒlem Ayarlar─▒</h3>
                     <div className="space-y-3">
                       <div>
-                        <Label htmlFor="batch-size" className="text-xs">{t('embeddings_manager.batchSize')}</Label>
+                        <Label htmlFor="batch-size" className="text-xs">Batch Size</Label>
                         <Select value={batchSize.toString()} onValueChange={(v) => setBatchSize(parseInt(v))}>
                           <SelectTrigger id="batch-size" className="mt-1">
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="10">10 {t('embeddings_manager.record')}</SelectItem>
-                            <SelectItem value="25">25 {t('embeddings_manager.record')}</SelectItem>
-                            <SelectItem value="50">50 {t('embeddings_manager.record')}</SelectItem>
-                            <SelectItem value="100">100 {t('embeddings_manager.record')}</SelectItem>
-                            <SelectItem value="200">200 {t('embeddings_manager.record')}</SelectItem>
+                            <SelectItem value="10">10 kay─▒t</SelectItem>
+                            <SelectItem value="25">25 kay─▒t</SelectItem>
+                            <SelectItem value="50">50 kay─▒t</SelectItem>
+                            <SelectItem value="100">100 kay─▒t</SelectItem>
+                            <SelectItem value="200">200 kay─▒t</SelectItem>
                           </SelectContent>
                         </Select>
                       </div>
 
                       <div>
-                        <Label htmlFor="worker-count" className="text-xs">{t('embeddings_manager.parallelEmbedder')}</Label>
+                        <Label htmlFor="worker-count" className="text-xs">Paralel Embedder</Label>
                         <Select value={workerCount.toString()} onValueChange={(v) => setWorkerCount(parseInt(v))}>
                           <SelectTrigger id="worker-count" className="mt-1">
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="1">1 {t('embeddings_manager.embedder')}</SelectItem>
-                            <SelectItem value="2">2 {t('embeddings_manager.embedder')}</SelectItem>
-                            <SelectItem value="3">3 {t('embeddings_manager.embedder')}</SelectItem>
-                            <SelectItem value="4">4 {t('embeddings_manager.embedder')}</SelectItem>
-                            <SelectItem value="5">5 {t('embeddings_manager.embedder')}</SelectItem>
+                            <SelectItem value="1">1 embedder</SelectItem>
+                            <SelectItem value="2">2 embedder</SelectItem>
+                            <SelectItem value="3">3 embedder</SelectItem>
+                            <SelectItem value="4">4 embedder</SelectItem>
+                            <SelectItem value="5">5 embedder</SelectItem>
                           </SelectContent>
                         </Select>
                       </div>
 
-                      {/* Token ve Süre Tahmini */}
+                      {/* Token ve S├╝re Tahmini */}
                       <div className="p-3 bg-muted rounded-lg space-y-2">
-                        <h4 className="text-xs font-semibold">{t('embeddings_manager.estimates')}</h4>
+                        <h4 className="text-xs font-semibold">Tahminler</h4>
                         <div className="space-y-1 text-xs">
                           <div className="flex justify-between">
-                            <span className="text-muted-foreground">{t('embeddings_manager.duration')}:</span>
+                            <span className="text-muted-foreground">S├╝re:</span>
                             <span className="font-medium">
-                              ~{Math.ceil((migrationStats?.pendingRecords || 0) / (batchSize * workerCount) * 0.5)} {t('embeddings_manager.minutes')}
+                              ~{Math.ceil((migrationStats?.pendingRecords || 0) / (batchSize * workerCount) * 0.5)} dk
                             </span>
                           </div>
                           <div className="flex justify-between">
-                            <span className="text-muted-foreground">{t('embeddings_manager.token')}:</span>
+                            <span className="text-muted-foreground">Token:</span>
                             <span className="font-medium">
                               ~{((migrationStats?.pendingRecords || 0) * 500).toLocaleString('tr-TR')}
                             </span>
                           </div>
                           <div className="flex justify-between">
-                            <span className="text-muted-foreground">{t('embeddings_manager.cost')}:</span>
+                            <span className="text-muted-foreground">Maliyet:</span>
                             <span className="font-medium">
                               ~${(((migrationStats?.pendingRecords || 0) * 500) / 1000 * 0.0001).toFixed(2)}
                             </span>
@@ -787,7 +777,7 @@ export default function EmbeddingsManagerPage() {
                           variant="default"
                         >
                           <Play className="w-4 h-4 mr-2" />
-                          {t('embeddings_manager.resumeMigration')}
+                          Devam Et
                         </Button>
                       ) : isProcessing || progress?.status === 'processing' ? (
                         <Button 
@@ -797,7 +787,7 @@ export default function EmbeddingsManagerPage() {
                           variant="secondary"
                         >
                           <Pause className="w-4 h-4 mr-2" />
-                          {t('embeddings_manager.pauseMigration')}
+                          Duraklat
                         </Button>
                       ) : (
                         <Button 
@@ -806,17 +796,17 @@ export default function EmbeddingsManagerPage() {
                           className="w-full"
                         >
                           <Upload className="w-4 h-4 mr-2" />
-                          {t('embeddings_manager.startMigration')}
+                          Migration Ba┼ƒlat
                         </Button>
                       )}
                     </div>
                   </div>
                 </div>
 
-                {/* Sağ kolon - Tablo Seçimi */}
+                {/* Sa─ƒ kolon - Tablo Se├ºimi */}
                 <div className="lg:col-span-2">
                   <div className="flex items-center justify-between mb-2">
-                    <Label>{t('embeddings_manager.selectedTables', { selected: selectedTables.length, total: availableTables.length })}</Label>
+                    <Label>Tablo Se├ºimi ({selectedTables.length}/{availableTables.length} se├ºili)</Label>
                     <div className="flex gap-2">
                       <Button 
                         size="sm" 
@@ -824,7 +814,7 @@ export default function EmbeddingsManagerPage() {
                         onClick={() => setSelectedTables(availableTables.map(t => t.name))}
                         disabled={isLoadingTables}
                       >
-                        {t('selectAll')}
+                        T├╝m├╝n├╝ Se├º
                       </Button>
                       <Button 
                         size="sm" 
@@ -832,23 +822,23 @@ export default function EmbeddingsManagerPage() {
                         onClick={() => setSelectedTables([])}
                         disabled={isLoadingTables}
                       >
-                        {t('embeddings_manager.clearSelection')}
+                        Temizle
                       </Button>
                     </div>
                   </div>
                   {isLoadingTables ? (
                     <div className="flex items-center justify-center py-8 border rounded-lg">
                       <Loader2 className="h-6 w-6 animate-spin text-muted-foreground mr-2" />
-                      <span className="text-sm text-muted-foreground">{t('embeddings_manager.tablesLoading')}</span>
+                      <span className="text-sm text-muted-foreground">Tablolar y├╝kleniyor...</span>
                     </div>
                   ) : availableTables.length === 0 ? (
                     <div className="text-center py-8 border rounded-lg">
                       <Database className="h-12 w-12 text-muted-foreground mx-auto mb-3" />
-                      <p className="text-sm text-muted-foreground">{t('embeddings_manager.noTablesFound')}</p>
+                      <p className="text-sm text-muted-foreground">Hen├╝z veri tablosu bulunamad─▒</p>
                       <Link href="/dashboard/settings?tab=database">
                         <Button variant="outline" size="sm" className="mt-3">
                           <Settings className="w-4 h-4 mr-2" />
-                          {t('embeddings_manager.checkDatabase')}
+                          Veritaban─▒ Ba─ƒlant─▒s─▒n─▒ Kontrol Et
                         </Button>
                       </Link>
                     </div>
@@ -874,10 +864,10 @@ export default function EmbeddingsManagerPage() {
                             {table.displayName}
                           </div>
                           <div className="text-xs text-muted-foreground mt-1">
-                            {table.totalRecords.toLocaleString('tr-TR')} {t('embeddings_manager.record')}
+                            {table.totalRecords.toLocaleString('tr-TR')} kay─▒t
                             {table.embeddedRecords > 0 && (
                               <span className="text-green-600 dark:text-green-400">
-                                {' • '}{table.embeddedRecords.toLocaleString('tr-TR')} {t('embeddings_manager.embedded')}
+                                {' ΓÇó '}{table.embeddedRecords.toLocaleString('tr-TR')} embed edilmi┼ƒ
                                 ({Math.round((table.embeddedRecords / table.totalRecords) * 100)}%)
                               </span>
                             )}
@@ -894,7 +884,7 @@ export default function EmbeddingsManagerPage() {
                 <div className="space-y-4">
                   <div className="space-y-2">
                     <div className="flex items-center justify-between">
-                      <span className="text-sm font-medium">{t('embeddings_manager.generalProgress')}</span>
+                      <span className="text-sm font-medium">Genel ─░lerleme</span>
                       <span className="text-sm font-bold text-primary">
                         {progress.percentage}%
                       </span>
@@ -902,11 +892,11 @@ export default function EmbeddingsManagerPage() {
                     <Progress value={progress.percentage} className="h-4" />
                     <div className="flex justify-between text-xs text-muted-foreground">
                       <span>
-                        {(progress.current ?? 0).toLocaleString('tr-TR')} / {(progress.total ?? 0).toLocaleString('tr-TR')} {t('embeddings_manager.record')}
-                        {progress.alreadyEmbedded && progress.alreadyEmbedded > 0 && ` (${progress.alreadyEmbedded.toLocaleString('tr-TR')} ${t('embeddings_manager.recordsPreviouslyCompleted')})`}
+                        {(progress.current ?? 0).toLocaleString('tr-TR')} / {(progress.total ?? 0).toLocaleString('tr-TR')} kay─▒t
+                        {progress.alreadyEmbedded && progress.alreadyEmbedded > 0 && ` (${progress.alreadyEmbedded.toLocaleString('tr-TR')} ├╢nceden tamamlanm─▒┼ƒ)`}
                       </span>
                       {progress.estimatedTimeRemaining && progress.estimatedTimeRemaining > 0 && (
-                        <span>{t('embeddings_manager.estimatedTime')}: {Math.ceil(progress.estimatedTimeRemaining / 60000)} {t('embeddings_manager.minutes')}</span>
+                        <span>Tahmini s├╝re: {Math.ceil(progress.estimatedTimeRemaining / 60000)} dk</span>
                       )}
                     </div>
                   </div>
@@ -914,7 +904,7 @@ export default function EmbeddingsManagerPage() {
                   {progress.currentTable && (
                     <div className="p-3 bg-blue-50 dark:bg-blue-950 rounded-lg">
                       <p className="text-sm font-medium text-blue-900 dark:text-blue-100">
-                        {t('embeddings_manager.processingTable')}: {getCurrentTableInfo()?.displayName || progress.currentTable}
+                        ─░┼ƒleniyor: {getCurrentTableInfo()?.displayName || progress.currentTable}
                         {getCurrentTableInfo()?.database && (
                           <span className="text-xs ml-2 opacity-75">
                             ({getCurrentTableInfo()?.database})
@@ -923,12 +913,12 @@ export default function EmbeddingsManagerPage() {
                       </p>
                       {progress.currentBatch && progress.totalBatches && (
                         <p className="text-xs text-blue-700 dark:text-blue-300 mt-1">
-                          {t('embeddings_manager.batch')} {progress.currentBatch} / {progress.totalBatches}
+                          Batch {progress.currentBatch} / {progress.totalBatches}
                         </p>
                       )}
                       {progress.alreadyEmbedded && progress.alreadyEmbedded > 0 && (
                         <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">
-                          {progress.alreadyEmbedded} {t('embeddings_manager.alreadyEmbedded')}
+                          {progress.alreadyEmbedded} kay─▒t zaten embed edilmi┼ƒ (atlan─▒yor)
                         </p>
                       )}
                     </div>
@@ -937,17 +927,17 @@ export default function EmbeddingsManagerPage() {
                   {/* Detailed Metrics */}
                   <div className="grid grid-cols-3 gap-3">
                     <div className="p-3 bg-green-50 dark:bg-green-950 rounded-lg">
-                      <p className="text-xs text-green-700 dark:text-green-300">{t('embeddings_manager.tokenUsage')}</p>
+                      <p className="text-xs text-green-700 dark:text-green-300">Token Kullan─▒m─▒</p>
                       <p className="text-lg font-bold text-green-900 dark:text-green-100">
                         {progress.tokensUsed ? Math.round(progress.tokensUsed).toLocaleString('tr-TR') : '0'}
                       </p>
                       <p className="text-xs text-green-600 dark:text-green-400 mt-1">
-                        {progress.newlyEmbedded ? `${progress.newlyEmbedded} ${t('embeddings_manager.newRecords')}` : 
-                         progress.tokensUsed && progress.current ? `~${Math.round(progress.tokensUsed / progress.current)} ${t('embeddings_manager.tokensPerRecord')}` : `0 ${t('embeddings_manager.tokensPerRecord')}`}
+                        {progress.newlyEmbedded ? `${progress.newlyEmbedded} yeni kay─▒t` : 
+                         progress.tokensUsed && progress.current ? `~${Math.round(progress.tokensUsed / progress.current)} token/kay─▒t` : '0 token/kay─▒t'}
                       </p>
                     </div>
                     <div className="p-3 bg-orange-50 dark:bg-orange-950 rounded-lg">
-                      <p className="text-xs text-orange-700 dark:text-orange-300">{t('embeddings_manager.estimatedCost')}</p>
+                      <p className="text-xs text-orange-700 dark:text-orange-300">Tahmini Maliyet</p>
                       <p className="text-lg font-bold text-orange-900 dark:text-orange-100">
                         ${progress.estimatedCost ? progress.estimatedCost.toFixed(4) : '0.00'}
                       </p>
@@ -956,14 +946,14 @@ export default function EmbeddingsManagerPage() {
                       </p>
                     </div>
                     <div className="p-3 bg-purple-50 dark:bg-purple-950 rounded-lg">
-                      <p className="text-xs text-purple-700 dark:text-purple-300">{t('embeddings_manager.processingSpeed')}</p>
+                      <p className="text-xs text-purple-700 dark:text-purple-300">─░┼ƒleme H─▒z─▒</p>
                       <p className="text-lg font-bold text-purple-900 dark:text-purple-100">
                         {progress.current && progress.startTime 
                           ? Math.round(progress.current / ((Date.now() - progress.startTime) / 1000) * 60)
-                          : 0} {t('embeddings_manager.recordsPerMinute')}
+                          : 0} kay─▒t/dk
                       </p>
                       <p className="text-xs text-purple-600 dark:text-purple-400 mt-1">
-                        {t('embeddings_manager.batchSize')}: {batchSize}
+                        Batch Size: {batchSize}
                       </p>
                     </div>
                   </div>
@@ -971,7 +961,7 @@ export default function EmbeddingsManagerPage() {
                   {/* Per-table Progress */}
                   {progress.processedTables && progress.processedTables.length > 0 && (
                     <div className="p-3 bg-gray-50 dark:bg-gray-900 rounded-lg">
-                      <p className="text-xs font-medium mb-2">{t('embeddings_manager.processedTables')}</p>
+                      <p className="text-xs font-medium mb-2">─░┼ƒlenen Tablolar</p>
                       <div className="space-y-1">
                         {progress.processedTables.map((tableName) => {
                           const table = availableTables.find(t => t.name === tableName);
@@ -991,7 +981,7 @@ export default function EmbeddingsManagerPage() {
               <Alert>
                 <AlertCircle className="h-4 w-4" />
                 <AlertDescription>
-                  {t('embeddings_manager.migrationCanBeResumed')}
+                  Migration i┼ƒlemi kald─▒─ƒ─▒ yerden devam edebilir. Zaten embed edilmi┼ƒ kay─▒tlar tekrar i┼ƒlenmez.
                 </AlertDescription>
               </Alert>
             </CardContent>
@@ -1002,20 +992,20 @@ export default function EmbeddingsManagerPage() {
         <TabsContent value="search" className="space-y-6">
           <Card>
             <CardHeader>
-              <CardTitle>{t('embeddings_manager.vectorSearchTest')}</CardTitle>
+              <CardTitle>Vekt├╢r Arama Testi</CardTitle>
               <CardDescription>
-                {t('embeddings_manager.semanticSearchOnEmbeddings')}
+                Embedding'ler ├╝zerinde semantik arama yap─▒n
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="search-query">{t('embeddings_manager.searchQuery')}</Label>
+                <Label htmlFor="search-query">Arama Sorgusu</Label>
                 <div className="flex gap-2">
                   <Input
                     id="search-query"
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    placeholder={t('embeddings_manager.searchQueryPlaceholder')}
+                    placeholder="├ûrn: KDV oranlar─▒ nelerdir?"
                     onKeyPress={(e) => e.key === 'Enter' && searchEmbeddings()}
                   />
                   <Button onClick={searchEmbeddings} disabled={isSearching}>
@@ -1030,7 +1020,7 @@ export default function EmbeddingsManagerPage() {
 
               {searchResults.length > 0 && (
                 <div className="space-y-3">
-                  <p className="text-sm font-medium">{t('embeddings_manager.resultsCount', { count: searchResults.length })}</p>
+                  <p className="text-sm font-medium">Sonu├ºlar ({searchResults.length})</p>
                   {searchResults.map((result, index) => {
                     const tableInfo = availableTables.find(t => t.name === result.tableName);
                     return (
@@ -1040,7 +1030,7 @@ export default function EmbeddingsManagerPage() {
                             {tableInfo?.displayName || result.tableName}
                           </Badge>
                           <Badge variant="secondary">
-                            {t('embeddings_manager.similarityScore')}: {(result.similarity * 100).toFixed(1)}%
+                            Benzerlik: {(result.similarity * 100).toFixed(1)}%
                           </Badge>
                         </div>
                         <p className="text-sm text-muted-foreground line-clamp-3">
