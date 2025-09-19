@@ -303,3 +303,4 @@ jest.config.cjs
 # Moved to old
 /old/"config/config.json"  
 "config/config.json"  
+"config/config.json"  
