@@ -1,199 +1,278 @@
 import { Router, Request, Response } from 'express';
-import { Pool } from 'pg';
 
 const router = Router();
-const pgPool = new Pool({
-  connectionString: process.env.DATABASE_URL
-});
 
-// Initialize activity tracking table
-router.post('/init-table', async (req: Request, res: Response) => {
+// Get activity logs
+router.get('/', async (req: Request, res: Response) => {
   try {
-    await pgPool.query(`
-      CREATE TABLE IF NOT EXISTS activity_log (
-        id SERIAL PRIMARY KEY,
-        operation_type VARCHAR(50) NOT NULL,
-        source_url TEXT,
-        title TEXT,
-        status VARCHAR(20) NOT NULL,
-        details JSONB,
-        metrics JSONB,
-        error_message TEXT,
-        created_at TIMESTAMP DEFAULT NOW(),
-        updated_at TIMESTAMP DEFAULT NOW()
-      )
-    `);
+    const { pgPool } = require('../server');
     
-    // Create indexes for better performance
-    await pgPool.query(`
-      CREATE INDEX IF NOT EXISTS idx_activity_operation_type 
-      ON activity_log(operation_type);
-      
-      CREATE INDEX IF NOT EXISTS idx_activity_status 
-      ON activity_log(status);
-      
-      CREATE INDEX IF NOT EXISTS idx_activity_created_at 
-      ON activity_log(created_at DESC);
-    `);
+    // Get query parameters for pagination and filtering
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = parseInt(req.query.limit as string) || 20;
+    const offset = (page - 1) * limit;
+    const userId = req.query.user_id as string;
+    const activityType = req.query.type as string;
+    const startDate = req.query.start_date as string;
+    const endDate = req.query.end_date as string;
     
-    res.json({ success: true, message: 'Activity table initialized' });
-  } catch (error: any) {
-    console.error('Error initializing activity table:', error);
-    res.status(500).json({ error: error.message });
-  }
-});
-
-// Get activity history with statistics
-router.get('/history', async (req: Request, res: Response) => {
-  try {
-    const { operation_type, status, limit = 100, offset = 0 } = req.query;
+    // Build WHERE clause dynamically
+    let whereClause = '';
+    const params: any[] = [];
+    let paramIndex = 1;
     
-    // Build where clause
-    const conditions = [];
-    const params = [];
-    let paramCount = 1;
-    
-    if (operation_type && operation_type !== 'all') {
-      conditions.push(`operation_type = $${paramCount++}`);
-      params.push(operation_type);
+    if (userId) {
+      whereClause += `AND user_id = $${paramIndex} `;
+      params.push(userId);
+      paramIndex++;
     }
     
-    if (status) {
-      conditions.push(`status = $${paramCount++}`);
-      params.push(status);
+    if (activityType) {
+      whereClause += `AND activity_type = $${paramIndex} `;
+      params.push(activityType);
+      paramIndex++;
     }
     
-    const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+    if (startDate) {
+      whereClause += `AND created_at >= $${paramIndex} `;
+      params.push(startDate);
+      paramIndex++;
+    }
     
-    // Get activities
+    if (endDate) {
+      whereClause += `AND created_at <= $${paramIndex} `;
+      params.push(endDate);
+      paramIndex++;
+    }
+    
+    // Get activities with pagination
+    const query = `
+      SELECT 
+        id,
+        user_id,
+        activity_type,
+        description,
+        metadata,
+        created_at,
+        ip_address,
+        user_agent
+      FROM activities 
+      WHERE 1=1 ${whereClause}
+      ORDER BY created_at DESC 
+      LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
+    `;
+    
     params.push(limit, offset);
-    const activitiesResult = await pgPool.query(`
-      SELECT * FROM activity_log
-      ${whereClause}
-      ORDER BY created_at DESC
-      LIMIT $${paramCount++} OFFSET $${paramCount++}
-    `, params);
     
-    // Get statistics
-    const statsResult = await pgPool.query(`
-      SELECT 
-        operation_type,
-        COUNT(*) as count,
-        COUNT(CASE WHEN status = 'success' THEN 1 END) as success_count,
-        COUNT(CASE WHEN status = 'error' THEN 1 END) as error_count,
-        AVG((metrics->>'token_count')::numeric) as avg_tokens,
-        SUM((metrics->>'token_count')::numeric) as total_tokens,
-        AVG((metrics->>'chunk_count')::numeric) as avg_chunks,
-        SUM((metrics->>'chunk_count')::numeric) as total_chunks,
-        AVG((metrics->>'content_length')::numeric) as avg_content_length
-      FROM activity_log
-      WHERE created_at > NOW() - INTERVAL '30 days'
-      GROUP BY operation_type
-      ORDER BY count DESC
-    `);
+    const result = await pgPool.query(query, params);
+    
+    // Get total count for pagination
+    const countQuery = `
+      SELECT COUNT(*) as total 
+      FROM activities 
+      WHERE 1=1 ${whereClause}
+    `;
+    
+    const countParams = params.slice(0, -2); // Remove limit and offset params
+    const countResult = await pgPool.query(countQuery, countParams);
+    const total = parseInt(countResult.rows[0].total);
     
     res.json({
-      activities: activitiesResult.rows,
-      statistics: statsResult.rows,
-      total: activitiesResult.rowCount
+      activities: result.rows,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit)
+      }
     });
   } catch (error: any) {
-    console.error('Error fetching activity history:', error);
-    res.status(500).json({ error: error.message });
+    console.error('Failed to get activities:', error);
+    res.status(500).json({ error: 'Failed to get activities' });
   }
 });
 
-// Log a new activity
-router.post('/log', async (req: Request, res: Response) => {
+// Get activity by ID
+router.get('/:id', async (req: Request, res: Response) => {
   try {
-    const {
-      operation_type,
-      source_url,
-      title,
-      status,
-      details,
-      metrics,
-      error_message
-    } = req.body;
+    const { pgPool } = require('../server');
+    const { id } = req.params;
     
     const result = await pgPool.query(`
-      INSERT INTO activity_log (
-        operation_type, source_url, title, status, 
-        details, metrics, error_message
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7)
-      RETURNING *
-    `, [
-      operation_type,
-      source_url,
-      title,
-      status,
-      details || {},
-      metrics || {},
-      error_message
-    ]);
+      SELECT 
+        id,
+        user_id,
+        activity_type,
+        description,
+        metadata,
+        created_at,
+        ip_address,
+        user_agent
+      FROM activities 
+      WHERE id = $1
+    `, [id]);
     
-    res.json(result.rows[0]);
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Activity not found' });
+    }
+    
+    res.json({ activity: result.rows[0] });
   } catch (error: any) {
-    console.error('Error logging activity:', error);
-    res.status(500).json({ error: error.message });
+    console.error('Failed to get activity:', error);
+    res.status(500).json({ error: 'Failed to get activity' });
   }
 });
 
-// Get activity summary
-router.get('/summary', async (req: Request, res: Response) => {
+// Create new activity log
+router.post('/', async (req: Request, res: Response) => {
   try {
-    const summaryResult = await pgPool.query(`
-      SELECT 
-        COUNT(*) as total_activities,
-        COUNT(CASE WHEN status = 'success' THEN 1 END) as successful,
-        COUNT(CASE WHEN status = 'error' THEN 1 END) as failed,
-        COUNT(CASE WHEN created_at > NOW() - INTERVAL '24 hours' THEN 1 END) as last_24h,
-        COUNT(CASE WHEN created_at > NOW() - INTERVAL '7 days' THEN 1 END) as last_7d,
-        COUNT(DISTINCT operation_type) as operation_types,
-        MAX(created_at) as last_activity
-      FROM activity_log
-    `);
+    const { pgPool } = require('../server');
+    const { user_id, activity_type, description, metadata, ip_address, user_agent } = req.body;
     
-    const topOperationsResult = await pgPool.query(`
+    if (!activity_type || !description) {
+      return res.status(400).json({ error: 'Activity type and description are required' });
+    }
+    
+    const result = await pgPool.query(`
+      INSERT INTO activities (user_id, activity_type, description, metadata, ip_address, user_agent)
+      VALUES ($1, $2, $3, $4, $5, $6)
+      RETURNING id, user_id, activity_type, description, metadata, created_at, ip_address, user_agent
+    `, [user_id, activity_type, description, metadata, ip_address, user_agent]);
+    
+    res.status(201).json({
+      success: true,
+      activity: result.rows[0]
+    });
+  } catch (error: any) {
+    console.error('Failed to create activity:', error);
+    res.status(500).json({ error: 'Failed to create activity' });
+  }
+});
+
+// Get user activities
+router.get('/user/:userId', async (req: Request, res: Response) => {
+  try {
+    const { pgPool } = require('../server');
+    const { userId } = req.params;
+    
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = parseInt(req.query.limit as string) || 20;
+    const offset = (page - 1) * limit;
+    
+    const result = await pgPool.query(`
       SELECT 
-        operation_type,
+        id,
+        user_id,
+        activity_type,
+        description,
+        metadata,
+        created_at,
+        ip_address,
+        user_agent
+      FROM activities 
+      WHERE user_id = $1
+      ORDER BY created_at DESC 
+      LIMIT $2 OFFSET $3
+    `, [userId, limit, offset]);
+    
+    // Get total count
+    const countResult = await pgPool.query(`
+      SELECT COUNT(*) as total 
+      FROM activities 
+      WHERE user_id = $1
+    `, [userId]);
+    
+    const total = parseInt(countResult.rows[0].total);
+    
+    res.json({
+      activities: result.rows,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit)
+      }
+    });
+  } catch (error: any) {
+    console.error('Failed to get user activities:', error);
+    res.status(500).json({ error: 'Failed to get user activities' });
+  }
+});
+
+// Get activity statistics
+router.get('/stats/overview', async (req: Request, res: Response) => {
+  try {
+    const { pgPool } = require('../server');
+    
+    // Get activity counts by type
+    const typeStats = await pgPool.query(`
+      SELECT 
+        activity_type,
         COUNT(*) as count
-      FROM activity_log
-      WHERE created_at > NOW() - INTERVAL '7 days'
-      GROUP BY operation_type
+      FROM activities 
+      WHERE created_at >= NOW() - INTERVAL '30 days'
+      GROUP BY activity_type
       ORDER BY count DESC
-      LIMIT 5
+    `);
+    
+    // Get daily activity counts for the last 7 days
+    const dailyStats = await pgPool.query(`
+      SELECT 
+        DATE(created_at) as date,
+        COUNT(*) as count
+      FROM activities 
+      WHERE created_at >= NOW() - INTERVAL '7 days'
+      GROUP BY DATE(created_at)
+      ORDER BY date DESC
+    `);
+    
+    // Get most active users
+    const userStats = await pgPool.query(`
+      SELECT 
+        user_id,
+        COUNT(*) as activity_count
+      FROM activities 
+      WHERE created_at >= NOW() - INTERVAL '30 days'
+        AND user_id IS NOT NULL
+      GROUP BY user_id
+      ORDER BY activity_count DESC
+      LIMIT 10
     `);
     
     res.json({
-      summary: summaryResult.rows[0],
-      topOperations: topOperationsResult.rows
+      typeStats: typeStats.rows,
+      dailyStats: dailyStats.rows,
+      userStats: userStats.rows
     });
   } catch (error: any) {
-    console.error('Error fetching activity summary:', error);
-    res.status(500).json({ error: error.message });
+    console.error('Failed to get activity stats:', error);
+    res.status(500).json({ error: 'Failed to get activity stats' });
   }
 });
 
-// Clear old activities
-router.delete('/clear', async (req: Request, res: Response) => {
+// Delete activity (admin only)
+router.delete('/:id', async (req: Request, res: Response) => {
   try {
-    const { days = 30 } = req.query;
+    const { pgPool } = require('../server');
+    const { id } = req.params;
     
     const result = await pgPool.query(`
-      DELETE FROM activity_log
-      WHERE created_at < NOW() - INTERVAL '${parseInt(days as string)} days'
-      RETURNING COUNT(*) as deleted_count
-    `);
+      DELETE FROM activities 
+      WHERE id = $1
+      RETURNING id
+    `, [id]);
     
-    res.json({ 
-      success: true, 
-      deleted: result.rowCount,
-      message: `Deleted ${result.rowCount} activities older than ${days} days`
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Activity not found' });
+    }
+    
+    res.json({
+      success: true,
+      message: 'Activity deleted successfully'
     });
   } catch (error: any) {
-    console.error('Error clearing activities:', error);
-    res.status(500).json({ error: error.message });
+    console.error('Failed to delete activity:', error);
+    res.status(500).json({ error: 'Failed to delete activity' });
   }
 });
 

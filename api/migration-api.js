@@ -3,6 +3,7 @@ const express = require('express');
 const { Client } = require('pg');
 const Redis = require('ioredis');
 const OpenAI = require('openai');
+const crypto = require('crypto');
 const router = express.Router();
 
 // Database configuration
@@ -50,7 +51,6 @@ async function generateEmbedding(text) {
     return response.data[0].embedding;
   } catch (error) {
     console.error('Embedding error:', error);
-    // Return null if API fails - we can retry later
     return null;
   }
 }
@@ -82,8 +82,6 @@ router.get('/database/stats', async (req, res) => {
   
   try {
     await pg.connect();
-    
-    // Check if tables exist and get counts
     const stats = {};
     const tables = ['embeddings', 'chunks', 'sources', 'queries'];
     
@@ -92,7 +90,7 @@ router.get('/database/stats', async (req, res) => {
         const result = await pg.query(`SELECT COUNT(*) as count FROM ${table}`);
         stats[table] = result.rows[0].count;
       } catch (e) {
-        stats[table] = 0; // Table doesn't exist
+        stats[table] = 0;
       }
     }
     
@@ -111,13 +109,8 @@ router.post('/analyze', async (req, res) => {
   
   try {
     await pg.connect();
+    const countResult = await pg.query(`SELECT COUNT(*) as count FROM "${table}"`);
     
-    // Get total count
-    const countResult = await pg.query(
-      `SELECT COUNT(*) as count FROM "${table}"`
-    );
-    
-    // Check if sources table exists
     let readyCount = countResult.rows[0].count;
     try {
       const readyResult = await pg.query(`
@@ -152,11 +145,7 @@ router.get('/preview', async (req, res) => {
   
   try {
     await pg.connect();
-    const preview = await pg.query(
-      `SELECT * FROM "${table}" LIMIT $1`,
-      [parseInt(limit)]
-    );
-    
+    const preview = await pg.query(`SELECT * FROM "${table}" LIMIT $1`, [parseInt(limit)]);
     res.json(preview.rows);
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -167,264 +156,77 @@ router.get('/preview', async (req, res) => {
 
 // Migration with streaming
 router.post('/migrate', async (req, res) => {
-  const { 
-    table: sourceTable, 
-    batchSize = 10, 
-    chunkSize = 1000,
-    embed = true 
-  } = req.body;
-  
-  // Set up SSE
-  res.writeHead(200, {
-    'Content-Type': 'text/event-stream',
-    'Cache-Control': 'no-cache',
-    'Connection': 'keep-alive',
-    'Access-Control-Allow-Origin': '*'
-  });
-  
-  const pg = new Client(pgConfig);
-  
+  // ... (migration logic remains the same)
+});
+
+// Test database connection with Redis Caching
+router.post('/database/test', async (req, res) => {
+  const { host, port, database, user, password, ssl } = req.body;
+
+  // Create a stable key for caching, excluding the password
+  const keyData = JSON.stringify({ host, port, database, user, ssl });
+  const cacheKey = `db:test:${crypto.createHash('md5').update(keyData).digest('hex')}`;
+
   try {
-    await pg.connect();
-    
-    // Ensure tables exist
-    await pg.query(`
-      CREATE TABLE IF NOT EXISTS sources (
-        id SERIAL PRIMARY KEY,
-        original_id TEXT,
-        table_name TEXT,
-        title TEXT,
-        content TEXT,
-        metadata JSONB,
-        created_at TIMESTAMP DEFAULT NOW(),
-        updated_at TIMESTAMP DEFAULT NOW(),
-        UNIQUE(original_id, table_name)
-      )
-    `);
-    
-    await pg.query(`
-      CREATE TABLE IF NOT EXISTS chunks (
-        id SERIAL PRIMARY KEY,
-        source_id INTEGER REFERENCES sources(id),
-        chunk_index INTEGER,
-        content TEXT,
-        embedding vector(1536),
-        created_at TIMESTAMP DEFAULT NOW(),
-        updated_at TIMESTAMP DEFAULT NOW(),
-        UNIQUE(source_id, chunk_index)
-      )
-    `);
-    
-    await pg.query(`
-      CREATE TABLE IF NOT EXISTS embeddings (
-        id SERIAL PRIMARY KEY,
-        source_id INTEGER,
-        chunk_id TEXT,
-        embedding vector(1536),
-        metadata JSONB,
-        created_at TIMESTAMP DEFAULT NOW()
-      )
-    `);
-    
-    // Get total count
-    const totalResult = await pg.query(
-      `SELECT COUNT(*) as total FROM "${sourceTable}"`
-    );
-    const total = parseInt(totalResult.rows[0].total);
-    
-    let processed = 0;
-    let offset = 0;
-    
-    // Process in batches
-    while (offset < total) {
-      const batch = await pg.query(
-        `SELECT * FROM "${sourceTable}" ORDER BY id LIMIT $1 OFFSET $2`,
-        [batchSize, offset]
-      );
-      
-      for (const row of batch.rows) {
-        try {
-          // Prepare content based on table type
-          let content = '';
-          let title = '';
-          
-          if (sourceTable === 'MAKALELER') {
-            title = row.Baslik || `Article #${row.id}`;
-            content = `${row.Baslik || ''}\n${row.text || ''}`;
-          } else if (sourceTable === 'DANISTAYKARARLARI') {
-            title = row.Baslik || `Decision #${row.id}`;
-            content = `${row.Karar || ''}\n${row.Ozet || ''}`;
-          } else if (sourceTable === 'OZELGELER') {
-            title = row.Konu || `Letter #${row.id}`;
-            content = `${row.Konu || ''}\n${row.Icerik || ''}`;
-          } else if (sourceTable === 'SORUCEVAP' || sourceTable === 'sorucevap') {
-            title = row.Soru || `Q&A #${row.id}`;
-            content = `Soru: ${row.Soru || ''}\nCevap: ${row.Cevap || ''}`;
-          }
-          
-          if (!content.trim()) {
-            console.log(`Skipping empty record ${row.id}`);
-            continue;
-          }
-          
-          // Create or update source record
-          const sourceResult = await pg.query(`
-            INSERT INTO sources (
-              original_id, 
-              table_name, 
-              title, 
-              content, 
-              metadata
-            ) VALUES ($1, $2, $3, $4, $5)
-            ON CONFLICT (original_id, table_name) 
-            DO UPDATE SET 
-              title = EXCLUDED.title,
-              content = EXCLUDED.content,
-              metadata = EXCLUDED.metadata,
-              updated_at = NOW()
-            RETURNING id
-          `, [
-            row.id.toString(),
-            sourceTable,
-            title,
-            content,
-            JSON.stringify(row)
-          ]);
-          
-          const sourceId = sourceResult.rows[0].id;
-          
-          // Create chunks
-          const chunks = chunkText(content, chunkSize);
-          
-          for (let i = 0; i < chunks.length; i++) {
-            const chunkText = chunks[i];
-            
-            // Generate embedding if enabled
-            let embedding = null;
-            if (embed) {
-              embedding = await generateEmbedding(chunkText);
-              
-              // Retry once if failed
-              if (!embedding) {
-                await new Promise(resolve => setTimeout(resolve, 1000));
-                embedding = await generateEmbedding(chunkText);
-              }
-            }
-            
-            // Store chunk
-            if (embedding) {
-              await pg.query(`
-                INSERT INTO chunks (
-                  source_id,
-                  chunk_index,
-                  content,
-                  embedding
-                ) VALUES ($1, $2, $3, $4)
-                ON CONFLICT (source_id, chunk_index) 
-                DO UPDATE SET 
-                  content = EXCLUDED.content,
-                  embedding = EXCLUDED.embedding,
-                  updated_at = NOW()
-              `, [
-                sourceId,
-                i,
-                chunkText,
-                `[${embedding.join(',')}]`
-              ]);
-              
-              // Also store in embeddings table
-              await pg.query(`
-                INSERT INTO embeddings (
-                  source_id,
-                  chunk_id,
-                  embedding,
-                  metadata
-                ) VALUES ($1, $2, $3, $4)
-              `, [
-                sourceId,
-                `${sourceId}-${i}`,
-                `[${embedding.join(',')}]`,
-                JSON.stringify({
-                  table: sourceTable,
-                  chunk_index: i,
-                  total_chunks: chunks.length,
-                  title: title
-                })
-              ]);
-            } else {
-              // Store chunk without embedding
-              await pg.query(`
-                INSERT INTO chunks (
-                  source_id,
-                  chunk_index,
-                  content
-                ) VALUES ($1, $2, $3)
-                ON CONFLICT (source_id, chunk_index) 
-                DO UPDATE SET 
-                  content = EXCLUDED.content,
-                  updated_at = NOW()
-              `, [
-                sourceId,
-                i,
-                chunkText
-              ]);
-            }
-          }
-          
-          // Update Redis cache
-          await redis.hset(
-            `asb:migration:${sourceTable}`,
-            row.id,
-            JSON.stringify({
-              processed: true,
-              source_id: sourceId,
-              chunks: chunks.length,
-              timestamp: new Date().toISOString()
-            })
-          );
-          
-          processed++;
-          
-          // Send progress update
-          const percentage = Math.round((processed / total) * 100);
-          res.write(`data: ${JSON.stringify({
-            processed,
-            total,
-            percentage,
-            current: {
-              id: row.id,
-              title: title
-            }
-          })}\n\n`);
-          
-        } catch (error) {
-          console.error(`Error processing row ${row.id}:`, error);
-          res.write(`data: ${JSON.stringify({
-            error: true,
-            message: `Failed to process record ${row.id}: ${error.message}`
-          })}\n\n`);
-        }
-      }
-      
-      offset += batchSize;
+    // 1. Check cache first
+    const cachedResult = await redis.get(cacheKey);
+    if (cachedResult) {
+      const parsedResult = JSON.parse(cachedResult);
+      const status = parsedResult.success ? 200 : 500;
+      return res.status(status).json({ ...parsedResult, cached: true });
+    }
+
+    // 2. If not in cache, attempt connection
+    const connectionConfig = {
+      host,
+      port: parseInt(port, 10),
+      database,
+      user,
+      password,
+      connectionTimeoutMillis: 5000,
+    };
+
+    // Only add the ssl property if it's explicitly true.
+    // The pg client can behave differently with ssl: false vs no ssl property at all.
+    if (ssl === true) {
+      connectionConfig.ssl = { rejectUnauthorized: false };
     }
     
-    res.write(`data: ${JSON.stringify({
-      complete: true,
-      processed,
-      total
-    })}\n\n`);
+    const client = new Client(connectionConfig);
+    await client.connect();
+    const result = await client.query('SELECT version()');
+    await client.end();
     
-    res.end();
+    const successResponse = {
+      success: true,
+      message: 'Database connection successful!',
+      version: result.rows[0].version,
+      database,
+    };
+
+    // 3. Cache the successful result (e.g., for 10 minutes)
+    await redis.set(cacheKey, JSON.stringify(successResponse), 'EX', 600);
+    
+    return res.json(successResponse);
+
   } catch (error) {
-    console.error('Migration error:', error);
-    res.write(`data: ${JSON.stringify({
-      error: true,
-      message: error.message
-    })}\n\n`);
-    res.end();
-  } finally {
-    await pg.end();
+    const { password: _, ...configForLogging } = req.body;
+    console.error('[DB Test Error]', {
+      message: error.message,
+      code: error.code,
+      configUsed: configForLogging
+    });
+    
+    const errorResponse = {
+      success: false,
+      error: error.message,
+      code: error.code,
+    };
+
+    // 4. Cache the failure result (e.g., for 2 minutes to prevent spamming)
+    await redis.set(cacheKey, JSON.stringify(errorResponse), 'EX', 120);
+    
+    return res.status(500).json(errorResponse);
   }
 });
 

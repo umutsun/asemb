@@ -145,12 +145,12 @@ export default function Header({ user, onLogout }: HeaderProps) {
   const menuItems = [
     { href: '/dashboard', label: t('header.menu.overview'), icon: Home },
     { href: '/dashboard/query', label: t('header.menu.ragQuery'), icon: Search },
-    { href: '/dashboard/documents', label: 'Documents', icon: FileText },
-    { href: '/dashboard/embeddings-manager', label: t('embeddings') || 'Embeddings', icon: Cpu },
-    { href: '/dashboard/scraper', label: 'Scraper', icon: Globe },
+    { href: '/dashboard/documents', label: t('header.menu.documents'), icon: FileText },
+    { href: '/dashboard/embeddings-manager', label: t('header.menu.embeddingsManager'), icon: Cpu },
+    { href: '/dashboard/scraper', label: t('header.menu.scraper'), icon: Globe },
     { href: '/dashboard/activity', label: t('header.menu.activities'), icon: Activity },
     ...(currentUser?.role === 'admin' ? [{ href: '/dashboard/users', label: 'Kullanıcılar', icon: Users }] : []),
-    { href: '/', label: 'Chatbot', icon: Brain },
+    { href: '/', label: t('header.menu.chatbot'), icon: Brain },
   ];
 
   const allServicesActive = systemStatus?.database.connected && 

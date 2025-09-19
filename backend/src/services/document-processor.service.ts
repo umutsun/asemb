@@ -1,7 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 const pdf = require('pdf-parse');
-import * as XLSX from 'xlsx';
+import * as ExcelJS from 'exceljs';
 const csv = require('csv-parser');
 import mammoth from 'mammoth';
 import { Readable } from 'stream';
@@ -116,16 +116,18 @@ export class DocumentProcessorService {
 
   private async processExcel(filePath: string): Promise<string> {
     try {
-      const workbook = XLSX.readFile(filePath);
+      const workbook = new ExcelJS.Workbook();
+      await workbook.xlsx.readFile(filePath);
       let content = '';
       
-      workbook.SheetNames.forEach(sheetName => {
-        const sheet = workbook.Sheets[sheetName];
-        const sheetData = XLSX.utils.sheet_to_json(sheet, { header: 1 });
-        
-        content += `\n=== Sheet: ${sheetName} ===\n`;
-        sheetData.forEach((row: any) => {
-          content += row.join('\t') + '\n';
+      workbook.eachSheet((sheet, sheetId) => {
+        content += `\n=== Sheet: ${sheet.name} ===\n`;
+        sheet.eachRow({ includeEmpty: false }, (row) => {
+          const rowValues: string[] = [];
+          row.eachCell({ includeEmpty: true }, (cell) => {
+            rowValues.push(cell.value ? cell.value.toString() : '');
+          });
+          content += rowValues.join('\t') + '\n';
         });
       });
       
@@ -242,8 +244,8 @@ export class DocumentProcessorService {
         };
         
         await pool.query(
-          `INSERT INTO document_embeddings (document_id, chunk_text, embedding, metadata)
-           VALUES ($1, $2, $3, $4)`,
+          `INSERT INTO document_embeddings (document_id, chunk_text, embedding, metadata)` +
+           `VALUES ($1, $2, $3, $4)`,
           [
             documentId,
             chunk,
@@ -254,17 +256,17 @@ export class DocumentProcessorService {
       }
       
       await pool.query(
-        `UPDATE documents 
-         SET metadata = jsonb_set(
-           COALESCE(metadata, '{}')::jsonb, 
-           '{embeddings}', 
-           'true'
-         ),
-         metadata = jsonb_set(
-           COALESCE(metadata, '{}')::jsonb, 
-           '{chunks}', 
-           $2::jsonb
-         )
+        `UPDATE documents ` +
+         `SET metadata = jsonb_set(` +
+           `COALESCE(metadata, '{}')::jsonb, ` +
+           `'{embeddings}', ` +
+           `'true'` +
+         `),
+         metadata = jsonb_set(` +
+           `COALESCE(metadata, '{}')::jsonb, ` +
+           `'{chunks}', ` +
+           `$2::jsonb` +
+         `)
          WHERE id = $1`,
         [documentId, chunks.length]
       );
@@ -281,8 +283,8 @@ export class DocumentProcessorService {
       const queryEmbedding = await this.createEmbeddings(query);
       
       const result = await pool.query(
-        `SELECT 
-          de.id,
+        `SELECT ` +
+          `de.id,
           de.document_id,
           de.chunk_text,
           de.metadata,
@@ -310,12 +312,12 @@ export class DocumentProcessorService {
       );
       
       await pool.query(
-        `UPDATE documents 
-         SET metadata = jsonb_set(
-           COALESCE(metadata, '{}')::jsonb, 
-           '{embeddings}', 
-           'false'
-         )
+        `UPDATE documents ` +
+         `SET metadata = jsonb_set(` +
+           `COALESCE(metadata, '{}')::jsonb, ` +
+           `'{embeddings}', ` +
+           `'false'` +
+         `)
          WHERE id = $1`,
         [documentId]
       );

@@ -1,7 +1,7 @@
 import { Pool } from 'pg';
 import Redis from 'ioredis';
 import OpenAI from 'openai';
-import * as XLSX from 'xlsx';
+import * as ExcelJS from 'exceljs';
 import * as pdf from 'pdf-parse';
 import * as csv from 'csv-parser';
 import * as fs from 'fs';
@@ -123,18 +123,22 @@ export class RAGAnythingService {
   
   // Process Excel files
   private async processExcel(filePath: string): Promise<string[]> {
-    const workbook = XLSX.readFile(filePath);
+    const workbook = new ExcelJS.Workbook();
+    await workbook.xlsx.readFile(filePath);
     const content: string[] = [];
     
-    for (const sheetName of workbook.SheetNames) {
-      const sheet = workbook.Sheets[sheetName];
-      const data = XLSX.utils.sheet_to_json(sheet, { raw: false });
-      
-      data.forEach((row: any) => {
-        const text = Object.values(row).join(' ').trim();
-        if (text) content.push(text);
+    workbook.eachSheet((sheet) => {
+      sheet.eachRow({ includeEmpty: false }, (row) => {
+        const rowValues: string[] = [];
+        row.eachCell({ includeEmpty: true }, (cell) => {
+          rowValues.push(cell.value ? cell.value.toString() : '');
+        });
+        const text = rowValues.join(' ').trim();
+        if (text) {
+          content.push(text);
+        }
       });
-    }
+    });
     
     return content;
   }
@@ -336,7 +340,7 @@ export class RAGAnythingService {
         `RAGAnything - ${source.type}`,
         item.content.substring(0, 5000),
         `[${item.embedding.join(',')}]`,
-        JSON.stringify({ 
+        JSON.stringify({
           source,
           processed_at: new Date().toISOString()
         }),

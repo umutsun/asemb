@@ -12,6 +12,13 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Label } from '@/components/ui/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { Slider } from '@/components/ui/slider';
 import {
   Settings,
@@ -121,6 +128,22 @@ interface Config {
     model: string;
     endpoint: string;
   };
+  cohere: {
+    apiKey: string;
+  };
+  voyage: {
+    apiKey: string;
+  };
+  google: {
+    apiKey: string;
+    projectId: string;
+  };
+  jina: {
+    apiKey: string;
+  };
+  mistral?: {
+    apiKey?: string;
+  };
   n8n: {
     url: string;
     apiKey: string;
@@ -144,6 +167,10 @@ interface Config {
     prioritySource: string; // 'local' | 'external' | 'balanced'
   };
   llmSettings: {
+    embeddingProvider: string; // 'openai' | 'ollama' | 'lightrag'
+    embeddingModel: string; // aktif embedding modeli
+    ollamaBaseUrl?: string; // Ollama base URL
+    ollamaEmbeddingModel?: string; // Ollama embedding modeli
     temperature: number; // 0-1, yaratıcılık seviyesi
     topP: number; // 0-1, kelime seçim çeşitliliği
     maxTokens: number; // maksimum token sayısı
@@ -212,6 +239,19 @@ export default function SettingsPage() {
       model: 'sentence-transformers/all-MiniLM-L6-v2',
       endpoint: 'https://api-inference.huggingface.co/models/',
     },
+    cohere: {
+      apiKey: process.env.NEXT_PUBLIC_COHERE_API_KEY || '',
+    },
+    voyage: {
+      apiKey: process.env.NEXT_PUBLIC_VOYAGE_API_KEY || '',
+    },
+    google: {
+      apiKey: process.env.NEXT_PUBLIC_GOOGLE_API_KEY || '',
+      projectId: process.env.NEXT_PUBLIC_GOOGLE_PROJECT_ID || '',
+    },
+    jina: {
+      apiKey: process.env.NEXT_PUBLIC_JINA_API_KEY || '',
+    },
     n8n: {
       url: 'http://localhost:5678',
       apiKey: '',
@@ -226,6 +266,9 @@ export default function SettingsPage() {
       chunkOverlap: 200,
       batchSize: 10,
       provider: 'openai',
+      model: 'text-embedding-3-small',
+      normalizeEmbeddings: true,
+      cacheEmbeddings: true,
     },
     dataSource: {
       useLocalDb: true,
@@ -235,6 +278,10 @@ export default function SettingsPage() {
       prioritySource: 'local',
     },
     llmSettings: {
+      embeddingProvider: 'openai', // Varsayılan embedding provider
+      embeddingModel: 'openai/text-embedding-ada-002', // Varsayılan embedding modeli
+      ollamaBaseUrl: 'http://localhost:11434', // Ollama varsayılan URL
+      ollamaEmbeddingModel: 'nomic-embed-text', // Ollama varsayılan model
       temperature: 0.1, // Düşük = RAG'e sadık kalır
       topP: 0.9,
       maxTokens: 2048,
@@ -536,7 +583,16 @@ TASK:
     try {
       const response = await fetch('/api/config');
       const data = await response.json();
-      setConfig(data);
+      // Merge fetched config with default config to ensure all properties exist
+      setConfig(prevConfig => ({
+        ...prevConfig,
+        ...data,
+        // Ensure new provider configs are preserved
+        cohere: data.cohere || prevConfig.cohere,
+        voyage: data.voyage || prevConfig.voyage,
+        google: data.google || prevConfig.google,
+        jina: data.jina || prevConfig.jina,
+      }));
     } catch (error) {
       console.error('Failed to fetch config:', error);
     }
@@ -545,6 +601,120 @@ TASK:
   const handleSave = async () => {
     setSaving(true);
     try {
+      // Save embedding settings to database
+      try {
+        const embeddingResponse = await fetch('http://localhost:8083/api/v2/settings/embedding', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            embeddingProvider: config.embeddings.provider,
+            embeddingModel: config.embeddings.model,
+            ollamaBaseUrl: config.llmSettings.ollamaBaseUrl,
+            ollamaEmbeddingModel: config.embeddings.model, // Use the same model for consistency
+            huggingfaceApiKey: config.huggingface.apiKey,
+            mistralApiKey: config.mistral?.apiKey || '',
+            chunkSize: config.embeddings.chunkSize,
+            chunkOverlap: config.embeddings.chunkOverlap,
+            batchSize: config.embeddings.batchSize,
+            normalizeEmbeddings: config.embeddings.normalizeEmbeddings,
+            cacheEmbeddings: config.embeddings.cacheEmbeddings
+          }),
+        });
+
+        if (embeddingResponse.ok) {
+          toast({
+            title: "Embedding Ayarları",
+            description: "Embedding ayarları başarıyla kaydedildi.",
+            duration: 3000,
+          });
+        }
+      } catch (error) {
+        console.error('Failed to save embedding settings:', error);
+      }
+
+      // Save OpenAI API key separately
+      if (config.openai.apiKey) {
+        try {
+          const openaiResponse = await fetch('/api/settings/openai-api-key', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ apiKey: config.openai.apiKey }),
+          });
+
+          if (openaiResponse.ok) {
+            toast({
+              title: "OpenAI API Key",
+              description: "OpenAI API anahtarı başarıyla kaydedildi.",
+              duration: 3000,
+            });
+          }
+        } catch (error) {
+          console.error('Failed to save OpenAI API key:', error);
+          toast({
+            title: "OpenAI API Key Hatası",
+            description: "OpenAI API anahtarı kaydedilemedi.",
+            variant: "destructive",
+            duration: 4000,
+          });
+        }
+      }
+
+      // Save Cohere API key
+      if (config.cohere.apiKey) {
+        try {
+          await fetch('/api/settings/cohere-api-key', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ apiKey: config.cohere.apiKey }),
+          });
+        } catch (error) {
+          console.error('Failed to save Cohere API key:', error);
+        }
+      }
+
+      // Save Voyage AI API key
+      if (config.voyage.apiKey) {
+        try {
+          await fetch('/api/settings/voyage-api-key', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ apiKey: config.voyage.apiKey }),
+          });
+        } catch (error) {
+          console.error('Failed to save Voyage AI API key:', error);
+        }
+      }
+
+      // Save Google API key and project ID
+      if (config.google.apiKey || config.google.projectId) {
+        try {
+          await fetch('/api/settings/google-api-key', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              apiKey: config.google.apiKey,
+              projectId: config.google.projectId
+            }),
+          });
+        } catch (error) {
+          console.error('Failed to save Google API settings:', error);
+        }
+      }
+
+      // Save Jina AI API key
+      if (config.jina.apiKey) {
+        try {
+          await fetch('/api/settings/jina-api-key', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ apiKey: config.jina.apiKey }),
+          });
+        } catch (error) {
+          console.error('Failed to save Jina AI API key:', error);
+        }
+      }
+
+      // Save general config
       const response = await fetch('/api/config', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
@@ -556,6 +726,14 @@ TASK:
           title: t('toasts.settingsSavedSuccessTitle'),
           description: t('toasts.settingsSavedSuccess'),
           duration: 3000,
+        });
+      } else {
+        // It's good practice to also handle non-ok responses
+        toast({
+          title: t('toasts.settingsSavedErrorTitle'),
+          description: t('toasts.settingsSavedError'),
+          variant: "destructive",
+          duration: 4000,
         });
       }
     } catch (error) {
@@ -1266,11 +1444,10 @@ TASK:
                     </optgroup>
                     <optgroup label="Ollama (Local)">
                       <option value="ollama/nomic-embed-text">Nomic Embed Text</option>
-                      <option value="ollama/all-minilm">All-MiniLM</option>
+                      <option value="ollama/mxbai-embed-large">mxbai-embed-large</option>
                     </optgroup>
-                    <optgroup label="HuggingFace">
-                      <option value="hf/sentence-transformers">Sentence Transformers</option>
-                      <option value="hf/e5-large">E5 Large</option>
+                    <optgroup label="LightRAG">
+                      <option value="lightrag/default">LightRAG Default</option>
                     </optgroup>
                   </select>
                 </div>
@@ -1616,6 +1793,134 @@ TASK:
                     </Button>
                   </div>
                 </div>
+
+                {/* Cohere */}
+                <div className="grid grid-cols-12 gap-2 items-center p-2 hover:bg-muted/50 rounded-lg transition-colors">
+                  <div className="col-span-3">
+                    <label className="text-sm font-medium flex items-center gap-2">
+                      <div className="h-2 w-2 rounded-full bg-orange-500" />
+                      Cohere
+                    </label>
+                  </div>
+                  <div className="col-span-7">
+                    <Input
+                      type="password"
+                      value={config.cohere.apiKey}
+                      onChange={(e) => updateConfig('cohere', 'apiKey', e.target.value)}
+                      placeholder="API Key"
+                      className="h-8 text-sm"
+                    />
+                  </div>
+                  <div className="col-span-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => testConnection('cohere')}
+                      disabled={testing === 'cohere'}
+                      className="w-full h-8"
+                    >
+                      Test
+                    </Button>
+                  </div>
+                </div>
+
+                {/* Voyage AI */}
+                <div className="grid grid-cols-12 gap-2 items-center p-2 hover:bg-muted/50 rounded-lg transition-colors">
+                  <div className="col-span-3">
+                    <label className="text-sm font-medium flex items-center gap-2">
+                      <div className="h-2 w-2 rounded-full bg-indigo-500" />
+                      Voyage AI
+                    </label>
+                  </div>
+                  <div className="col-span-7">
+                    <Input
+                      type="password"
+                      value={config.voyage.apiKey}
+                      onChange={(e) => updateConfig('voyage', 'apiKey', e.target.value)}
+                      placeholder="API Key"
+                      className="h-8 text-sm"
+                    />
+                  </div>
+                  <div className="col-span-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => testConnection('voyage')}
+                      disabled={testing === 'voyage'}
+                      className="w-full h-8"
+                    >
+                      Test
+                    </Button>
+                  </div>
+                </div>
+
+                {/* Google */}
+                <div className="grid grid-cols-12 gap-2 items-center p-2 hover:bg-muted/50 rounded-lg transition-colors">
+                  <div className="col-span-3">
+                    <label className="text-sm font-medium flex items-center gap-2">
+                      <div className="h-2 w-2 rounded-full bg-blue-600" />
+                      Google
+                    </label>
+                  </div>
+                  <div className="col-span-4">
+                    <Input
+                      type="password"
+                      value={config.google.apiKey}
+                      onChange={(e) => updateConfig('google', 'apiKey', e.target.value)}
+                      placeholder="API Key"
+                      className="h-8 text-sm"
+                    />
+                  </div>
+                  <div className="col-span-3">
+                    <Input
+                      value={config.google.projectId}
+                      onChange={(e) => updateConfig('google', 'projectId', e.target.value)}
+                      placeholder="Project ID"
+                      className="h-8 text-sm"
+                    />
+                  </div>
+                  <div className="col-span-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => testConnection('google')}
+                      disabled={testing === 'google'}
+                      className="w-full h-8"
+                    >
+                      Test
+                    </Button>
+                  </div>
+                </div>
+
+                {/* Jina AI */}
+                <div className="grid grid-cols-12 gap-2 items-center p-2 hover:bg-muted/50 rounded-lg transition-colors">
+                  <div className="col-span-3">
+                    <label className="text-sm font-medium flex items-center gap-2">
+                      <div className="h-2 w-2 rounded-full bg-teal-500" />
+                      Jina AI
+                    </label>
+                  </div>
+                  <div className="col-span-7">
+                    <Input
+                      type="password"
+                      value={config.jina.apiKey}
+                      onChange={(e) => updateConfig('jina', 'apiKey', e.target.value)}
+                      placeholder="API Key"
+                      className="h-8 text-sm"
+                    />
+                  </div>
+                  <div className="col-span-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => testConnection('jina')}
+                      disabled={testing === 'jina'}
+                      className="w-full h-8"
+                    >
+                      Test
+                    </Button>
+                  </div>
+                </div>
               </div>
 
               {/* API Key Help */}
@@ -1626,6 +1931,10 @@ TASK:
                     <p><strong>OpenAI:</strong> <a href="https://platform.openai.com/api-keys" target="_blank" className="underline">platform.openai.com</a></p>
                     <p><strong>Anthropic:</strong> <a href="https://console.anthropic.com" target="_blank" className="underline">console.anthropic.com</a></p>
                     <p><strong>HuggingFace:</strong> <a href="https://huggingface.co/settings/tokens" target="_blank" className="underline">huggingface.co/settings</a></p>
+                    <p><strong>Cohere:</strong> <a href="https://dashboard.cohere.com/api-keys" target="_blank" className="underline">dashboard.cohere.com</a></p>
+                    <p><strong>Voyage AI:</strong> <a href="https://dash.voyageai.com/api-keys" target="_blank" className="underline">dash.voyageai.com</a></p>
+                    <p><strong>Google:</strong> <a href="https://console.cloud.google.com/apis/credentials" target="_blank" className="underline">console.cloud.google.com</a></p>
+                    <p><strong>Jina AI:</strong> <a href="https://jina.ai/api-keys" target="_blank" className="underline">jina.ai/api-keys</a></p>
                   </div>
                 </AlertDescription>
               </Alert>
@@ -1717,47 +2026,271 @@ TASK:
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Brain className="h-5 w-5" />
-                Embedding Settings
+                Embedding Ayarları
               </CardTitle>
               <CardDescription>
-                Text chunking ve embedding parametreleri
+                Text processing ve vektörleştirme parametreleri
+                <div className="mt-2 p-3 bg-blue-50 rounded-md border border-blue-200">
+                  <p className="text-sm text-blue-800">
+                    <strong>Not:</strong> Embedding provider ve model seçimi artık "Embedding İşlemleri" sayfasından yönetilmektedir.
+                    Bu sayfada sadece diğer embedding ayarlarını (chunk size, overlap vb.) düzenleyebilirsiniz.
+                  </p>
+                </div>
               </CardDescription>
             </CardHeader>
-            <CardContent className="space-y-4">
+            <CardContent className="space-y-6">
+              {/* Provider Selection - Disabled (Managed from Embeddings Manager) */}
               <div>
-                <label className="text-sm font-medium">Chunk Size</label>
-                <Input
-                  type="number"
-                  value={config.embeddings.chunkSize}
-                  onChange={(e) => updateConfig('embeddings', 'chunkSize', parseInt(e.target.value))}
-                  placeholder="1000"
-                />
+                <label className="text-sm font-medium mb-2 block">Embedding Provider</label>
+                <select
+                  value={config.embeddings.provider}
+                  disabled
+                  className="w-full p-2 border rounded-md bg-gray-100 cursor-not-allowed"
+                >
+                  <option value="ollama">Ollama (Local)</option>
+                  <option value="openai">OpenAI (Bulut)</option>
+                  <option value="mistral">Mistral (Bulut)</option>
+                  <option value="huggingface">HuggingFace (Bulut)</option>
+                </select>
                 <p className="text-xs text-muted-foreground mt-1">
-                  Her chunk'ın maksimum karakter sayısı
+                  Embedding provider'ı "Embedding İşlemleri" sayfasından yönetilir
                 </p>
               </div>
+
+              {/* Model Selection - Disabled (Managed from Embeddings Manager) */}
               <div>
-                <label className="text-sm font-medium">Chunk Overlap</label>
-                <Input
-                  type="number"
-                  value={config.embeddings.chunkOverlap}
-                  onChange={(e) => updateConfig('embeddings', 'chunkOverlap', parseInt(e.target.value))}
-                  placeholder="200"
-                />
+                <label className="text-sm font-medium mb-2 block">Embedding Modeli</label>
+                {config.embeddings.provider === 'mistral' && (
+                  <select
+                    value={config.embeddings.model}
+                    disabled
+                    className="w-full p-2 border rounded-md bg-gray-100 cursor-not-allowed"
+                  >
+                    <option value="mistral-embed">mistral-embed (1024 dim)</option>
+                  </select>
+                )}
+                {config.embeddings.provider === 'openai' && (
+                  <select
+                    value={config.embeddings.model}
+                    disabled
+                    className="w-full p-2 border rounded-md bg-gray-100 cursor-not-allowed"
+                  >
+                    <option value="text-embedding-3-small">text-embedding-3-small (Hızlı, 1536 dim)</option>
+                    <option value="text-embedding-3-large">text-embedding-3-large (Kaliteli, 3072 dim)</option>
+                    <option value="text-embedding-ada-002">text-embedding-ada-002 (Klasik, 1536 dim)</option>
+                  </select>
+                )}
+                {config.embeddings.provider === 'ollama' && (
+                  <select
+                    value={config.embeddings.model}
+                    disabled
+                    className="w-full p-2 border rounded-md bg-gray-100 cursor-not-allowed"
+                  >
+                    <option value="bge-m3">bge-m3 (1024 dim)</option>
+                    <option value="e5-mistral-7b-instruct">e5-mistral-7b-instruct (4096 dim)</option>
+                    <option value="nomic-embed-text">nomic-embed-text (768 dim)</option>
+                    <option value="mxbai-embed-large">mxbai-embed-large (1024 dim)</option>
+                    <option value="all-minilm">all-minilm (384 dim)</option>
+                  </select>
+                )}
+                {config.embeddings.provider === 'huggingface' && (
+                  <select
+                    value={config.embeddings.model}
+                    disabled
+                    className="w-full p-2 border rounded-md bg-gray-100 cursor-not-allowed"
+                  >
+                    <option value="sentence-transformers/all-MiniLM-L6-v2">all-MiniLM-L6-v2 (384 dim)</option>
+                    <option value="sentence-transformers/all-mpnet-base-v2">all-mpnet-base-v2 (768 dim)</option>
+                    <option value="sentence-transformers/multi-qa-mpnet-base-dot-v1">multi-qa-mpnet-base-dot-v1 (768 dim)</option>
+                    <option value="intfloat/e5-mistral-7b-instruct">e5-mistral-7b-instruct (4096 dim)</option>
+                  </select>
+                )}
                 <p className="text-xs text-muted-foreground mt-1">
-                  Chunk'lar arası örtüşme miktarı
+                  Embedding modeli "Embedding İşlemleri" sayfasından yönetilir
                 </p>
               </div>
-              <div>
-                <label className="text-sm font-medium">Batch Size</label>
-                <Input
-                  type="number"
-                  value={config.embeddings.batchSize}
-                  onChange={(e) => updateConfig('embeddings', 'batchSize', parseInt(e.target.value))}
-                  placeholder="10"
-                />
-                <p className="text-xs text-muted-foreground mt-1">
-                  Tek seferde işlenecek embedding sayısı
+
+              {/* Text Processing Settings */}
+              <div className="grid grid-cols-3 gap-4">
+                <div>
+                  <label className="text-sm font-medium">Chunk Size</label>
+                  <Input
+                    type="number"
+                    value={config.embeddings.chunkSize}
+                    onChange={(e) => updateConfig('embeddings', 'chunkSize', parseInt(e.target.value) || 1000)}
+                    placeholder="1000"
+                    min="100"
+                    max="8000"
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Maksimum karakter/parça
+                  </p>
+                </div>
+                <div>
+                  <label className="text-sm font-medium">Chunk Overlap</label>
+                  <Input
+                    type="number"
+                    value={config.embeddings.chunkOverlap}
+                    onChange={(e) => updateConfig('embeddings', 'chunkOverlap', parseInt(e.target.value) || 200)}
+                    placeholder="200"
+                    min="0"
+                    max="1000"
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Örtüşme miktarı
+                  </p>
+                </div>
+                <div>
+                  <label className="text-sm font-medium">Batch Size</label>
+                  <Input
+                    type="number"
+                    value={config.embeddings.batchSize}
+                    onChange={(e) => updateConfig('embeddings', 'batchSize', parseInt(e.target.value) || 10)}
+                    placeholder="10"
+                    min="1"
+                    max="100"
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    API çağrısı/grup
+                  </p>
+                </div>
+              </div>
+
+              {/* Provider-specific Settings */}
+              {config.embeddings.provider === 'ollama' && (
+                <div>
+                  <label className="text-sm font-medium">Ollama Base URL</label>
+                  <Input
+                    value={config.llmSettings.ollamaBaseUrl || 'http://localhost:11434'}
+                    onChange={(e) => updateConfig('llmSettings', 'ollamaBaseUrl', e.target.value)}
+                    placeholder="http://localhost:11434"
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Ollama servisinin çalıştığı adres
+                  </p>
+                </div>
+              )}
+
+              {config.embeddings.provider === 'huggingface' && (
+                <div>
+                  <label className="text-sm font-medium">HuggingFace API Key</label>
+                  <Input
+                    type="password"
+                    value={config.huggingface.apiKey}
+                    onChange={(e) => updateConfig('huggingface', 'apiKey', e.target.value)}
+                    placeholder="hf_..."
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    HuggingFace API anahtarı (isteğe bağlı)
+                  </p>
+                </div>
+              )}
+
+              {/* Advanced Settings */}
+              <div className="p-4 bg-muted/50 rounded-lg">
+                <h4 className="text-sm font-medium mb-3">Gelişmiş Ayarlar</h4>
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      id="normalize-embeddings"
+                      checked={config.embeddings.normalizeEmbeddings || false}
+                      onChange={(e) => updateConfig('embeddings', 'normalizeEmbeddings', e.target.checked)}
+                    />
+                    <label htmlFor="normalize-embeddings" className="text-sm">
+                      Vektörleri normalize et (L2 normalization)
+                    </label>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      id="cache-embeddings"
+                      checked={config.embeddings.cacheEmbeddings !== false}
+                      onChange={(e) => updateConfig('embeddings', 'cacheEmbeddings', e.target.checked)}
+                    />
+                    <label htmlFor="cache-embeddings" className="text-sm">
+                      Embedding'leri Redis'te cache'le
+                    </label>
+                  </div>
+                </div>
+              </div>
+
+              {/* Test Button */}
+              <div className="flex justify-end">
+                <Button
+                  onClick={async () => {
+                    setTesting('embedding');
+                    try {
+                      const response = await fetch('http://localhost:8083/api/v2/settings/embedding/test', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                          embeddingProvider: config.embeddings.provider,
+                          embeddingModel: config.embeddings.model,
+                          ollamaBaseUrl: config.llmSettings.ollamaBaseUrl,
+                          huggingfaceApiKey: config.huggingface.apiKey
+                        }),
+                      });
+                      const result = await response.json();
+
+                      if (result.success) {
+                        toast({
+                          title: "Bağlantı Başarılı",
+                          description: result.message,
+                          duration: 3000,
+                        });
+                      } else {
+                        toast({
+                          title: "Bağlantı Başarısız",
+                          description: result.error || 'Embedding servisi test edilemedi.',
+                          variant: "destructive",
+                          duration: 4000,
+                        });
+                      }
+                    } catch (error) {
+                      toast({
+                        title: "Test Hatası",
+                        description: 'Embedding servisiyle iletişim kurulamadı.',
+                        variant: "destructive",
+                        duration: 3000,
+                      });
+                    } finally {
+                      setTesting(null);
+                    }
+                  }}
+                  disabled={testing === 'embedding'}
+                  variant="outline"
+                  size="sm"
+                >
+                  {testing === 'embedding' ? 'Test Ediliyor...' : 'Bağlantıyı Test Et'}
+                </Button>
+              </div>
+
+              {/* Current Optimal Settings */}
+              <div className="p-4 bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-950/20 dark:to-purple-950/20 rounded-lg border border-blue-200">
+                <h4 className="text-sm font-medium mb-2 flex items-center gap-2">
+                  <Info className="h-4 w-4 text-blue-600" />
+                  Modelinize Göre Optimal Ayarlar
+                </h4>
+                <div className="grid grid-cols-3 gap-4 text-sm">
+                  <div className="bg-white dark:bg-gray-800 p-3 rounded-lg">
+                    <div className="font-medium text-gray-600 dark:text-gray-400">Chunk Size</div>
+                    <div className="text-lg font-semibold text-blue-600">{config.embeddings.chunkSize}</div>
+                    <div className="text-xs text-gray-500">karakter/parça</div>
+                  </div>
+                  <div className="bg-white dark:bg-gray-800 p-3 rounded-lg">
+                    <div className="font-medium text-gray-600 dark:text-gray-400">Chunk Overlap</div>
+                    <div className="text-lg font-semibold text-purple-600">{config.embeddings.chunkOverlap}</div>
+                    <div className="text-xs text-gray-500">örtüşme</div>
+                  </div>
+                  <div className="bg-white dark:bg-gray-800 p-3 rounded-lg">
+                    <div className="font-medium text-gray-600 dark:text-gray-400">Batch Size</div>
+                    <div className="text-lg font-semibold text-green-600">{config.embeddings.batchSize}</div>
+                    <div className="text-xs text-gray-500">API çağrısı/grup</div>
+                  </div>
+                </div>
+                <p className="text-xs text-gray-600 dark:text-gray-400 mt-3">
+                  💡 Bu ayarlar seçtiğiniz model için otomatik optimize edilmiştir. İhtiyaçlarınıza göre manuel olarak ayarlayabilirsiniz.
                 </p>
               </div>
             </CardContent>
@@ -1948,159 +2481,68 @@ TASK:
         </TabsContent>
 
         {/* Prompts Tab */}
-        <TabsContent value="prompts" className="space-y-4">
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <div className="lg:col-span-2">
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Brain className="h-5 w-5" />
-                    System Prompt
-                  </CardTitle>
-                  <CardDescription>
-                    Main instructions that determine how AI responds
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div>
-                    <Label>Prompt Text</Label>
-                    <Textarea
-                      value={editingPrompt}
-                      onChange={(e) => setEditingPrompt(e.target.value)}
-                      rows={15}
-                      className="font-mono text-sm"
-                      placeholder="System prompt here..."
-                    />
-                    <p className="text-sm text-muted-foreground mt-1">
-                      {editingPrompt.length} characters
-                    </p>
-                  </div>
+        <TabsContent value="prompts">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Bot className="h-5 w-5" />
+                System Prompts
+              </CardTitle>
+              <CardDescription>
+                Yapay zeka modelinin davranışını ve RAG'e ne kadar sadık kalacağını yöneten ana talimatlar.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {/* System Prompt */}
+              <div>
+                <Label htmlFor="system-prompt-textarea">System Prompt (RAG Talimatı)</Label>
+                <Textarea
+                  id="system-prompt-textarea"
+                  value={config.llmSettings.systemPrompt}
+                  onChange={(e) => updateConfig('llmSettings', 'systemPrompt', e.target.value)}
+                  placeholder="LLM'e RAG context'i nasıl kullanacağını anlatan prompt..."
+                  className="h-40 text-xs font-mono"
+                />
+              </div>
 
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <Label>
-                        Temperature: {promptTemperature}
-                      </Label>
-                      <Slider
-                        min={0}
-                        max={1}
-                        step={0.1}
-                        value={[promptTemperature]}
-                        onValueChange={(v) => setPromptTemperature(v[0])}
-                      />
-                      <p className="text-xs text-muted-foreground mt-1">
-                        Low: Consistent, High: Creative
-                      </p>
-                    </div>
+              {/* Temperature Settings */}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label>Temperature: {config.llmSettings.temperature.toFixed(1)}</Label>
+                  <Slider
+                    min={0}
+                    max={1}
+                    step={0.1}
+                    value={[config.llmSettings.temperature]}
+                    onValueChange={(value) => updateConfig('llmSettings', 'temperature', value[0])}
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    0 = Deterministik, 1 = Yaratıcı
+                  </p>
+                </div>
 
-                    <div>
-                      <Label>
-                        Max Tokens: {promptMaxTokens}
-                      </Label>
-                      <Slider
-                        min={256}
-                        max={4096}
-                        step={256}
-                        value={[promptMaxTokens]}
-                        onValueChange={(v) => setPromptMaxTokens(v[0])}
-                      />
-                      <p className="text-xs text-muted-foreground mt-1">
-                        Maximum response length
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="flex gap-2">
-                    <Button onClick={handleSavePrompt} disabled={savingPrompt}>
-                      <Save className="mr-2 h-4 w-4" />
-                      {savingPrompt ? 'Saving...' : 'Save Prompt'}
-                    </Button>
-                    <Button onClick={handleResetPrompt} variant="outline">
-                      <RotateCcw className="mr-2 h-4 w-4" />
-                      Reset to Default
-                    </Button>
-                    <Button onClick={handleCopyPrompt} variant="outline">
-                      {copiedPrompt ? (
-                        <Check className="mr-2 h-4 w-4" />
-                      ) : (
-                        <Copy className="mr-2 h-4 w-4" />
-                      )}
-                      {copiedPrompt ? 'Copied' : 'Copy'}
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-
-            <div className="space-y-4">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Quick Templates</CardTitle>
-                  <CardDescription>
-                    Predefined prompt templates
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-2">
-                  <Button
-                    variant="outline"
-                    className="w-full justify-start"
-                    onClick={() => {
-                      setEditingPrompt(defaultPrompt + '\n\nProvide detailed and explanatory answers. Explain each topic with examples.');
-                      setPromptTemperature(0.3);
-                    }}
-                  >
-                    Detailed Explanation
-                  </Button>
-                  <Button
-                    variant="outline"
-                    className="w-full justify-start"
-                    onClick={() => {
-                      setEditingPrompt(defaultPrompt + '\n\nGive short, clear and concise answers. Share only the most important information.');
-                      setPromptTemperature(0.1);
-                    }}
-                  >
-                    Short & Concise
-                  </Button>
-                  <Button
-                    variant="outline"
-                    className="w-full justify-start"
-                    onClick={() => {
-                      setEditingPrompt(defaultPrompt + '\n\nBe creative and offer different perspectives. Suggest alternative solutions.');
-                      setPromptTemperature(0.7);
-                    }}
-                  >
-                    Creative
-                  </Button>
-                </CardContent>
-              </Card>
-
-              {activePrompt && (
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Active Prompt</CardTitle>
-                    <CardDescription>
-                      Currently active prompt
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent className="space-y-2">
-                    <p className="text-sm">
-                      <span className="font-medium">Name:</span> {activePrompt.name}
-                    </p>
-                    <p className="text-sm">
-                      <span className="font-medium">Temperature:</span> {activePrompt.temperature}
-                    </p>
-                    <p className="text-sm">
-                      <span className="font-medium">Max Tokens:</span> {activePrompt.maxTokens}
-                    </p>
-                    <p className="text-sm">
-                      <span className="font-medium">Updated:</span>{' '}
-                      {new Date(activePrompt.updatedAt).toLocaleString()}
-                    </p>
-                  </CardContent>
-                </Card>
-              )}
-            </div>
-          </div>
+                <div>
+                  <Label>Max Tokens: {config.llmSettings.maxTokens}</Label>
+                   <Slider
+                    min={256}
+                    max={8192}
+                    step={256}
+                    value={[config.llmSettings.maxTokens]}
+                    onValueChange={(value) => updateConfig('llmSettings', 'maxTokens', value[0])}
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Maksimum yanıt uzunluğu
+                  </p>
+                </div>
+              </div>
+               <Alert>
+                <Info className="h-4 w-4" />
+                <AlertDescription>
+                  Tüm prompt ayarları, sağ üst köşedeki ana "Kaydet" butonu ile kaydedilir.
+                </AlertDescription>
+              </Alert>
+            </CardContent>
+          </Card>
         </TabsContent>
       </Tabs>
     </div>

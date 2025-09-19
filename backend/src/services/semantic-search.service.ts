@@ -76,6 +76,8 @@ export class SemanticSearchService {
    * Perform keyword search on multiple tables
    */
   async keywordSearch(query: string, limit: number = 10) {
+    const queryId = `keywordSearch_${query.substring(0, 10)}_${Date.now()}`;
+    console.time(queryId);
     try {
       // Search in SORUCEVAP table
       const searchQuery = `
@@ -136,11 +138,13 @@ export class SemanticSearchService {
         limit
       ]);
 
+      console.timeEnd(queryId);
       return result.rows.map(row => ({
         ...row,
         score: 100 - (row.priority * 10) // Score based on priority
       }));
     } catch (error) {
+      console.timeEnd(queryId);
       console.error('Keyword search error:', error);
       return [];
     }
@@ -150,6 +154,8 @@ export class SemanticSearchService {
    * Perform semantic search using rag_data.documents table
    */
   async semanticSearch(query: string, limit: number = 10) {
+    const embeddingId = `semanticSearch_embedding_${query.substring(0, 10)}_${Date.now()}`;
+    const queryId = `semanticSearch_query_${query.substring(0, 10)}_${Date.now()}`;
     try {
       // Check if rag_data.documents exists and has data
       const embeddingCheck = await this.pool.query(`
@@ -166,7 +172,9 @@ export class SemanticSearchService {
       }
 
       // Generate embedding for query
+      console.time(embeddingId);
       const queryEmbedding = await this.generateEmbedding(query);
+      console.timeEnd(embeddingId);
       
       // Enhanced semantic search with better metadata
       const searchQuery = `
@@ -196,11 +204,13 @@ export class SemanticSearchService {
         LIMIT $2
       `;
 
+      console.time(queryId);
       const result = await this.pool.query(searchQuery, [
         JSON.stringify(queryEmbedding),
         limit,
         `%${query}%`
       ]);
+      console.timeEnd(queryId);
 
       return result.rows.map(row => ({
         ...row,
@@ -209,6 +219,7 @@ export class SemanticSearchService {
         content: row.excerpt
       }));
     } catch (error) {
+      console.timeEnd(queryId); // Ensure timer ends on error
       console.error('Semantic search error:', error);
       // Fallback to keyword search
       return this.keywordSearch(query, limit);

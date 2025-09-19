@@ -12,8 +12,10 @@ import { enhancedPuppeteer } from '../services/enhanced-puppeteer.service';
 
 const router = Router();
 
+
+// Helper function to count tokens
 // Activity history table creation
-router.post('/api/v2/activity/init-table', async (req: Request, res: Response) => {
+router.post('/activity/init-table', async (req: Request, res: Response) => {
   try {
     await pgPool.query(`
       CREATE TABLE IF NOT EXISTS activity_history (
@@ -43,7 +45,7 @@ router.post('/api/v2/activity/init-table', async (req: Request, res: Response) =
 });
 
 // Get activity history
-router.get('/api/v2/activity/history', async (req: Request, res: Response) => {
+router.get('/activity/history', async (req: Request, res: Response) => {
   try {
     const { limit = 100, offset = 0, operation_type } = req.query;
     
@@ -116,7 +118,6 @@ async function logActivity(
   }
 }
 
-// Helper function to count tokens
 function countTokens(text: string): number {
   try {
     const encoder = encoding_for_model('gpt-3.5-turbo');
@@ -131,7 +132,7 @@ function countTokens(text: string): number {
 }
 
 // Web scraper endpoint with dynamic content support
-router.post('/api/v2/scraper', async (req: Request, res: Response) => {
+router.post('/scraper', async (req: Request, res: Response) => {
   const startTime = Date.now();
   let activityMetrics: any = {};
   let activityDetails: any = {};
@@ -1065,7 +1066,7 @@ function generateLocalEmbedding(text: string): number[] {
 }
 
 // Embeddings endpoint
-router.post('/api/v2/embeddings', async (req: Request, res: Response) => {
+router.post('/embeddings', async (req: Request, res: Response) => {
   const startTime = Date.now();
   
   try {
@@ -1149,7 +1150,7 @@ router.post('/api/v2/embeddings', async (req: Request, res: Response) => {
 });
 
 // Get scraper history/pages
-router.get('/api/v2/scraper', async (req: Request, res: Response) => {
+router.get('/scraper', async (req: Request, res: Response) => {
   try {
     const { limit = 50 } = req.query;
     
@@ -1185,7 +1186,7 @@ router.get('/api/v2/scraper', async (req: Request, res: Response) => {
 });
 
 // Get all scraped pages with metrics
-router.get('/api/v2/scraper/pages', async (req: Request, res: Response) => {
+router.get('/scraper/pages', async (req: Request, res: Response) => {
   try {
     const result = await pgPool.query(`
       SELECT 
@@ -1233,7 +1234,7 @@ router.get('/api/v2/scraper/pages', async (req: Request, res: Response) => {
 });
 
 // Get single scraped page with full details
-router.get('/api/v2/scraper/pages/:id', async (req: Request, res: Response) => {
+router.get('/scraper/pages/:id', async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const result = await pgPool.query(`
@@ -1266,7 +1267,7 @@ router.get('/api/v2/scraper/pages/:id', async (req: Request, res: Response) => {
 });
 
 // Delete scraped page
-router.delete('/api/v2/scraper/pages/:id', async (req: Request, res: Response) => {
+router.delete('/scraper/pages/:id', async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const result = await pgPool.query(`
@@ -1303,7 +1304,7 @@ router.delete('/api/v2/scraper/pages/:id', async (req: Request, res: Response) =
 });
 
 // Advanced scraping endpoints
-router.post('/api/v2/scraper/crawl', async (req: Request, res: Response) => {
+router.post('/scraper/crawl', async (req: Request, res: Response) => {
   try {
     const {
       url,
@@ -1372,7 +1373,7 @@ router.post('/api/v2/scraper/crawl', async (req: Request, res: Response) => {
       success: true,
       jobId,
       message: 'Crawling started',
-      statusUrl: `/api/v2/scraper/job/${jobId}`
+      statusUrl: `/scraper/job/${jobId}`
     });
   } catch (error: any) {
     console.error('Crawl error:', error);
@@ -1384,7 +1385,7 @@ router.post('/api/v2/scraper/crawl', async (req: Request, res: Response) => {
 });
 
 // Batch scraping endpoint
-router.post('/api/v2/scraper/batch', async (req: Request, res: Response) => {
+router.post('/scraper/batch', async (req: Request, res: Response) => {
   try {
     const {
       urls,
@@ -1438,7 +1439,7 @@ router.post('/api/v2/scraper/batch', async (req: Request, res: Response) => {
       jobId,
       message: 'Batch scraping started',
       totalUrls: urls.length,
-      statusUrl: `/api/v2/scraper/job/${jobId}`
+      statusUrl: `/scraper/job/${jobId}`
     });
   } catch (error: any) {
     console.error('Batch scraping error:', error);
@@ -1450,7 +1451,7 @@ router.post('/api/v2/scraper/batch', async (req: Request, res: Response) => {
 });
 
 // Get job status
-router.get('/api/v2/scraper/job/:jobId', async (req: Request, res: Response) => {
+router.get('/scraper/job/:jobId', async (req: Request, res: Response) => {
   try {
     const { jobId } = req.params;
     const jobData = await redis.get(`job:${jobId}`);
@@ -1474,7 +1475,7 @@ router.get('/api/v2/scraper/job/:jobId', async (req: Request, res: Response) => 
 });
 
 // Get sitemap URLs
-router.post('/api/v2/scraper/sitemap', async (req: Request, res: Response) => {
+router.post('/scraper/sitemap', async (req: Request, res: Response) => {
   try {
     const { url } = req.body;
     
@@ -1513,7 +1514,7 @@ router.post('/api/v2/scraper/sitemap', async (req: Request, res: Response) => {
 });
 
 // Initialize tables endpoint
-router.post('/api/v2/scraper/init-table', async (req: Request, res: Response) => {
+router.post('/scraper/init-table', async (req: Request, res: Response) => {
   try {
     // Create scraped_data table
     await pgPool.query(`

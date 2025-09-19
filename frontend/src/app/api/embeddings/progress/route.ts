@@ -2,8 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 
 export async function GET(request: NextRequest) {
   try {
-    const ASB_API_URL = process.env.ASB_API_URL || process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8083';
-    
+    const ASB_API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8083';
+
     const response = await fetch(`${ASB_API_URL}/api/v2/embeddings/progress`, {
       method: 'GET',
       headers: {

@@ -114,7 +114,13 @@ class RAGDashboard {
     errorBanner.style.display = 'none';
 
     try {
-      const response = await fetch(url, options);
+      const response = await fetch(url, {
+        ...options,
+        headers: {
+          'Content-Type': 'application/json; charset=UTF-8',
+          ...options.headers,
+        },
+      });
       if (!response.ok) {
         const errData = await response.json();
         throw new Error(errData.error || `HTTP error! status: ${response.status}`);

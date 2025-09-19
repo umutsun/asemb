@@ -28,6 +28,7 @@ import {
   BarChart3
 } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import UnifiedEmbeddingStats from '@/components/UnifiedEmbeddingStats';
 
 interface ServiceStatus {
   name: string;
@@ -62,6 +63,9 @@ interface EmbeddingStats {
 }
 
 export default function RAGStatusPage() {
+  const searchParams = new URLSearchParams(typeof window !== 'undefined' ? window.location.search : '');
+  const defaultTab = searchParams.get('tab') || 'services';
+
   const [services, setServices] = useState<ServiceStatus[]>([]);
   const [embeddingStats, setEmbeddingStats] = useState<EmbeddingStats | null>(null);
   const [loading, setLoading] = useState(true);
@@ -286,9 +290,10 @@ export default function RAGStatusPage() {
         </CardHeader>
       </Card>
 
-      <Tabs defaultValue="services" className="space-y-4">
-        <TabsList className="grid w-full grid-cols-4 max-w-[600px]">
+      <Tabs defaultValue={defaultTab} className="space-y-4">
+        <TabsList className="grid w-full grid-cols-5 max-w-[700px]">
           <TabsTrigger value="services">Servisler</TabsTrigger>
+          <TabsTrigger value="embeddings">Embeddings</TabsTrigger>
           <TabsTrigger value="performance">Performans</TabsTrigger>
           <TabsTrigger value="logs">Loglar</TabsTrigger>
           <TabsTrigger value="config">Yapılandırma</TabsTrigger>
@@ -450,91 +455,6 @@ export default function RAGStatusPage() {
             ))}
           </div>
 
-          {/* Embedding Statistics */}
-          {embeddingStats && (
-            <Card>
-              <CardHeader>
-                <CardTitle>Embedding İstatistikleri</CardTitle>
-                <CardDescription>
-                  Toplam {embeddingStats.totalEmbeddings.toLocaleString('tr-TR')} embedding • 
-                  Tahmini Maliyet: ${embeddingStats.costEstimate.toFixed(2)}
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {/* By Source */}
-                  <div>
-                    <h4 className="text-sm font-semibold mb-3">Kaynak Bazında</h4>
-                    <div className="space-y-2">
-                      {embeddingStats.bySource.slice(0, 5).map((source) => (
-                        <div key={source.source_table} className="flex justify-between text-sm">
-                          <span className="text-muted-foreground capitalize">
-                            {source.source_table.replace('_', ' ')}
-                          </span>
-                          <div className="flex gap-2">
-                            <Badge variant="secondary" className="text-xs">
-                              {source.count.toLocaleString('tr-TR')}
-                            </Badge>
-                            <Badge variant="outline" className="text-xs">
-                              {(source.tokens_used / 1000).toFixed(0)}K token
-                            </Badge>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Model Usage */}
-                  <div>
-                    <h4 className="text-sm font-semibold mb-3">Model Kullanımı</h4>
-                    <div className="space-y-2">
-                      {embeddingStats.modelUsage.map((model) => (
-                        <div key={model.model}>
-                          <div className="flex justify-between text-sm mb-1">
-                            <span className="text-muted-foreground text-xs">{model.model}</span>
-                            <span className="text-xs">{model.count.toLocaleString('tr-TR')} kayıt</span>
-                          </div>
-                          <div className="flex justify-between text-sm">
-                            <span className="text-muted-foreground">Token</span>
-                            <span className="font-medium">{(model.total_tokens / 1000000).toFixed(2)}M</span>
-                          </div>
-                          <div className="flex justify-between text-sm">
-                            <span className="text-muted-foreground">Maliyet</span>
-                            <span className="font-medium">${(model.total_tokens * 0.0001 / 1000).toFixed(2)}</span>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Recent Activity */}
-                  <div>
-                    <h4 className="text-sm font-semibold mb-3">Son Aktiviteler</h4>
-                    <div className="space-y-2">
-                      {embeddingStats.recentActivity?.slice(0, 5).map((activity, idx) => (
-                        <div key={idx} className="flex items-center justify-between text-sm">
-                          <span className="text-muted-foreground capitalize">
-                            {activity.source_table.replace('_', ' ')}
-                          </span>
-                          <div className="flex items-center gap-2">
-                            <Badge variant={activity.operation === 'create' ? 'success' : 'secondary'} className="text-xs">
-                              +{activity.count}
-                            </Badge>
-                            <span className="text-xs text-muted-foreground">
-                              {activity.time}
-                            </span>
-                          </div>
-                        </div>
-                      )) || (
-                        <p className="text-sm text-muted-foreground">Henüz aktivite yok</p>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          )}
-
           {/* System Info */}
           <Card>
             <CardHeader>
@@ -611,6 +531,10 @@ export default function RAGStatusPage() {
               </div>
             </CardContent>
           </Card>
+        </TabsContent>
+
+        <TabsContent value="embeddings" className="space-y-4">
+          <UnifiedEmbeddingStats showControls={true} />
         </TabsContent>
 
         <TabsContent value="performance">

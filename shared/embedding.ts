@@ -14,7 +14,8 @@ export enum EmbeddingProvider {
   OPENAI = 'openai',
   COHERE = 'cohere',
   HUGGINGFACE = 'huggingface',
-  LOCAL = 'local'
+  LOCAL = 'local',
+  BAAI = 'baai'
 }
 
 // Model configurations
@@ -33,6 +34,13 @@ export const EMBEDDING_MODELS: Record<string, EmbeddingModel> = {
     dimensions: 1536,
     maxTokens: 8191,
     costPer1kTokens: 0.00002
+  },
+  'bge-m3': {
+    provider: EmbeddingProvider.BAAI,
+    model: 'bge-m3',
+    dimensions: 384,
+    maxTokens: 2048,
+    costPer1kTokens: 0.00005
   },
   'text-embedding-3-large': {
     provider: EmbeddingProvider.OPENAI,
@@ -61,6 +69,13 @@ export const EMBEDDING_MODELS: Record<string, EmbeddingModel> = {
     dimensions: 1024,
     maxTokens: 512,
     costPer1kTokens: 0.00013
+  },
+  'Xenova/all-MiniLM-L6-v2': {
+    provider: EmbeddingProvider.HUGGINGFACE,
+    model: 'Xenova/all-MiniLM-L6-v2',
+    dimensions: 384,
+    maxTokens: 4096, // Typical for sentence transformers
+    costPer1kTokens: 0 // Local model
   }
 };
 
@@ -134,65 +149,71 @@ export class EmbeddingService {
     }
     return EmbeddingService.instance;
   }
-  
-  /**
-   * Generate embedding for a single text
-   */
+
   async generateEmbedding(
     text: string,
     options?: Partial<EmbeddingConfig>
   ): Promise<EmbeddingResponse> {
     const config = { ...this.config, ...options };
-    
+
     // Check cache first
     if (config.enableCache) {
       const cached = await this.getCachedEmbedding(text, config.model);
       if (cached) {
-        return {
-          ...cached,
-          cached: true
-        };
+        return { ...cached, cached: true };
       }
     }
-    
-    // Generate new embedding
+
     let response: EmbeddingResponse;
-    
-    switch (config.provider) {
-      case EmbeddingProvider.OPENAI:
-        response = await this.generateOpenAIEmbedding(text, config);
-        break;
-      case EmbeddingProvider.COHERE:
-        response = await this.generateCohereEmbedding(text, config);
-        break;
-      case EmbeddingProvider.HUGGINGFACE:
-        response = await this.generateHuggingFaceEmbedding(text, config);
-        break;
-      case EmbeddingProvider.LOCAL:
-        response = await this.generateLocalEmbedding(text, config);
-        break;
-      default:
-        throw new ASBError(
-          `Unsupported embedding provider: ${config.provider}`,
-          ErrorType.VALIDATION_ERROR
-        );
+
+    try {
+      // Primary provider logic
+      switch (config.provider) {
+        case EmbeddingProvider.OPENAI:
+          response = await this.generateOpenAIEmbedding(text, config);
+          break;
+        case EmbeddingProvider.COHERE:
+          response = await this.generateCohereEmbedding(text, config);
+          break;
+        case EmbeddingProvider.HUGGINGFACE:
+          // This assumes API-based HF. Local HF is used as a fallback.
+          response = await this.generateHuggingFaceEmbedding(text, config);
+          break;
+        case EmbeddingProvider.LOCAL:
+           // This is the mock provider, we'll use our specific local HF for fallback
+           response = await this.generateLocalEmbedding(text, config);
+           break;
+        case EmbeddingProvider.BAAI:
+          response = await this.generateBGE3Embedding(text, config);
+          break;
+        default:
+          throw new ASBError(
+            `Unsupported embedding provider: ${config.provider}`,
+            ErrorType.VALIDATION_ERROR
+          );
+      }
+    } catch (error) {
+      console.warn(`Primary provider '${config.provider}' failed with error: ${(error as Error).message}. Falling back to local HuggingFace model.`);
+      const fallbackConfig: EmbeddingConfig = { 
+        ...config, 
+        provider: EmbeddingProvider.HUGGINGFACE, // Technically it's local, but we can reuse the enum
+        model: 'Xenova/all-MiniLM-L6-v2' 
+      };
+      response = await this.generateLocalHuggingFaceEmbedding(text, fallbackConfig);
     }
-    
-    // Cache the result
-    if (config.enableCache) {
+
+    // Cache the result if it's not from the cache
+    if (config.enableCache && !response.cached) {
       await this.cacheEmbedding(text, response, config.cacheTTL);
     }
-    
+
     // Update metrics
     this.tokenCount += response.tokensUsed || 0;
     this.totalCost += response.cost || 0;
-    
+
     return response;
   }
-  
-  /**
-   * Generate embeddings for multiple texts
-   */
+
   async batchEmbeddings(
     texts: string[],
     options?: Partial<EmbeddingConfig>
@@ -268,10 +289,7 @@ export class EmbeddingService {
       errors: errors.length > 0 ? errors : undefined
     };
   }
-  
-  /**
-   * Generate OpenAI embeddings
-   */
+
   private async generateOpenAIEmbedding(
     text: string,
     config: EmbeddingConfig
@@ -320,10 +338,7 @@ export class EmbeddingService {
       };
     });
   }
-  
-  /**
-   * Generate Cohere embeddings
-   */
+
   private async generateCohereEmbedding(
     text: string,
     config: EmbeddingConfig
@@ -372,10 +387,7 @@ export class EmbeddingService {
       cached: false
     };
   }
-  
-  /**
-   * Generate HuggingFace embeddings
-   */
+
   private async generateHuggingFaceEmbedding(
     text: string,
     config: EmbeddingConfig
@@ -415,10 +427,7 @@ export class EmbeddingService {
       cached: false
     };
   }
-  
-  /**
-   * Generate local embeddings (mock for testing)
-   */
+
   private async generateLocalEmbedding(
     text: string,
     config: EmbeddingConfig
@@ -447,10 +456,40 @@ export class EmbeddingService {
       cached: false
     };
   }
-  
-  /**
-   * Process batch of texts
-   */
+
+  private async generateLocalHuggingFaceEmbedding(
+    text: string,
+    config: EmbeddingConfig
+  ): Promise<EmbeddingResponse> {
+    // Singleton pattern to ensure the model is loaded only once.
+    class Extractor {
+      static instance: any = null;
+      static async getInstance() {
+        if (this.instance === null) {
+          const { pipeline } = await import('@xenova/transformers');
+          this.instance = await pipeline('feature-extraction', config.model);
+        }
+        return this.instance;
+      }
+    }
+
+    const extractor = await Extractor.getInstance();
+    const output = await extractor(text, { pooling: 'mean', normalize: true });
+    const embedding = Array.from(output.data);
+
+    const modelInfo = EMBEDDING_MODELS[config.model] || { dimensions: embedding.length };
+
+    return {
+      embedding,
+      model: config.model,
+      provider: EmbeddingProvider.HUGGINGFACE, // Or a new LOCAL_HF provider
+      dimensions: modelInfo.dimensions,
+      tokensUsed: Math.ceil(text.length / 4), // Simple estimation
+      cost: 0, // Local processing has no direct cost
+      cached: false,
+    };
+  }
+
   private async processBatch(
     texts: string[],
     config: EmbeddingConfig
@@ -470,10 +509,7 @@ export class EmbeddingService {
         return results;
     }
   }
-  
-  /**
-   * Process batch with OpenAI
-   */
+
   private async processBatchOpenAI(
     texts: string[],
     config: EmbeddingConfig
@@ -524,10 +560,7 @@ export class EmbeddingService {
       }));
     });
   }
-  
-  /**
-   * Process batch with Cohere
-   */
+
   private async processBatchCohere(
     texts: string[],
     config: EmbeddingConfig
@@ -578,10 +611,7 @@ export class EmbeddingService {
       cached: false
     }));
   }
-  
-  /**
-   * Get cached embedding
-   */
+
   private async getCachedEmbedding(
     text: string,
     model: string
@@ -590,10 +620,7 @@ export class EmbeddingService {
     const cached = await this.cache.get<EmbeddingResponse>(key);
     return cached;
   }
-  
-  /**
-   * Cache embedding
-   */
+
   private async cacheEmbedding(
     text: string,
     response: EmbeddingResponse,
@@ -602,10 +629,7 @@ export class EmbeddingService {
     const key = this.generateCacheKey(text, response.model);
     await this.cache.set(key, response, ttl || 3600);
   }
-  
-  /**
-   * Generate cache key
-   */
+
   private generateCacheKey(text: string, model: string): string {
     const hash = createHash('sha256')
       .update(`${text}:${model}`)
@@ -613,10 +637,7 @@ export class EmbeddingService {
       .substring(0, 16);
     return `embedding:${model}:${hash}`;
   }
-  
-  /**
-   * Get service metrics
-   */
+
   getMetrics() {
     return {
       tokenCount: this.tokenCount,
@@ -626,13 +647,57 @@ export class EmbeddingService {
         : 0
     };
   }
-  
-  /**
-   * Reset metrics
-   */
+
   resetMetrics() {
     this.tokenCount = 0;
     this.totalCost = 0;
+  }
+
+  private async generateBGE3Embedding(
+    text: string,
+    config: EmbeddingConfig
+  ): Promise<EmbeddingResponse> {
+    const model = EMBEDDING_MODELS[config.model] || EMBEDDING_MODELS['bge-m3'];
+    
+    const response = await fetch(
+      `${config.baseUrl || 'https://api.baai.cn'}/v1/embeddings`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${config.apiKey}`
+        },
+        body: JSON.stringify({
+          input: text,
+          model: model.model,
+          encoding_format: 'float'
+        }),
+        signal: AbortSignal.timeout(config.timeout || 30000)
+      }
+    );
+
+    if (!response.ok) {
+      const error = await response.text();
+      throw new ASBError(
+        `BAAI API error: ${error}`,
+        ErrorType.PROCESSING_ERROR,
+        { metadata: { status: response.status } }
+      );
+    }
+
+    const data: any = await response.json();
+    const embedding = data.data[0].embedding;
+    const usage = data.usage;
+
+    return {
+      embedding,
+      model: model.model,
+      provider: EmbeddingProvider.BAAI,
+      dimensions: embedding.length,
+      tokensUsed: usage?.total_tokens,
+      cost: usage ? (usage.total_tokens / 1000) * (model.costPer1kTokens || 0) : 0,
+      cached: false
+    };
   }
 }
 
@@ -640,10 +705,10 @@ export class EmbeddingService {
  * Helper function for N8N nodes
  */
 export async function embedTextForNode(
-  thisArg: IExecuteFunctions,
-  itemIndex: number,
-  text: string,
-  options?: Partial<EmbeddingConfig>
+   thisArg: IExecuteFunctions,
+   itemIndex: number,
+   text: string,
+   options?: Partial<EmbeddingConfig>
 ): Promise<number[]> {
   // Get credentials from N8N
   const creds = await thisArg.getCredentials('openAIApi').catch(() => null);

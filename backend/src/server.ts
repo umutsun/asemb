@@ -1,9 +1,11 @@
+import dotenv from 'dotenv';
+dotenv.config();
+
 import express, { Application, Request, Response, NextFunction } from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import compression from 'compression';
 import morgan from 'morgan';
-import dotenv from 'dotenv';
 import { createServer } from 'http';
 import { Server as SocketServer } from 'socket.io';
 import { Pool } from 'pg';
@@ -18,7 +20,7 @@ import chatbotSettingsRoutes from './routes/chatbot-settings.routes';
 import historyRoutes from './routes/history.routes';
 import documentsRoutes from './routes/documents.routes';
 import migrationRoutes from './routes/migration.routes';
-import embeddingsRoutes from './routes/embeddings.routes';
+import embeddingsV2Routes from './routes/embeddings-v2.routes';
 import embeddingProgressRoutes from './routes/embedding-progress.routes';
 import settingsRoutes from './routes/settings.routes';
 import migrationCheckRoutes from './routes/migration-check.routes';
@@ -48,10 +50,23 @@ const io = new SocketServer(httpServer, {
 
 // Initialize PostgreSQL
 export const pgPool = new Pool({
-  connectionString: process.env.DATABASE_URL || 'postgresql://user:password@91.99.229.96:5432/postgres',
+  connectionString: process.env.DATABASE_URL || process.env.POSTGRES_URL || 'postgresql://postgres:postgres@localhost:5432/postgres',
   max: 20,
   idleTimeoutMillis: 30000,
   connectionTimeoutMillis: 3000
+});
+
+// Initialize ASEMB PostgreSQL
+export const asembPool = new Pool({
+  host: process.env.ASEMB_DB_HOST || 'localhost',
+  port: parseInt(process.env.ASEMB_DB_PORT || '5432'),
+  database: process.env.ASEMB_DB_NAME || 'asemb',
+  user: process.env.ASEMB_DB_USER || 'postgres',
+  password: process.env.ASEMB_DB_PASSWORD || 'postgres',
+  ssl: process.env.ASEMB_DB_SSL === 'true' ? { rejectUnauthorized: false } : false,
+  max: 10,
+  idleTimeoutMillis: 30000,
+  connectionTimeoutMillis: 5000
 });
 
 // Initialize Redis
@@ -105,13 +120,13 @@ app.get('/health', async (req: Request, res: Response) => {
 app.use(searchRoutes);
 app.use(chatRoutes);
 app.use(dashboardRoutes);
-app.use(scraperRoutes);
+app.use('/api/v2/scraper', scraperRoutes);
 app.use('/api/v2/chatbot', chatbotSettingsRoutes);
 app.use(historyRoutes);
 app.use(documentsRoutes);
 app.use('/api/v2/migration', migrationRoutes);
-app.use('/api/v2/embeddings', embeddingsRoutes);
-app.use(embeddingProgressRoutes);
+app.use('/api/v2/embeddings', embeddingsV2Routes);
+app.use('/api/v2/embeddings', embeddingProgressRoutes);
 app.use('/api/v2/settings', settingsRoutes);
 app.use('/api/v2/migration-check', migrationCheckRoutes);
 app.use('/api/v2/rag', ragConfigRoutes);
@@ -209,6 +224,9 @@ app.use((req: Request, res: Response) => {
 import LightRAGService from './services/lightrag.service';
 export let lightRAGService: LightRAGService | null = null;
 
+// Import embeddings progress loader
+import { loadProgressFromRedis } from './routes/embeddings.routes';
+
 // Start server
 const PORT = parseInt(process.env.PORT || '8083');
 httpServer.listen(PORT, async () => {
@@ -230,6 +248,84 @@ httpServer.listen(PORT, async () => {
     lightRAGService = new LightRAGService(pgPool, redis);
     await lightRAGService.initialize();
     console.log('✅ LightRAG service pre-initialized');
+
+    // Load migration progress from Redis
+    console.log('🔄 Loading migration progress from Redis...');
+    await loadProgressFromRedis();
+    console.log('✅ Migration progress loaded');
+
+    // Also check for embedding progress for compatibility
+    console.log('🔄 Checking embedding progress from Redis...');
+    try {
+      const embeddingProgress = await redis.get('embedding:progress');
+      if (embeddingProgress) {
+        console.log('📊 Found embedding progress in Redis:', JSON.parse(embeddingProgress));
+      } else {
+        console.log('📊 No embedding progress found in Redis');
+      }
+    } catch (error) {
+      console.error('⚠️ Error checking embedding progress:', error);
+    }
+
+    // Clean up stale embedding progress records
+    console.log('🧹 Cleaning up stale embedding progress records...');
+    try {
+      await pgPool.query(`
+        UPDATE embedding_progress
+        SET status = 'completed', completed_at = CURRENT_TIMESTAMP
+        WHERE status IN ('processing', 'paused')
+        AND started_at < NOW() - INTERVAL '1 hour'
+      `);
+      console.log('✅ Stale progress records cleaned up');
+    } catch (cleanupError) {
+      console.error('⚠️ Failed to clean up stale progress records:', cleanupError);
+    }
+
+    // Check for existing embedding process on startup
+    console.log('🔍 Checking for existing embedding process...');
+    try {
+      const existingProcess = await pgPool.query(`
+        SELECT * FROM embedding_progress
+        WHERE status IN ('processing', 'paused')
+        ORDER BY started_at DESC
+        LIMIT 1
+      `);
+
+      if (existingProcess.rows.length > 0) {
+        const process = existingProcess.rows[0];
+        console.log(`Found existing process: status=${process.status}, table=${process.document_type}`);
+
+        // If process was 'processing', mark it as 'paused' for safety
+        if (process.status === 'processing') {
+          console.log('⚠️ Found orphaned processing process, marking as paused');
+          await pgPool.query(`
+            UPDATE embedding_progress
+            SET status = 'paused'
+            WHERE id = $1
+          `, [process.id]);
+
+          // Also update Redis
+          await redis.set('embedding:status', 'paused');
+          const progressData = {
+            status: 'paused',
+            current: process.processed_chunks || 0,
+            total: process.total_chunks || 0,
+            percentage: process.total_chunks > 0 ? Math.round((process.processed_chunks / process.total_chunks) * 100) : 0,
+            currentTable: process.document_type,
+            error: process.error_message,
+            startTime: new Date(process.started_at).getTime(),
+            newlyEmbedded: process.processed_chunks || 0,
+            errorCount: process.error_message ? 1 : 0,
+            processedTables: process.document_type ? [process.document_type] : []
+          };
+          await redis.set('embedding:progress', JSON.stringify(progressData), 'EX', 7 * 24 * 60 * 60);
+          console.log('✅ Updated embedding:progress for paused process');
+          console.log('✅ Process marked as paused, user can resume manually');
+        }
+      }
+    } catch (checkError) {
+      console.error('⚠️ Failed to check existing processes:', checkError);
+    }
     
     // Publish startup event
     await redis.publish('asb:backend:status', JSON.stringify({

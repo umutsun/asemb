@@ -8,6 +8,7 @@ import { ChatGoogleGenerativeAI } from '@langchain/google-genai';
 import { PromptTemplate } from '@langchain/core/prompts';
 import { Pool } from 'pg';
 import Redis from 'ioredis';
+import { getAiSettings } from '../config/database.config';
 
 export class LightRAGService {
   private vectorStore: MemoryVectorStore | null = null;
@@ -21,54 +22,11 @@ export class LightRAGService {
   constructor(pool: Pool, redis: Redis) {
     this.pool = pool;
     this.redis = redis;
-    
-    // Initialize embeddings - try different providers
-    this.initializeEmbeddings();
-    
-    // Initialize LLM with multiple fallback options
-    this.initializeLLM();
+
+    // Initialize embeddings and LLM will be done in initialize() method
   }
 
-  private initializeEmbeddings() {
-    // Try OpenAI first (primary)
-    if (process.env.OPENAI_API_KEY) {
-      try {
-        this.embeddings = new OpenAIEmbeddings({
-          openAIApiKey: process.env.OPENAI_API_KEY,
-          modelName: 'text-embedding-ada-002'
-        });
-        console.log('🎯 Using OpenAI for embeddings');
-        return;
-      } catch (error) {
-        console.log('⚠️ OpenAI embeddings initialization failed');
-      }
-    }
-
-    // Fallback to Deepseek (OpenAI compatible)
-    if (process.env.DEEPSEEK_API_KEY) {
-      try {
-        this.embeddings = new OpenAIEmbeddings({
-          openAIApiKey: process.env.DEEPSEEK_API_KEY,
-          modelName: 'text-embedding-ada-002',
-          configuration: {
-            baseURL: 'https://api.deepseek.com/v1'
-          }
-        });
-        console.log('🎯 Using Deepseek for embeddings');
-        return;
-      } catch (error) {
-        console.log('⚠️ Deepseek embeddings initialization failed');
-      }
-    }
-
-    // If no embeddings available, we'll use a dummy one
-    console.log('⚠️ No embedding provider available, using fallback');
-    this.embeddings = {
-      embedQuery: async (text: string) => Array(1536).fill(0.1),
-      embedDocuments: async (texts: string[]) => texts.map(() => Array(1536).fill(0.1))
-    };
-  }
-
+  
   private initializeLLM() {
     // Priority order: OpenAI -> Gemini -> Deepseek -> Claude
     
@@ -153,7 +111,13 @@ export class LightRAGService {
   async initialize() {
     try {
       console.log('🚀 Initializing LightRAG service...');
-      
+
+      // Initialize embeddings first
+      await this.initializeEmbeddings();
+
+      // Initialize LLM
+      this.initializeLLM();
+
       // Load documents from PostgreSQL
       const documents = await this.loadDocumentsFromDB();
       
@@ -561,6 +525,172 @@ export class LightRAGService {
     } catch (error) {
       console.error(`Error deleting document ${id}:`, error);
       throw error;
+    }
+  }
+
+  /**
+   * Create embedding for a text using LightRAG's embedding provider
+   */
+  async createEmbedding(text: string, forceProvider?: 'openai' | 'deepseek'): Promise<number[]> {
+    if (!this.embeddings || forceProvider) {
+      // Try to initialize if not already done or if force provider is specified
+      await this.initializeEmbeddings(forceProvider);
+    }
+    if (!this.embeddings) {
+      throw new Error('Embeddings not initialized');
+    }
+
+    try {
+      // Use the embeddings provider to create embedding
+      const result = await this.embeddings.embedQuery(text);
+      return result;
+    } catch (error) {
+      console.error('LightRAG embedding creation failed:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Initialize embeddings with optional provider override
+   */
+  private async initializeEmbeddings(forceProvider?: 'openai' | 'deepseek' | 'ollama' | 'lightrag') {
+    try {
+      // Check if we should use local embeddings
+      const useLocalEmbeddings = process.env.USE_LOCAL_EMBEDDINGS === 'true';
+      
+      if (useLocalEmbeddings && !forceProvider) {
+        console.log('🏠 USE_LOCAL_EMBEDDINGS is true, using fallback embeddings');
+        this.embeddings = {
+          embedQuery: async (text: string) => Array(1536).fill(0).map(() => Math.random() * 2 - 1),
+          embedDocuments: async (texts: string[]) => texts.map(() => Array(1536).fill(0).map(() => Math.random() * 2 - 1))
+        };
+        this.currentProvider = 'local';
+        return;
+      }
+
+      // Get AI settings from database
+      const aiSettings = await getAiSettings();
+      console.log('📊 AI Settings from database:', JSON.stringify(aiSettings, null, 2));
+
+      let openaiApiKey = aiSettings?.openaiApiKey || process.env.OPENAI_API_KEY;
+      let deepseekApiKey = aiSettings?.deepseekApiKey || process.env.DEEPSEEK_API_KEY;
+      const openaiApiBase = aiSettings?.openaiApiBase || process.env.OPENAI_API_BASE || 'https://api.openai.com/v1';
+
+      // Get embedding provider from settings
+      const embeddingProvider = forceProvider || aiSettings?.embeddingProvider || 'openai';
+      console.log('🎯 Embedding Provider:', embeddingProvider);
+
+      // If force provider is specified, use that
+      if (forceProvider === 'deepseek') {
+        openaiApiKey = null; // Force disable OpenAI
+        console.log('🔧 Forcing DeepSeek provider');
+      } else if (forceProvider === 'openai') {
+        deepseekApiKey = null; // Force disable DeepSeek
+        console.log('🔧 Forcing OpenAI provider');
+      } else if (forceProvider === 'ollama') {
+        openaiApiKey = null;
+        deepseekApiKey = null;
+        console.log('🔧 Forcing Ollama provider');
+      }
+
+      console.log('🔑 OpenAI Key:', openaiApiKey ? 'Found' : 'Not found');
+      console.log('🔑 DeepSeek Key:', deepseekApiKey ? 'Found' : 'Not found');
+
+      // Try OpenAI first (primary)
+      if (openaiApiKey) {
+        try {
+          this.embeddings = new OpenAIEmbeddings({
+            openAIApiKey: openaiApiKey,
+            modelName: 'text-embedding-ada-002',
+            configuration: {
+              baseURL: openaiApiBase
+            }
+          });
+          console.log('🎯 Using OpenAI for embeddings');
+          this.currentProvider = 'openai';
+          return;
+        } catch (error) {
+          console.log('⚠️ OpenAI embeddings initialization failed:', error);
+        }
+      }
+
+      // Fallback to Deepseek (OpenAI compatible)
+      if (deepseekApiKey) {
+        try {
+          // DeepSeek uses 'deepseek-chat' model for both chat and embeddings
+          // As per their API documentation: https://platform.deepseek.com/api-docs
+          this.embeddings = new OpenAIEmbeddings({
+            openAIApiKey: deepseekApiKey,
+            modelName: 'deepseek-chat',  // DeepSeek's actual model name
+            configuration: {
+              baseURL: 'https://api.deepseek.com/v1'
+            }
+          });
+          console.log('🎯 Using Deepseek for embeddings with deepseek-chat model');
+          this.currentProvider = 'deepseek';
+          return;
+        } catch (error: any) {
+          console.log('⚠️ Deepseek embeddings initialization failed:', error.message);
+          
+          // If DeepSeek fails, don't try alternative model names as they won't work
+          // Just log and continue to fallback
+          console.log('⚠️ DeepSeek API might not support embeddings or API key is invalid');
+        }
+      }
+
+      // If no embeddings available, we'll use local embeddings with better randomization
+      console.log('⚠️ No embedding provider available, using local embeddings');
+      this.embeddings = {
+        embedQuery: async (text: string) => {
+          // Generate deterministic but varied embeddings based on text
+          const embedding = Array(1536).fill(0);
+          for (let i = 0; i < Math.min(text.length, 1000); i++) {
+            const idx = (text.charCodeAt(i) * (i + 1)) % 1536;
+            embedding[idx] += Math.sin(text.charCodeAt(i) * 0.01 + i * 0.001);
+          }
+          // Normalize
+          const mag = Math.sqrt(embedding.reduce((s, v) => s + v * v, 0));
+          return mag > 0 ? embedding.map(v => v / mag) : embedding;
+        },
+        embedDocuments: async (texts: string[]) => {
+          return texts.map(text => {
+            const embedding = Array(1536).fill(0);
+            for (let i = 0; i < Math.min(text.length, 1000); i++) {
+              const idx = (text.charCodeAt(i) * (i + 1)) % 1536;
+              embedding[idx] += Math.sin(text.charCodeAt(i) * 0.01 + i * 0.001);
+            }
+            const mag = Math.sqrt(embedding.reduce((s, v) => s + v * v, 0));
+            return mag > 0 ? embedding.map(v => v / mag) : embedding;
+          });
+        }
+      };
+      this.currentProvider = 'local';
+    } catch (error) {
+      console.error('Failed to initialize embeddings:', error);
+      // Use local embeddings as fallback
+      this.embeddings = {
+        embedQuery: async (text: string) => {
+          const embedding = Array(1536).fill(0);
+          for (let i = 0; i < Math.min(text.length, 1000); i++) {
+            const idx = (text.charCodeAt(i) * (i + 1)) % 1536;
+            embedding[idx] += Math.sin(text.charCodeAt(i) * 0.01 + i * 0.001);
+          }
+          const mag = Math.sqrt(embedding.reduce((s, v) => s + v * v, 0));
+          return mag > 0 ? embedding.map(v => v / mag) : embedding;
+        },
+        embedDocuments: async (texts: string[]) => {
+          return texts.map(text => {
+            const embedding = Array(1536).fill(0);
+            for (let i = 0; i < Math.min(text.length, 1000); i++) {
+              const idx = (text.charCodeAt(i) * (i + 1)) % 1536;
+              embedding[idx] += Math.sin(text.charCodeAt(i) * 0.01 + i * 0.001);
+            }
+            const mag = Math.sqrt(embedding.reduce((s, v) => s + v * v, 0));
+            return mag > 0 ? embedding.map(v => v / mag) : embedding;
+          });
+        }
+      };
+      this.currentProvider = 'local';
     }
   }
 }

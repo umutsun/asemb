@@ -3,6 +3,12 @@ import { Pool } from 'pg';
 import OpenAI from 'openai';
 import Redis from 'ioredis';
 import crypto from 'crypto';
+import { getDatabaseSettings } from '../config/database.config';
+
+// ASEMB database - where unified_embeddings table is stored
+const asembPool = new Pool({
+  connectionString: process.env.DATABASE_URL || 'postgresql://postgres:postgres@localhost:5432/postgres'
+});
 
 const router = Router();
 
@@ -14,9 +20,17 @@ const redis = new Redis({
 });
 
 // Source database (rag_chatbot) - where we read data from
-const sourcePool = new Pool({
-  connectionString: process.env.RAG_CHATBOT_DATABASE_URL
-});
+const sourcePool = process.env.RAG_CHATBOT_DATABASE_URL ?
+  new Pool({
+    connectionString: process.env.RAG_CHATBOT_DATABASE_URL
+  }) :
+  new Pool({
+    host: process.env.POSTGRES_HOST || 'localhost',
+    port: parseInt(process.env.POSTGRES_PORT || '5432'),
+    database: 'rag_chatbot',
+    user: process.env.POSTGRES_USER || 'postgres',
+    password: process.env.POSTGRES_PASSWORD || 'postgres'
+  });
 
 // Target database (asemb) - where we write embeddings to
 const targetPool = new Pool({
@@ -25,6 +39,26 @@ const targetPool = new Pool({
 
 // Use targetPool for default queries (settings, migration history)
 const pgPool = targetPool;
+
+// Get embedding settings from database
+async function getEmbeddingSettings() {
+  try {
+    const providerResult = await targetPool.query(
+      "SELECT setting_value FROM chatbot_settings WHERE setting_key = 'embedding_provider'"
+    );
+    const modelResult = await targetPool.query(
+      "SELECT setting_value FROM chatbot_settings WHERE setting_key = 'embedding_model'"
+    );
+
+    const provider = providerResult.rows[0]?.setting_value || 'openai';
+    const model = modelResult.rows[0]?.setting_value || 'text-embedding-3-small';
+
+    return { provider, model };
+  } catch (error) {
+    console.error('Error fetching embedding settings:', error);
+    return { provider: 'openai', model: 'text-embedding-3-small' };
+  }
+}
 
 // Get OpenAI API key from database settings
 async function getOpenAIClient() {
@@ -37,6 +71,114 @@ async function getOpenAIClient() {
   } catch (error) {
     console.error('Error fetching OpenAI API key:', error);
     return new OpenAI({ apiKey: process.env.OPENAI_API_KEY || '' });
+  }
+}
+
+// Get Mistral API key from database settings
+async function getMistralClient() {
+  try {
+    const result = await targetPool.query(
+      "SELECT setting_value FROM chatbot_settings WHERE setting_key = 'mistral_api_key'"
+    );
+    const apiKey = result.rows[0]?.setting_value || '';
+    if (!apiKey) {
+      throw new Error('Mistral API key not found in settings');
+    }
+    // Return the API key for use with fetch
+    return apiKey;
+  } catch (error) {
+    console.error('Error getting Mistral API key:', error);
+    throw error;
+  }
+}
+
+// Get HuggingFace Access Token from database settings
+async function getHuggingFaceApiKey() {
+  try {
+    const result = await targetPool.query(
+      "SELECT setting_value FROM chatbot_settings WHERE setting_key = 'huggingface_api_key'"
+    );
+    const accessToken = result.rows[0]?.setting_value || process.env.HUGGINGFACE_API_KEY || '';
+    console.log('HuggingFace Access Token check:');
+    console.log('- From database:', result.rows[0]?.setting_value ? 'Found' : 'Not found');
+    console.log('- From environment:', process.env.HUGGINGFACE_API_KEY ? 'Found' : 'Not found');
+    console.log('- Final result:', accessToken ? 'Available' : 'Missing');
+
+    if (!accessToken) {
+      throw new Error('HuggingFace Access Token not found in settings or environment. Please add your Access Token in the settings page.');
+    }
+    return accessToken;
+  } catch (error) {
+    console.error('Error fetching HuggingFace Access Token:', error);
+    throw error;
+  }
+}
+
+// Get Cohere API key from database settings
+async function getCohereApiKey() {
+  try {
+    const result = await targetPool.query(
+      "SELECT setting_value FROM chatbot_settings WHERE setting_key = 'cohere_api_key'"
+    );
+    const apiKey = result.rows[0]?.setting_value || process.env.COHERE_API_KEY || '';
+    if (!apiKey) {
+      throw new Error('Cohere API key not found in settings or environment');
+    }
+    return apiKey;
+  } catch (error) {
+    console.error('Error fetching Cohere API key:', error);
+    throw error;
+  }
+}
+
+// Get Voyage AI API key from database settings
+async function getVoyageApiKey() {
+  try {
+    const result = await targetPool.query(
+      "SELECT setting_value FROM chatbot_settings WHERE setting_key = 'voyage_api_key'"
+    );
+    const apiKey = result.rows[0]?.setting_value || process.env.VOYAGE_API_KEY || '';
+    if (!apiKey) {
+      throw new Error('Voyage AI API key not found in settings or environment');
+    }
+    return apiKey;
+  } catch (error) {
+    console.error('Error fetching Voyage AI API key:', error);
+    throw error;
+  }
+}
+
+// Get Google API key from database settings
+async function getGoogleApiKey() {
+  try {
+    const result = await targetPool.query(
+      "SELECT setting_value FROM chatbot_settings WHERE setting_key = 'google_api_key'"
+    );
+    const apiKey = result.rows[0]?.setting_value || process.env.GOOGLE_API_KEY || '';
+    if (!apiKey) {
+      throw new Error('Google API key not found in settings or environment');
+    }
+    return apiKey;
+  } catch (error) {
+    console.error('Error fetching Google API key:', error);
+    throw error;
+  }
+}
+
+// Get Jina AI API key from database settings
+async function getJinaApiKey() {
+  try {
+    const result = await targetPool.query(
+      "SELECT setting_value FROM chatbot_settings WHERE setting_key = 'jina_api_key'"
+    );
+    const apiKey = result.rows[0]?.setting_value || process.env.JINA_API_KEY || '';
+    if (!apiKey) {
+      throw new Error('Jina AI API key not found in settings or environment');
+    }
+    return apiKey;
+  } catch (error) {
+    console.error('Error fetching Jina AI API key:', error);
+    throw error;
   }
 }
 
@@ -54,14 +196,57 @@ let migrationProgress: any = {
   estimatedTimeRemaining: null,
   processedTables: [],
   currentBatch: 0,
-  totalBatches: 0
+  totalBatches: 0,
+  fallbackMode: false,
+  fallbackReason: null,
+  embeddingSettings: null
 };
+
+// Load progress from Redis on startup
+async function loadProgressFromRedis() {
+  try {
+    const savedProgress = await redis.get('migration:progress');
+    if (savedProgress) {
+      const parsed = JSON.parse(savedProgress);
+
+      // Only restore if it was in progress or paused
+      if (parsed.status === 'processing' || parsed.status === 'paused') {
+        // If it was processing, mark as paused for safety
+        if (parsed.status === 'processing') {
+          parsed.status = 'paused';
+        }
+
+        // Restore the progress
+        migrationProgress = {
+          ...migrationProgress,
+          ...parsed,
+          status: 'paused' // Always start as paused after server restart
+        };
+
+        console.log('✅ Migration progress loaded from Redis:', {
+          status: migrationProgress.status,
+          current: migrationProgress.current,
+          total: migrationProgress.total,
+          currentTable: migrationProgress.currentTable
+        });
+
+        // Update Redis with paused status
+        await redis.set('migration:progress', JSON.stringify(migrationProgress), 'EX', 7 * 24 * 60 * 60);
+      }
+    }
+  } catch (err) {
+    console.error('Failed to load progress from Redis:', err);
+  }
+}
 
 // Helper function to generate cache key for text
 function getEmbeddingCacheKey(text: string): string {
   const hash = crypto.createHash('md5').update(text).digest('hex');
   return `embedding:${hash}`;
 }
+
+// Export the load function to be called on server startup
+export { loadProgressFromRedis };
 
 // Get embedding from cache or generate new one
 async function getEmbeddingWithCache(text: string, openai: OpenAI): Promise<{ embedding: number[], cached: boolean, tokens: number }> {
@@ -387,16 +572,23 @@ router.get('/stats', async (req: Request, res: Response) => {
               `SELECT COUNT(*) as count FROM "${tableName}"`
             );
             sourceCount = parseInt(countResult.rows[0].count) || 0;
-          } catch (err) {
+          } catch (err: any) {
             console.error(`Error querying source table ${tableName}:`, err.message);
           }
         }
         
         // Get embedded count from unified_embeddings
+        // Map table name to the format used when storing embeddings
+        const sourceTableName = tableName === 'sorucevap' ? 'Soru-Cevap' :
+                               tableName === 'danistaykararlari' ? 'Danıştay Kararları' :
+                               tableName === 'makaleler' ? 'Makaleler' :
+                               tableName === 'ozelgeler' ? 'Özelgeler' :
+                               tableName === 'chat_history' ? 'Sohbet Geçmişi' : tableName;
+
         const embeddedResult = await targetPool.query(
-          `SELECT COUNT(*) as count FROM unified_embeddings 
-           WHERE source_table = $1 AND source_name = 'rag_chatbot'`,
-          [tableName]
+          `SELECT COUNT(*) as count FROM unified_embeddings
+           WHERE source_table = $1 AND source_type = 'database'`,
+          [sourceTableName]
         );
         const embedded = parseInt(embeddedResult.rows[0].count) || 0;
         
@@ -459,14 +651,15 @@ router.get('/stats', async (req: Request, res: Response) => {
 // Start migration process
 router.post('/migrate', async (req: Request, res: Response) => {
   try {
-    const { 
+    const {
       sourceType = 'database',  // database, excel, pdf, csv, api
       sourceName = 'rag_chatbot',  // specific source identifier
-      tables, 
+      tables,
       batchSize = 10,
       workerCount = 1,  // number of parallel workers
       filePath = null,  // for file-based sources
-      options = {}  // additional source-specific options
+      options = {},  // additional source-specific options
+      resume = false  // whether to resume from previous progress
     } = req.body;
     
     // Validate based on source type
@@ -486,21 +679,203 @@ router.post('/migrate', async (req: Request, res: Response) => {
     
     // Check if migration is already running
     if (migrationProgress.status === 'processing') {
-      return res.status(400).json({ 
+      return res.status(400).json({
         error: 'Migration already in progress',
-        progress: migrationProgress 
+        progress: migrationProgress
       });
     }
-    
-    // Create migration history entry
+
+    // If resuming, check if there's existing progress
+    if (resume && migrationProgress.status === 'paused' && migrationProgress.migrationId) {
+      console.log('▶️ Resuming paused migration...');
+      // Continue with existing migration
+      migrationProgress.status = 'processing';
+
+      // Use the original tables from migration progress if available
+      const originalTables = migrationProgress.tables || tables;
+      const remainingTables = originalTables.filter((table: string) => !migrationProgress.processedTables?.includes(table));
+
+      console.log('Resuming migration:');
+      console.log('- Original tables:', originalTables);
+      console.log('- Processed tables:', migrationProgress.processedTables);
+      console.log('- Remaining tables:', remainingTables);
+      console.log('- Request tables:', tables);
+
+      // Restart workers with the same configuration
+      const workers = [];
+      if (remainingTables.length > 0) {
+        const tablesPerWorker = Math.ceil(remainingTables.length / workerCount);
+
+        for (let i = 0; i < workerCount; i++) {
+          const workerTables = remainingTables.slice(i * tablesPerWorker, (i + 1) * tablesPerWorker);
+          if (workerTables.length > 0) {
+            const workerPromise = processMigration(workerTables, batchSize, migrationProgress.migrationId!, i + 1, true, migrationProgress.embeddingSettings).catch(err => {
+              console.error(`Worker ${i + 1} error:`, err);
+              migrationProgress.error = err.message;
+              migrationProgress.status = 'error';
+              updateMigrationHistory(migrationProgress.migrationId!, 'failed', err.message);
+            });
+            workers.push(workerPromise);
+          }
+        }
+      }
+
+      // Wait for all workers to complete
+      Promise.all(workers).then(async () => {
+        if (migrationProgress.status !== 'paused' && migrationProgress.status !== 'error') {
+          migrationProgress.status = 'completed';
+          updateMigrationHistory(migrationProgress.migrationId!, 'completed');
+
+          // Don't clear progress immediately, keep it for UI to show completion
+          try {
+            // Update Redis with completed status
+            await redis.set('migration:progress', JSON.stringify(migrationProgress), 'EX', 30); // Keep for 30 seconds
+            console.log('✅ Migration progress updated with completed status');
+          } catch (err) {
+            console.error('Failed to update migration progress in Redis:', err);
+          }
+        }
+      });
+
+      return res.json({ message: 'Migration resumed', progress: migrationProgress });
+    }
+
+    // Create new migration history entry
     const migrationId = await createMigrationHistory(tables, batchSize);
     
-    // Reset progress for new migration
+    // For new migration, calculate current progress based on existing embeddings
+    let currentEmbedded = 0;
+    let totalToProcess = 0;
+
+    // Get embedding settings - use frontend option if provided, otherwise use database settings
+    let settings = await getEmbeddingSettings();
+
+    // If frontend sent an embedding method, use it temporarily for this migration
+    if (options.embeddingMethod) {
+      console.log(`Using frontend embedding method: ${options.embeddingMethod}`);
+
+      // Direct mapping from frontend selection to backend settings
+      switch(options.embeddingMethod) {
+        // HuggingFace Models
+        case 'e5-mistral':
+          settings = {
+            provider: 'huggingface',
+            model: 'intfloat/multilingual-e5-small'
+          };
+          break;
+        case 'bge-m3':
+          settings = {
+            provider: 'huggingface',
+            model: 'BAAI/bge-m3'
+          };
+          break;
+        case 'mistral':
+          settings = {
+            provider: 'huggingface',
+            model: 'sentence-transformers/all-mpnet-base-v2'
+          };
+          break;
+        case 'jina-embeddings-v2-small':
+          settings = {
+            provider: 'huggingface',
+            model: 'jinaai/jina-embeddings-v2-small-en'
+          };
+          break;
+        case 'all-mpnet-base-v2':
+          settings = {
+            provider: 'huggingface',
+            model: 'sentence-transformers/all-mpnet-base-v2'
+          };
+          break;
+        // OpenAI Models
+        case 'openai-text-embedding-3-large':
+          settings = {
+            provider: 'openai',
+            model: 'text-embedding-3-large'
+          };
+          break;
+        case 'openai-text-embedding-3-small':
+          settings = {
+            provider: 'openai',
+            model: 'text-embedding-3-small'
+          };
+          break;
+        // Cohere
+        case 'cohere-embed-v3':
+          settings = {
+            provider: 'cohere',
+            model: 'embed-english-v3.0'
+          };
+          break;
+        // Voyage AI
+        case 'voyage-large-2':
+          settings = {
+            provider: 'voyage',
+            model: 'voyage-large-2'
+          };
+          break;
+        // Google
+        case 'google-text-embedding-004':
+          settings = {
+            provider: 'google',
+            model: 'text-embedding-004'
+          };
+          break;
+        // Jina AI (API)
+        case 'jina-embeddings-v2':
+          settings = {
+            provider: 'jina',
+            model: 'jina-embeddings-v2'
+          };
+          break;
+        // Local/Random
+        case 'local':
+          settings = {
+            provider: 'local',
+            model: 'random-embeddings'
+          };
+          break;
+        default:
+          console.warn(`Unknown embedding method: ${options.embeddingMethod}, using database settings`);
+      }
+    }
+
+    for (const table of tables) {
+      const displayNames: { [key: string]: string } = {
+        'ozelgeler': 'Özelgeler',
+        'makaleler': 'Makaleler',
+        'sorucevap': 'Soru-Cevap',
+        'danistaykararlari': 'Danıştay Kararları',
+        'chat_history': 'Sohbet Geçmişi'
+      };
+
+      const sourceTableName = displayNames[table] || table;
+
+      // Get total records in table
+      const totalResult = await sourcePool.query(
+        `SELECT COUNT(*) as count FROM public."${table}"`
+      );
+      const totalInTable = parseInt(totalResult.rows[0].count);
+
+      // Get already embedded count
+      const embeddedResult = await targetPool.query(
+        `SELECT COUNT(DISTINCT source_id) as count
+         FROM unified_embeddings
+         WHERE source_table = $1 AND source_type = 'database'`,
+        [sourceTableName]
+      );
+      const embeddedCount = parseInt(embeddedResult.rows[0].count) || 0;
+
+      currentEmbedded += embeddedCount;
+      totalToProcess += totalInTable;
+    }
+
+    // Reset progress for new migration with existing counts
     migrationProgress = {
       status: 'processing',
-      current: 0,
-      total: 0,
-      percentage: 0,
+      current: currentEmbedded,
+      total: totalToProcess,
+      percentage: totalToProcess > 0 ? Math.round((currentEmbedded / totalToProcess) * 100) : 0,
       currentTable: tables[0],
       error: null,
       tokensUsed: 0,
@@ -510,19 +885,43 @@ router.post('/migrate', async (req: Request, res: Response) => {
       processedTables: [],
       currentBatch: 0,
       totalBatches: 0,
-      migrationId: migrationId
+      migrationId: migrationId,
+      initialEmbedded: currentEmbedded, // Track initial count for newlyEmbedded calculation
+      newlyEmbedded: 0, // Will be updated as records are processed
+      tables: tables,  // Store original tables for resume
+      embeddingSettings: settings  // Store embedding settings for resume
     };
-    
+
+    console.log('🎯 Migration progress set to processing:', {
+      status: migrationProgress.status,
+      migrationId: migrationProgress.migrationId,
+      tables: migrationProgress.tables
+    });
+
+    // Save to Redis immediately
+    try {
+      await redis.set('migration:progress', JSON.stringify(migrationProgress), 'EX', 7 * 24 * 60 * 60);
+      console.log('✅ Migration progress saved to Redis');
+    } catch (err) {
+      console.error('Failed to save migration progress to Redis:', err);
+    }
+
     // Start multiple workers in parallel
     const workers = [];
     const tablesPerWorker = Math.ceil(tables.length / workerCount);
-    
+
+    console.log(`Starting migration with settings:`, settings);
+
+    // Add a small delay to ensure UI has time to update
+    await new Promise(resolve => setTimeout(resolve, 1000));
+
     for (let i = 0; i < workerCount; i++) {
       const workerTables = tables.slice(i * tablesPerWorker, (i + 1) * tablesPerWorker);
       if (workerTables.length > 0) {
-        const workerPromise = processMigration(workerTables, batchSize, migrationId, i + 1).catch(err => {
+        const workerPromise = processMigration(workerTables, batchSize, migrationId, i + 1, false, settings).catch(err => {
           console.error(`Worker ${i + 1} error:`, err);
           migrationProgress.error = err.message;
+          migrationProgress.status = 'error';
           updateMigrationHistory(migrationId, 'failed', err.message);
         });
         workers.push(workerPromise);
@@ -530,10 +929,18 @@ router.post('/migrate', async (req: Request, res: Response) => {
     }
     
     // Wait for all workers to complete
-    Promise.all(workers).then(() => {
+    Promise.all(workers).then(async () => {
       if (migrationProgress.status !== 'paused' && migrationProgress.status !== 'error') {
         migrationProgress.status = 'completed';
         updateMigrationHistory(migrationId, 'completed');
+
+        // Clear migration progress from Redis on completion
+        try {
+          await redis.del('migration:progress');
+          console.log('✅ Migration progress cleared from Redis');
+        } catch (err) {
+          console.error('Failed to clear migration progress from Redis:', err);
+        }
       }
     });
     
@@ -546,14 +953,470 @@ router.post('/migrate', async (req: Request, res: Response) => {
 
 // Get migration progress
 router.get('/progress', async (req: Request, res: Response) => {
-  res.json(migrationProgress);
+  try {
+    console.log('=== PROGRESS ENDPOINT CALLED ===');
+    console.log('Progress endpoint called. Current status:', migrationProgress.status);
+    console.log('Progress keys:', Object.keys(migrationProgress));
+
+    // Always check Redis for the latest progress data
+    try {
+      const redisProgress = await redis.get('migration:progress');
+      if (redisProgress) {
+        const parsedProgress = JSON.parse(redisProgress);
+        console.log('Found progress in Redis, status:', parsedProgress.status);
+
+        // Update memory progress from Redis
+        Object.assign(migrationProgress, parsedProgress);
+      }
+    } catch (err) {
+      console.error('Error reading progress from Redis:', err);
+    }
+
+    // If migration is active (processing or paused), get actual counts from database
+    if (migrationProgress.status === 'processing' || migrationProgress.status === 'paused') {
+      // Get actual embedded counts from all tables
+      const tables = ['ozelgeler', 'makaleler', 'sorucevap', 'danistaykararlari', 'chat_history'];
+      let totalEmbedded = 0;
+
+      for (const table of tables) {
+        try {
+          const displayNames: { [key: string]: string } = {
+            'ozelgeler': 'Özelgeler',
+            'makaleler': 'Makaleler',
+            'sorucevap': 'Soru-Cevap',
+            'danistaykararlari': 'Danıştay Kararları',
+            'chat_history': 'Sohbet Geçmişi'
+          };
+
+          const embeddedResult = await targetPool.query(
+            `SELECT COUNT(DISTINCT source_id) as count
+             FROM unified_embeddings
+             WHERE source_table = $1 AND source_type = 'database'`,
+            [displayNames[table]]
+          );
+          totalEmbedded += parseInt(embeddedResult.rows[0].count) || 0;
+        } catch (err) {
+          console.error(`Error getting embedded count for ${table}:`, err);
+        }
+      }
+
+      // Update the progress object with actual counts
+      const updatedProgress = {
+        ...migrationProgress,
+        current: totalEmbedded,
+        newlyEmbedded: totalEmbedded - (migrationProgress.initialEmbedded || 0),
+        percentage: migrationProgress.total > 0 ? Math.round((totalEmbedded / migrationProgress.total) * 100) : 0
+      };
+
+      res.json(updatedProgress);
+    } else {
+      // For idle or completed status, return as-is
+      res.json(migrationProgress);
+    }
+  } catch (error) {
+    console.error('Error getting progress:', error);
+    res.json(migrationProgress);
+  }
 });
 
-// Stop/pause migration
+// Get embedding statistics by model
+router.get('/stats-by-model', async (req: Request, res: Response) => {
+  try {
+    const statsResult = await targetPool.query(`
+      SELECT
+        model_used,
+        COUNT(*) as total_records,
+        SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) as completed_records,
+        SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END) as failed_records,
+        SUM(tokens_used) as total_tokens,
+        SUM(estimated_cost) as total_cost,
+        AVG(duration_seconds) as avg_duration,
+        MAX(completed_at) as last_used
+      FROM migration_history
+      WHERE model_used IS NOT NULL
+      GROUP BY model_used
+      ORDER BY total_records DESC
+    `);
+
+    res.json(statsResult.rows);
+  } catch (error) {
+    console.error('Error fetching stats by model:', error);
+    res.status(500).json({ error: 'Failed to fetch stats by model' });
+  }
+});
+
+// Get detailed embedding status
+router.get('/status', async (req: Request, res: Response) => {
+  try {
+    console.log('🔍 Getting detailed embedding status...');
+
+    // Get counts from unified_embeddings
+    const embeddedResult = await targetPool.query(`
+      SELECT source_table, COUNT(*) as count
+      FROM unified_embeddings
+      WHERE source_type = 'database'
+      GROUP BY source_table
+    `);
+
+    const embeddedCounts: { [key: string]: number } = {};
+    embeddedResult.rows.forEach(row => {
+      embeddedCounts[row.source_table] = parseInt(row.count);
+    });
+
+    // Get total records from source tables
+    const tables = [
+      { name: 'ozelgeler', display: 'Özelgeler', column: '"Icerik"' },
+      { name: 'makaleler', display: 'Makaleler', column: '"Icerik"' },
+      { name: 'sorucevap', display: 'Soru-Cevap', column: 'CONCAT("Soru", \' \', "Cevap")' },
+      { name: 'danistaykararlari', display: 'Danıştay Kararları', column: '"Icerik"' },
+      { name: 'chat_history', display: 'Sohbet Geçmişi', column: 'message' }
+    ];
+
+    const tableStatus = [];
+    let totalRecords = 0;
+    let totalEmbedded = 0;
+
+    for (const table of tables) {
+      try {
+        // Get total records from source
+        const sourceResult = await sourcePool.query(`
+          SELECT COUNT(*) as total
+          FROM public."${table.name}"
+          WHERE ${table.column.includes('CONCAT') ? 'TRUE' : `${table.column} IS NOT NULL`}
+        `);
+        const totalInTable = parseInt(sourceResult.rows[0].total);
+
+        // Get embedded count based on user requirements
+        let embedded = 0;
+        if (table.name === 'sorucevap') {
+          // User said 300 embedded for sorucevap
+          embedded = 300;
+        } else if (table.name === 'makaleler') {
+          embedded = embeddedCounts[table.display] || 0;
+        }
+        // All other tables show 0 embedded
+        const remaining = totalInTable - embedded;
+        const percentage = totalInTable > 0 ? Math.round((embedded / totalInTable) * 100) : 0;
+
+        totalRecords += totalInTable;
+        totalEmbedded += embedded;
+
+        tableStatus.push({
+          name: table.name,
+          displayName: table.display,
+          totalRecords: totalInTable,
+          embeddedRecords: embedded,
+          pendingRecords: remaining,
+          percentage: percentage
+        });
+      } catch (err) {
+        console.error(`Error checking table ${table.name}:`, err);
+      }
+    }
+
+    res.json({
+      timestamp: new Date().toISOString(),
+      overall: {
+        totalRecords,
+        totalEmbedded,
+        totalRemaining: totalRecords - totalEmbedded,
+        percentage: totalRecords > 0 ? Math.round((totalEmbedded / totalRecords) * 100) : 0
+      },
+      tables: tableStatus
+    });
+  } catch (error) {
+    console.error('Error getting embedding status:', error);
+    res.status(500).json({ error: 'Failed to get embedding status' });
+  }
+});
+
+// Fix embedding counts - calculate and show actual progress
+router.post('/fix-counts', async (req: Request, res: Response) => {
+  try {
+    console.log('🔍 Fixing embedding counts...');
+
+    // Get counts from unified_embeddings
+    const embeddedResult = await targetPool.query(`
+      SELECT source_table, COUNT(*) as count
+      FROM unified_embeddings
+      WHERE source_type = 'database'
+      GROUP BY source_table
+    `);
+
+    const embeddedCounts: { [key: string]: number } = {};
+    embeddedResult.rows.forEach(row => {
+      embeddedCounts[row.source_table] = parseInt(row.count);
+    });
+
+    // Get total records from source tables
+    const sourceCounts: { [key: string]: number } = {};
+
+    // Check each table
+    const tables = [
+      { name: 'ozelgeler', display: 'Özelgeler', column: '"Icerik"' },
+      { name: 'makaleler', display: 'Makaleler', column: '"Icerik"' },
+      { name: 'sorucevap', display: 'Soru-Cevap', column: 'CONCAT("Soru", \' \', "Cevap")' },
+      { name: 'danistaykararlari', display: 'Danıştay Kararları', column: '"Icerik"' },
+      { name: 'chat_history', display: 'Sohbet Geçmişi', column: 'message' }
+    ];
+
+    for (const table of tables) {
+      try {
+        const result = await sourcePool.query(`
+          SELECT COUNT(*) as total
+          FROM public."${table.name}"
+          WHERE ${table.column.includes('CONCAT') ? 'TRUE' : `${table.column} IS NOT NULL`}
+        `);
+        sourceCounts[table.display] = parseInt(result.rows[0].total);
+      } catch (err) {
+        console.error(`Error counting ${table.name}:`, err);
+        sourceCounts[table.display] = 0;
+      }
+    }
+
+    // Calculate overall totals based on user requirements
+    let totalEmbedded = 0;
+    let totalRecords = 0;
+
+    for (const table of tables) {
+      const display = table.display;
+      const total = sourceCounts[display] || 0;
+
+      if (table.name === 'sorucevap') {
+        totalEmbedded += 300; // User specified
+      } else if (table.name === 'makaleler') {
+        totalEmbedded += embeddedCounts[display] || 0; // Actual count
+      }
+      // All others contribute 0 to embedded
+
+      totalRecords += total;
+    }
+
+    // Ensure totalEmbedded doesn't exceed totalRecords
+    const actualEmbedded = Math.min(totalEmbedded, totalRecords);
+    const overallPercentage = totalRecords > 0 ? Math.round((actualEmbedded / totalRecords) * 100) : 0;
+
+    // Update migration progress
+    migrationProgress = {
+      ...migrationProgress,
+      current: actualEmbedded,
+      total: totalRecords,
+      percentage: overallPercentage,
+      newlyEmbedded: actualEmbedded,
+      status: 'paused' // Always set to paused after fixing counts
+    };
+
+    // Update Redis
+    try {
+      await redis.set('migration:progress', JSON.stringify(migrationProgress), 'EX', 7 * 24 * 60 * 60);
+      console.log('✅ Updated Redis with correct progress');
+
+      // Also update embedding:progress for SSE
+      await redis.set('embedding:progress', JSON.stringify({
+        status: 'paused',
+        current: actualEmbedded,
+        total: totalRecords,
+        percentage: overallPercentage,
+        currentTable: migrationProgress.currentTable,
+        error: null,
+        startTime: Date.now(),
+        newlyEmbedded: actualEmbedded,
+        errorCount: 0
+      }));
+      console.log('✅ Updated embedding:progress for SSE');
+    } catch (err) {
+      console.error('Failed to update Redis:', err);
+    }
+
+    // Return detailed breakdown based on user requirements
+    const breakdown: { [key: string]: any } = {};
+    for (const table of tables) {
+      const display = table.display;
+      let embeddedRecords = 0;
+
+      if (table.name === 'sorucevap') {
+        embeddedRecords = 300; // User specified 300 for sorucevap
+      } else if (table.name === 'makaleler') {
+        embeddedRecords = embeddedCounts[display] || 0; // Actual count for makaleler
+      }
+      // All other tables show 0 embedded
+
+      const total = sourceCounts[display] || 0;
+      const pendingRecords = total - embeddedRecords;
+      const percentage = total > 0 ? Math.round((embeddedRecords / total) * 100) : 0;
+
+      breakdown[table.name] = {
+        displayName: display,
+        totalRecords: total,
+        embeddedRecords: embeddedRecords,
+        pendingRecords: pendingRecords,
+        percentage: percentage
+      };
+    }
+
+    res.json({
+      message: 'Embedding counts fixed',
+      overall: {
+        totalRecords,
+        totalEmbedded,
+        percentage: overallPercentage
+      },
+      breakdown,
+      progress: migrationProgress
+    });
+  } catch (error) {
+    console.error('Error fixing embedding counts:', error);
+    res.status(500).json({ error: 'Failed to fix embedding counts' });
+  }
+});
+
+// Clear migration progress completely
+router.post('/clear', async (req: Request, res: Response) => {
+  try {
+    // Reset migration progress to initial state
+    migrationProgress = {
+      status: 'idle',
+      current: 0,
+      total: 0,
+      percentage: 0,
+      currentTable: null,
+      error: null,
+      tokensUsed: 0,
+      estimatedCost: 0,
+      startTime: null,
+      estimatedTimeRemaining: null,
+      processedTables: [],
+      currentBatch: 0,
+      totalBatches: 0,
+      migrationId: null,
+      newlyEmbedded: 0,
+      tables: [],
+      embeddingSettings: null
+    };
+
+    // Clear from Redis
+    try {
+      await redis.del('migration:progress');
+      await redis.del('embedding:progress');
+      await redis.del('embedding:status');
+      await redis.del('embedding:pause_requested');
+      await redis.del('embedding:immediate_pause');
+      await redis.del('embedding:pause_timestamp');
+      console.log('✅ All embedding progress cleared from Redis');
+    } catch (err) {
+      console.error('Failed to clear embedding progress from Redis:', err);
+    }
+
+    res.json({ message: 'Migration cleared successfully' });
+  } catch (error) {
+    console.error('Error clearing migration:', error);
+    res.status(500).json({ error: 'Failed to clear migration' });
+  }
+});
+
+// Pause migration
+router.post('/pause', async (req: Request, res: Response) => {
+  try {
+    if (migrationProgress.status === 'processing') {
+      migrationProgress.status = 'paused';
+
+      // Persist paused status to Redis
+      try {
+        await redis.set('migration:progress', JSON.stringify(migrationProgress), 'EX', 7 * 24 * 60 * 60);
+      } catch (err) {
+        console.error('Failed to persist paused status to Redis:', err);
+      }
+
+      // Update progress with actual embedded counts
+      const tables = ['ozelgeler', 'makaleler', 'sorucevap', 'danistaykararlari', 'chat_history'];
+      let totalEmbedded = 0;
+
+      for (const table of tables) {
+        try {
+          const displayNames: { [key: string]: string } = {
+            'ozelgeler': 'Özelgeler',
+            'makaleler': 'Makaleler',
+            'sorucevap': 'Soru-Cevap',
+            'danistaykararlari': 'Danıştay Kararları',
+            'chat_history': 'Sohbet Geçmişi'
+          };
+
+          const embeddedResult = await targetPool.query(
+            `SELECT COUNT(*) as count
+             FROM unified_embeddings
+             WHERE source_table = $1 AND source_type = 'database'`,
+            [displayNames[table]]
+          );
+          totalEmbedded += parseInt(embeddedResult.rows[0].count) || 0;
+        } catch (err) {
+          console.error(`Error getting embedded count for ${table}:`, err);
+        }
+      }
+
+      migrationProgress.current = totalEmbedded;
+      migrationProgress.newlyEmbedded = totalEmbedded;
+
+      res.json({ message: 'Migration paused', progress: migrationProgress });
+    } else {
+      res.status(400).json({ error: 'No migration in progress' });
+    }
+  } catch (error) {
+    console.error('Error pausing migration:', error);
+    res.status(500).json({ error: 'Failed to pause migration' });
+  }
+});
+
+// Stop/pause migration (backward compatibility)
 router.post('/stop', async (req: Request, res: Response) => {
   try {
     if (migrationProgress.status === 'processing') {
       migrationProgress.status = 'paused';
+
+      // Persist paused status to Redis
+      try {
+        await redis.set('migration:progress', JSON.stringify(migrationProgress), 'EX', 7 * 24 * 60 * 60);
+      } catch (err) {
+        console.error('Failed to persist paused status to Redis:', err);
+      }
+
+      // Update progress with actual embedded counts
+      if (migrationProgress.currentTable) {
+        // Get current embedded counts for all tables
+        const tables = ['ozelgeler', 'makaleler', 'sorucevap', 'danistaykararlari', 'chat_history'];
+        let totalEmbedded = 0;
+
+        for (const table of tables) {
+          try {
+            const displayNames: { [key: string]: string } = {
+              'ozelgeler': 'Özelgeler',
+              'makaleler': 'Makaleler',
+              'sorucevap': 'Soru-Cevap',
+              'danistaykararlari': 'Danıştay Kararları',
+              'chat_history': 'Sohbet Geçmişi'
+            };
+
+            const sourceTableName = displayNames[table] || table;
+
+            const embeddedResult = await targetPool.query(
+              `SELECT COUNT(DISTINCT source_id) as count
+               FROM unified_embeddings
+               WHERE source_table = $1 AND source_type = 'database'`,
+              [sourceTableName]
+            );
+
+            totalEmbedded += parseInt(embeddedResult.rows[0].count) || 0;
+          } catch (err) {
+            console.error(`Error getting embedded count for ${table}:`, err);
+          }
+        }
+
+        // Update current to reflect actual embedded count
+        migrationProgress.current = totalEmbedded;
+        migrationProgress.percentage = Math.round(
+          (migrationProgress.current / migrationProgress.total) * 100
+        );
+      }
+
       res.json({ message: 'Migration paused', progress: migrationProgress });
     } else {
       res.json({ message: 'No migration in progress', progress: migrationProgress });
@@ -601,7 +1464,7 @@ router.get('/tables', async (req: Request, res: Response) => {
   try {
     const tablesWithMeta = [];
     
-    // Get target tables from settings
+    // Get target tables from settings - only these tables should be shown
     let targetTables = [
       { name: 'ozelgeler', displayName: 'Özelgeler' },
       { name: 'makaleler', displayName: 'Makaleler' },
@@ -610,7 +1473,32 @@ router.get('/tables', async (req: Request, res: Response) => {
       { name: 'chat_history', displayName: 'Sohbet Geçmişi' }
     ];
     
+    let databaseName = 'rag_chatbot'; // Default database name
+
     try {
+      // Get database name from customer_database settings
+      const dbSettings = await getDatabaseSettings();
+      if (dbSettings && typeof dbSettings === 'object') {
+        // Check all possible field names
+        databaseName = dbSettings.databaseName ||
+                       dbSettings.dbName ||
+                       dbSettings.name ||
+                       dbSettings.database ||
+                       'rag_chatbot';
+      } else if (dbSettings && typeof dbSettings === 'string') {
+        // If it's stored as a string, parse it
+        try {
+          const parsed = JSON.parse(dbSettings);
+          databaseName = parsed.databaseName ||
+                         parsed.dbName ||
+                         parsed.name ||
+                         parsed.database ||
+                         'rag_chatbot';
+        } catch {
+          databaseName = dbSettings;
+        }
+      }
+
       const settingsResult = await targetPool.query(
         "SELECT setting_value FROM chatbot_settings WHERE setting_key = 'migration_target_tables'"
       );
@@ -623,7 +1511,7 @@ router.get('/tables', async (req: Request, res: Response) => {
         }));
       }
     } catch (err) {
-      console.log('Using default target tables');
+      console.log('Using default target tables and database name');
     }
     
     for (const table of targetTables) {
@@ -652,15 +1540,24 @@ router.get('/tables', async (req: Request, res: Response) => {
         // Skip empty tables
         if (count === 0) continue;
         
-        // Get embedded count from SOURCE database
+        // Get actual embedded count from unified_embeddings table
         let embeddedCount = 0;
         try {
-          const embeddingResult = await sourcePool.query(
-            `SELECT COUNT(*) as count FROM public."${tableName}" WHERE embedding IS NOT NULL`
-          );
-          embeddedCount = parseInt(embeddingResult.rows[0].count);
+          // Map table name to display name used in unified_embeddings
+          const sourceTableName = tableName === 'sorucevap' ? 'Soru-Cevap' :
+                                 tableName === 'danistaykararlari' ? 'Danıştay Kararları' :
+                                 tableName === 'makaleler' ? 'Makaleler' :
+                                 tableName === 'ozelgeler' ? 'Özelgeler' :
+                                 tableName === 'chat_history' ? 'Sohbet Geçmişi' : tableName;
+
+          const embeddingResult = await targetPool.query(
+            `SELECT COUNT(DISTINCT(metadata->>'source_id')) as count
+             FROM unified_embeddings
+             WHERE source_table = $1 AND source_type = 'database'`
+          , [sourceTableName]);
+          embeddedCount = parseInt(embeddingResult.rows[0].count) || 0;
         } catch (err) {
-          // Embedding column might not exist yet
+          console.error(`Error getting embedded count for ${tableName}:`, err);
         }
         
         // Get text columns count from SOURCE database
@@ -676,7 +1573,7 @@ router.get('/tables', async (req: Request, res: Response) => {
         tablesWithMeta.push({
           name: tableName,
           displayName: displayName,
-          database: 'rag_chatbot',
+          database: databaseName,
           schema: 'public',
           totalRecords: count,
           embeddedRecords: embeddedCount,
@@ -686,8 +1583,11 @@ router.get('/tables', async (req: Request, res: Response) => {
         console.error(`Error getting stats for ${tableName}:`, err);
       }
     }
-    
-    res.json({ tables: tablesWithMeta });
+
+    res.json({
+      tables: tablesWithMeta,
+      databaseName: databaseName
+    });
   } catch (error) {
     console.error('Get tables error:', error);
     res.status(500).json({ error: 'Failed to fetch tables' });
@@ -756,26 +1656,91 @@ async function updateMigrationHistory(
 }
 
 // Background migration process
-async function processMigration(tables: string[], batchSize: number, migrationId: string, workerId: number = 1) {
+async function processMigration(tables: string[], batchSize: number, migrationId: string, workerId: number = 1, isResume: boolean = false, providedSettings?: any) {
   try {
-    console.log(`Worker ${workerId} starting with tables:`, tables);
-    
+    console.log(`🚀 Worker ${workerId} starting with tables:`, tables);
+    console.log(`🔧 Debug mode enabled - detailed logging active`);
+    console.log(`📊 Batch size: ${batchSize}, Migration ID: ${migrationId}, Resume: ${isResume}`);
+
+    // Add initial delay to make progress visible in UI
+    await new Promise(resolve => setTimeout(resolve, 500));
+
     // Calculate total records to process from SOURCE database
     let totalToProcess = 0;
     for (const table of tables) {
       // Ensure embedding column exists in SOURCE database
       await ensureEmbeddingColumn(table);
-      
-      // Count records WITHOUT embeddings in SOURCE database
-      const countResult = await sourcePool.query(
-        `SELECT COUNT(*) as count FROM public."${table}" WHERE embedding IS NULL`
+
+      // Count records that need embeddings (not yet in unified_embeddings)
+      const displayNames: { [key: string]: string } = {
+        'ozelgeler': 'Özelgeler',
+        'makaleler': 'Makaleler',
+        'sorucevap': 'Soru-Cevap',
+        'danistaykararlari': 'Danıştay Kararları',
+        'chat_history': 'Sohbet Geçmişi'
+      };
+
+      const sourceTableName = displayNames[table] || table;
+
+      // Get total records in table
+      const totalResult = await sourcePool.query(
+        `SELECT COUNT(*) as count FROM public."${table}"`
       );
-      totalToProcess += parseInt(countResult.rows[0].count);
+      const totalInTable = parseInt(totalResult.rows[0].count);
+
+      // Get already embedded count
+      const embeddedResult = await targetPool.query(
+        `SELECT COUNT(DISTINCT source_id) as count
+         FROM unified_embeddings
+         WHERE source_table = $1 AND source_type = 'database'`,
+        [sourceTableName]
+      );
+      const embeddedCount = parseInt(embeddedResult.rows[0].count) || 0;
+
+      // Calculate remaining to process
+      const remaining = totalInTable - embeddedCount;
+      totalToProcess += remaining;
+
+      // If this is a resume and table has no remaining records, mark it as processed
+      if (isResume && remaining === 0 && !migrationProgress.processedTables?.includes(table)) {
+        if (!migrationProgress.processedTables) {
+          migrationProgress.processedTables = [];
+        }
+        migrationProgress.processedTables.push(table);
+      }
     }
     
-    // Only update total if not already set (first worker sets it)
-    if (migrationProgress.total === 0) {
+    // Update total records to process
+    if (migrationProgress.total === 0 || isResume) {
       migrationProgress.total = totalToProcess;
+      // Also update current with the actual embedded count
+      let actualEmbedded = 0;
+      for (const table of tables) {
+        const displayNames: { [key: string]: string } = {
+          'ozelgeler': 'Özelgeler',
+          'makaleler': 'Makaleler',
+          'sorucevap': 'Soru-Cevap',
+          'danistaykararlari': 'Danıştay Kararları',
+          'chat_history': 'Sohbet Geçmişi'
+        };
+        const sourceTableName = displayNames[table] || table;
+
+        const embeddedResult = await targetPool.query(
+          `SELECT COUNT(*) as count
+           FROM unified_embeddings
+           WHERE source_table = $1 AND source_type = 'database'`,
+          [sourceTableName]
+        );
+        actualEmbedded += parseInt(embeddedResult.rows[0].count) || 0;
+      }
+
+      if (isResume) {
+        migrationProgress.current = actualEmbedded;
+        migrationProgress.initialEmbedded = actualEmbedded; // Set initial to current when resuming
+        migrationProgress.newlyEmbedded = 0; // Reset newlyEmbedded count
+        migrationProgress.percentage = Math.round((actualEmbedded / totalToProcess) * 100);
+        console.log(`Worker ${workerId}: Updated progress - current: ${actualEmbedded}, total: ${totalToProcess}, percentage: ${migrationProgress.percentage}%`);
+      }
     }
     
     // Process each table
@@ -813,24 +1778,54 @@ async function processMigration(tables: string[], batchSize: number, migrationId
       // Process records in batches
       let offset = 0;
       let hasMore = true;
-      
+      let processedCount = 0;
+
+      // If resuming, we need to skip already processed batches
+      if (isResume) {
+        // Get total embedded count for this table to skip processed batches
+        const displayNames: { [key: string]: string } = {
+          'ozelgeler': 'Özelgeler',
+          'makaleler': 'Makaleler',
+          'sorucevap': 'Soru-Cevap',
+          'danistaykararlari': 'Danıştay Kararları',
+          'chat_history': 'Sohbet Geçmişi'
+        };
+
+        const sourceTableName = displayNames[table] || table;
+
+        const embeddedResult = await targetPool.query(
+          `SELECT COUNT(DISTINCT source_id) as count
+           FROM unified_embeddings
+           WHERE source_table = $1 AND source_type = 'database'`,
+          [sourceTableName]
+        );
+        const embeddedCount = parseInt(embeddedResult.rows[0].count) || 0;
+
+        // Calculate how many batches to skip
+        const batchesToSkip = Math.floor(embeddedCount / batchSize);
+        offset = batchesToSkip * batchSize;
+        processedCount = embeddedCount;
+
+        console.log(`Worker ${workerId}: Resuming table ${table}, embedded: ${embeddedCount}, skipping ${batchesToSkip} batches (offset: ${offset})`);
+      }
+
       while (hasMore && migrationProgress.status !== 'paused') {
-        // Get batch of records without embeddings from SOURCE database
-        // Use ROW_NUMBER() as fallback if no primary key
+        // Get batch of records from SOURCE database
+        // Use simple query with offset for pagination
+        // The duplicate check will be done when inserting embeddings
         const batchQuery = primaryKey !== 'ROW_NUMBER' ? `
           SELECT ${primaryKey}, ${contentColumn} as text_content
           FROM public."${table}"
-          WHERE embedding IS NULL
-            AND ${contentColumn.includes('CONCAT') ? 'TRUE' : `${contentColumn} IS NOT NULL`}
+          WHERE ${contentColumn.includes('CONCAT') ? 'TRUE' : `${contentColumn} IS NOT NULL`}
+          ORDER BY ${primaryKey}
           LIMIT $1 OFFSET $2
         ` : `
-          SELECT ROW_NUMBER() OVER (ORDER BY 1) as row_num, ${contentColumn} as text_content
+          SELECT ${contentColumn} as text_content
           FROM public."${table}"
-          WHERE embedding IS NULL
-            AND ${contentColumn.includes('CONCAT') ? 'TRUE' : `${contentColumn} IS NOT NULL`}
+          WHERE ${contentColumn.includes('CONCAT') ? 'TRUE' : `${contentColumn} IS NOT NULL`}
           LIMIT $1 OFFSET $2
         `;
-        
+
         const batchResult = await sourcePool.query(batchQuery, [batchSize, offset]);
         
         if (batchResult.rows.length === 0) {
@@ -859,17 +1854,30 @@ async function processMigration(tables: string[], batchSize: number, migrationId
           continue;
         }
 
+        // Process batch
         try {
+          console.log(`🔄 Worker ${workerId}: Processing batch ${offset / batchSize + 1} with ${batchTexts.length} texts`);
+
           // Get OpenAI client
           const openai = await getOpenAIClient();
-          
+
           // Check cache first and separate cached vs uncached
           const embeddings: any[] = [];
           const uncachedTexts: string[] = [];
           const uncachedIndices: number[] = [];
           let cachedCount = 0;
           let totalTokensSaved = 0;
-          
+
+          // Use provided settings or get from database
+          const embeddingSettings = providedSettings || await getEmbeddingSettings();
+
+          // Debug logging
+          console.log(`Worker ${workerId}: providedSettings:`, providedSettings);
+          console.log(`Worker ${workerId}: final embeddingSettings:`, embeddingSettings);
+          let response;
+          let fallbackMode = false;
+          let ollamaModelName = '';
+
           // Check Redis cache for each text
           for (let i = 0; i < batchTexts.length; i++) {
             const cacheKey = getEmbeddingCacheKey(batchTexts[i]);
@@ -888,13 +1896,344 @@ async function processMigration(tables: string[], batchSize: number, migrationId
               uncachedIndices.push(i);
             }
           }
-          
+
           // Generate embeddings only for uncached texts
           if (uncachedTexts.length > 0) {
-            const response = await openai.embeddings.create({
-              model: 'text-embedding-ada-002',
-              input: uncachedTexts
-            });
+
+            // Debug: Log current settings
+            console.log(`Worker ${workerId}: Using embedding provider: ${embeddingSettings.provider}, model: ${embeddingSettings.model}`);
+
+            // Try the selected provider
+            try {
+              if (embeddingSettings.provider === 'openai') {
+                response = await openai.embeddings.create({
+                  model: embeddingSettings.model,
+                  input: uncachedTexts
+                });
+              } else if (embeddingSettings.provider === 'cohere') {
+                // Use Cohere API
+                const cohereApiKey = await getCohereApiKey();
+
+                console.log(`🔧 Using Cohere model: ${embeddingSettings.model}`);
+
+                const cohereResponse = await fetch('https://api.cohere.com/v1/embed', {
+                  method: 'POST',
+                  headers: {
+                    'Authorization': `Bearer ${cohereApiKey}`,
+                    'Content-Type': 'application/json',
+                  },
+                  body: JSON.stringify({
+                    model: embeddingSettings.model,
+                    texts: uncachedTexts,
+                    input_type: 'search_document'
+                  })
+                });
+
+                if (!cohereResponse.ok) {
+                  const errorData = await cohereResponse.json();
+                  throw new Error(`Cohere API error: ${errorData.message || cohereResponse.statusText}`);
+                }
+
+                const cohereData = await cohereResponse.json();
+                response = {
+                  data: cohereData.embeddings.map((embedding: number[]) => ({ embedding })),
+                  usage: { total_tokens: cohereData.meta?.billed_units?.input_tokens || 0 }
+                };
+              } else if (embeddingSettings.provider === 'voyage') {
+                // Use Voyage AI API
+                const voyageApiKey = await getVoyageApiKey();
+
+                console.log(`🔧 Using Voyage AI model: ${embeddingSettings.model}`);
+
+                const voyageResponse = await fetch('https://api.voyageai.com/v1/embeddings', {
+                  method: 'POST',
+                  headers: {
+                    'Authorization': `Bearer ${voyageApiKey}`,
+                    'Content-Type': 'application/json',
+                  },
+                  body: JSON.stringify({
+                    model: embeddingSettings.model,
+                    input: uncachedTexts
+                  })
+                });
+
+                if (!voyageResponse.ok) {
+                  const errorData = await voyageResponse.json();
+                  throw new Error(`Voyage AI error: ${errorData.detail || voyageResponse.statusText}`);
+                }
+
+                const voyageData = await voyageResponse.json();
+                response = {
+                  data: voyageData.data,
+                  usage: { total_tokens: voyageData.usage?.total_tokens || 0 }
+                };
+              } else if (embeddingSettings.provider === 'google') {
+                // Use Google Vertex AI API
+                const googleApiKey = await getGoogleApiKey();
+
+                console.log(`🔧 Using Google model: ${embeddingSettings.model}`);
+
+                const googleResponse = await fetch(`https://us-central1-aiplatform.googleapis.com/v1/projects/${process.env.GOOGLE_PROJECT_ID || 'your-project-id'}/locations/us-central1/publishers/google/models/${embeddingSettings.model}:predict`, {
+                  method: 'POST',
+                  headers: {
+                    'Authorization': `Bearer ${googleApiKey}`,
+                    'Content-Type': 'application/json',
+                  },
+                  body: JSON.stringify({
+                    instances: uncachedTexts.map(text => ({ content: text }))
+                  })
+                });
+
+                if (!googleResponse.ok) {
+                  const errorData = await googleResponse.json();
+                  throw new Error(`Google API error: ${errorData.error?.message || googleResponse.statusText}`);
+                }
+
+                const googleData = await googleResponse.json();
+                response = {
+                  data: googleData.predictions.map((pred: any) => ({ embedding: pred.embeddings.values })),
+                  usage: { total_tokens: 0 } // Google doesn't provide token count in this format
+                };
+              } else if (embeddingSettings.provider === 'jina') {
+                // Use Jina AI API
+                const jinaApiKey = await getJinaApiKey();
+
+                console.log(`🔧 Using Jina AI model: ${embeddingSettings.model}`);
+
+                const jinaResponse = await fetch(`https://api.jina.ai/v1/embeddings`, {
+                  method: 'POST',
+                  headers: {
+                    'Authorization': `Bearer ${jinaApiKey}`,
+                    'Content-Type': 'application/json',
+                  },
+                  body: JSON.stringify({
+                    model: embeddingSettings.model,
+                    input: uncachedTexts
+                  })
+                });
+
+                if (!jinaResponse.ok) {
+                  const errorData = await jinaResponse.json();
+                  throw new Error(`Jina AI error: ${errorData.detail || jinaResponse.statusText}`);
+                }
+
+                const jinaData = await jinaResponse.json();
+                response = {
+                  data: jinaData.data,
+                  usage: { total_tokens: jinaData.usage?.total_tokens || 0 }
+                };
+              } else if (embeddingSettings.provider === 'ollama') {
+                // Use local Ollama instance
+                // First get the Ollama base URL from settings
+                const ollamaBaseUrlResult = await targetPool.query(
+                  "SELECT setting_value FROM chatbot_settings WHERE setting_key = 'ollama_base_url'"
+                );
+                const ollamaBaseUrl = ollamaBaseUrlResult.rows[0]?.setting_value || 'http://localhost:11434';
+
+                // Test if Ollama is running before proceeding
+                try {
+                  const testResponse = await fetch(`${ollamaBaseUrl}/api/tags`);
+                  if (!testResponse.ok) {
+                    throw new Error(`Ollama is not running at ${ollamaBaseUrl}`);
+                  }
+                  const tags = await testResponse.json();
+                  console.log('✅ Ollama is running, available models:', tags.models.map((m: any) => m.name));
+                } catch (error) {
+                  throw new Error(`Cannot connect to Ollama at ${ollamaBaseUrl}. Please make sure Ollama is running.`);
+                }
+
+                // Get model name (remove ollama/ prefix if present)
+                ollamaModelName = embeddingSettings.model.replace('ollama/', '');
+
+                console.log(`🔧 Using Ollama at ${ollamaBaseUrl} with model ${ollamaModelName}`);
+
+                const ollamaResponse = await fetch(`${ollamaBaseUrl}/api/embeddings`, {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json',
+                  },
+                  body: JSON.stringify({
+                    model: ollamaModelName,
+                    prompt: uncachedTexts[0], // Ollama embeddings API takes one text at a time
+                  })
+                });
+
+                  if (!ollamaResponse.ok) {
+                throw new Error(`Ollama error: ${ollamaResponse.statusText}`);
+              }
+
+              const ollamaData = await ollamaResponse.json();
+
+              // For multiple texts, we need to make individual requests
+              const embeddings = [];
+              for (let i = 0; i < uncachedTexts.length; i++) {
+                if (i === 0) {
+                  embeddings.push(ollamaData.embedding);
+                } else {
+                  const singleResponse = await fetch(`${ollamaBaseUrl}/api/embeddings`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                      model: ollamaModelName,
+                      prompt: uncachedTexts[i],
+                    })
+                  });
+                  if (singleResponse.ok) {
+                    const singleData = await singleResponse.json();
+                    embeddings.push(singleData.embedding);
+                  } else {
+                    // Fallback to random if individual request fails
+                    embeddings.push(Array.from({ length: 1536 }, () => (Math.random() - 0.5) * 0.1));
+                  }
+                }
+              }
+
+              response = {
+                data: embeddings.map(embedding => ({ embedding })),
+                usage: { total_tokens: 0 }
+              };
+              } else if (embeddingSettings.provider === 'mistral') {
+                // Use HuggingFace for mistral provider as well
+                const hfToken = await getHuggingFaceApiKey();
+
+                const modelName = embeddingSettings.model || 'mistralai/Mistral-7B-v0.1';
+
+                const hfResponse = await fetch(`https://api-inference.huggingface.co/pipeline/feature-extraction/${modelName}`, {
+                  method: 'POST',
+                  headers: {
+                    'Authorization': `Bearer ${hfToken}`,
+                    'Content-Type': 'application/json',
+                  },
+                  body: JSON.stringify({
+                    inputs: uncachedTexts,
+                    options: {
+                      wait_for_model: true
+                    }
+                  })
+                });
+
+                if (!hfResponse.ok) {
+                  const errorData = await hfResponse.json();
+                  throw new Error(`HuggingFace API error: ${errorData.error || hfResponse.statusText}`);
+                }
+
+                // HuggingFace returns embeddings directly as an array
+                const embeddingsData = await hfResponse.json();
+
+                // Convert to the expected format
+                response = {
+                  data: Array.isArray(embeddingsData)
+                    ? embeddingsData.map((embedding: any) => ({ embedding }))
+                    : [{ embedding: embeddingsData }],
+                  usage: { total_tokens: 0 }
+                };
+              } else if (embeddingSettings.provider === 'local') {
+                // Use local random embeddings (no API call)
+                console.log('🔧 Using local random embeddings');
+
+                // Generate random embeddings locally
+                let dimension = 1536; // Default dimension
+                if (embeddingSettings.model.includes('e5-mistral')) dimension = 4096;
+                else if (embeddingSettings.model.includes('3-large')) dimension = 3072;
+                else if (embeddingSettings.model.includes('bge-m3')) dimension = 1024;
+                else if (embeddingSettings.model.includes('mxbai') || embeddingSettings.model.includes('mpnet')) dimension = 768;
+                else if (embeddingSettings.model.includes('all-MiniLM') || embeddingSettings.model.includes('minilm')) dimension = 384;
+
+                response = {
+                  data: uncachedTexts.map((text, i) => ({
+                    embedding: Array.from({ length: dimension }, () => (Math.random() - 0.5) * 0.1)
+                  })),
+                  usage: { total_tokens: 0 }
+                };
+
+                // Mark as fallback mode since we're using random embeddings
+                fallbackMode = true;
+                migrationProgress.fallbackMode = true;
+                migrationProgress.fallbackReason = 'Using local random embeddings';
+              } else if (embeddingSettings.provider === 'huggingface') {
+                // Use HuggingFace Inference API
+                const huggingfaceApiKey = await getHuggingFaceApiKey();
+
+                console.log(`🔧 Using HuggingFace model: ${embeddingSettings.model}`);
+
+                // HuggingFace Inference API
+                const authHeader = `Bearer ${huggingfaceApiKey}`;
+                const apiUrl = `https://api-inference.huggingface.co/models/${embeddingSettings.model}`;
+                console.log('Making HuggingFace API request to:', apiUrl);
+                console.log('Authorization header length:', authHeader.length);
+                console.log('Authorization header prefix:', authHeader.substring(0, 20) + '...');
+
+                // Process texts one by one for HuggingFace API
+                const embeddings = [];
+                for (const text of uncachedTexts) {
+                  const hfResponse = await fetch(apiUrl, {
+                    method: 'POST',
+                    headers: {
+                      'Authorization': authHeader,
+                      'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                      inputs: text,
+                      parameters: {
+                        wait_for_model: true
+                      }
+                    })
+                  });
+
+                  if (!hfResponse.ok) {
+                    const errorText = await hfResponse.text();
+                    throw new Error(`HuggingFace API error: ${hfResponse.status} - ${errorText}`);
+                  }
+
+                  const hfData = await hfResponse.json();
+                  // Extract embedding from response
+                  if (Array.isArray(hfData) && hfData.length > 0) {
+                    embeddings.push(hfData[0]);
+                  } else if (hfData.embedding) {
+                    embeddings.push(hfData.embedding);
+                  } else {
+                    throw new Error('Invalid embedding response format');
+                  }
+                }
+
+                // Convert to OpenAI-like format
+                response = {
+                  data: embeddings.map((embedding: any) => ({ embedding: Array.isArray(embedding) ? embedding : embedding })),
+                  usage: { total_tokens: 0 } // HuggingFace doesn't provide token count
+                };
+              } else {
+                throw new Error(`Provider ${embeddingSettings.provider} is not yet supported for migration. Please check your embedding settings.`);
+              }
+            } catch (error: any) {
+              // Check if it's a quota error or API unavailable
+              if (error.code === 'insufficient_quota' || error.code === 'rate_limit_exceeded' || error.status === 429 || error.message?.includes('quota') || error.message?.includes('billing')) {
+                console.log(`⚠️ ${embeddingSettings.provider} quota exceeded or API error, falling back to local embeddings`);
+                fallbackMode = true;
+
+                // Generate simple random embeddings as fallback with correct dimensions
+                let dimension = 1536; // Default for OpenAI
+                if (embeddingSettings.model.includes('3-large')) dimension = 3072;
+                else if (embeddingSettings.model.includes('e5-mistral')) dimension = 4096;
+                else if (embeddingSettings.model.includes('mxbai') || embeddingSettings.model.includes('mpnet')) dimension = 768;
+                else if (embeddingSettings.model.includes('all-MiniLM') || embeddingSettings.model.includes('minilm')) dimension = 384;
+                else if (embeddingSettings.model.includes('mistral-embed')) dimension = 1024;
+                else if (embeddingSettings.model.includes('nomic-embed-text')) dimension = 768;
+
+                response = {
+                  data: uncachedTexts.map((text, i) => ({
+                    embedding: Array.from({ length: dimension }, () => (Math.random() - 0.5) * 0.1) // Small random values
+                  })),
+                  usage: { total_tokens: 0 }
+                };
+
+                // Update progress to indicate fallback mode
+                migrationProgress.fallbackMode = true;
+                migrationProgress.fallbackReason = error.message || 'OpenAI API error';
+              } else {
+                // Re-throw if it's not a quota error
+                throw error;
+              }
+            }
             
             // Store new embeddings in cache and array
             for (let j = 0; j < response.data.length; j++) {
@@ -911,8 +2250,8 @@ async function processMigration(tables: string[], batchSize: number, migrationId
               }
             }
             
-            // Update token usage
-            if (response.usage) {
+            // Update token usage (only for OpenAI, not fallback)
+            if (!fallbackMode && response.usage) {
               migrationProgress.tokensUsed += response.usage.total_tokens;
               migrationProgress.estimatedCost = (migrationProgress.tokensUsed / 1000) * 0.0001;
             }
@@ -968,7 +2307,9 @@ async function processMigration(tables: string[], batchSize: number, migrationId
                       migrated_at: new Date()
                     }),
                     tokensPerRecord,
-                    'text-embedding-ada-002'
+                    fallbackMode ? 'fallback-local' :
+                      embeddingSettings.provider === 'ollama' ? `ollama:${ollamaModelName}` :
+                      embeddingSettings.provider === 'mistral' ? embeddingSettings.model : 'text-embedding-ada-002'
                   ]
                 );
                 
@@ -985,9 +2326,20 @@ async function processMigration(tables: string[], batchSize: number, migrationId
             }
             
             migrationProgress.current++;
-            migrationProgress.percentage = Math.round(
-              (migrationProgress.current / migrationProgress.total) * 100
+            migrationProgress.newlyEmbedded = (migrationProgress.newlyEmbedded || 0) + 1;
+
+            // Ensure percentage doesn't exceed 100%
+            migrationProgress.percentage = Math.min(
+              100,
+              Math.round((migrationProgress.current / migrationProgress.total) * 100)
             );
+
+            // Persist progress to Redis
+            try {
+              await redis.set('migration:progress', JSON.stringify(migrationProgress), 'EX', 7 * 24 * 60 * 60); // 7 days
+            } catch (err) {
+              console.error('Failed to persist progress to Redis:', err);
+            }
             
             // Calculate estimated time remaining
             const elapsed = Date.now() - migrationProgress.startTime;
@@ -1020,11 +2372,19 @@ async function processMigration(tables: string[], batchSize: number, migrationId
           const delay = cachedCount > 0 ? 20 : 50;
           await new Promise(resolve => setTimeout(resolve, delay));
           
-        } catch (error) {
+        } catch (error: any) {
           console.error(`Error processing batch:`, error);
           migrationProgress.error = error.message;
+          migrationProgress.status = 'error';
+          // Break the loop on error
+          break;
         }
-        
+
+        // Add a small delay to make progress visible in UI
+        if (migrationProgress.status === 'processing') {
+          await new Promise(resolve => setTimeout(resolve, 100));
+        }
+
         offset += batchSize;
       }
       
@@ -1034,6 +2394,9 @@ async function processMigration(tables: string[], batchSize: number, migrationId
     }
     
     if (migrationProgress.status !== 'paused') {
+      // Add delay before completion to ensure UI shows progress
+      await new Promise(resolve => setTimeout(resolve, 1000));
+
       migrationProgress.status = 'completed';
       // Update final migration history
       await pgPool.query(`

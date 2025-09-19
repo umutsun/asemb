@@ -181,9 +181,9 @@ export async function saveDatabaseSettings(settings: any) {
 
 // Get database settings
 export async function getDatabaseSettings() {
-  const client = await asembPool.connect();
-  
+  let client;
   try {
+    client = await asembPool.connect();
     const result = await client.query(`
       SELECT value FROM settings WHERE key = 'customer_database'
     `);
@@ -197,7 +197,31 @@ export async function getDatabaseSettings() {
     console.error('Failed to get database settings:', error);
     return null;
   } finally {
-    client.release();
+    if (client) client.release();
+  }
+}
+
+// Get AI settings
+export async function getAiSettings() {
+  let client;
+  try {
+    client = await asembPool.connect();
+    const result = await client.query(`
+      SELECT value FROM settings WHERE key = 'ai_settings'
+    `);
+    
+    if (result.rows.length > 0 && result.rows[0].value) {
+      return result.rows[0].value;
+    }
+    
+    // Return a default object instead of null to prevent downstream errors
+    return { openaiApiKey: null, openaiApiBase: null };
+  } catch (error) {
+    console.error('Failed to get AI settings:', error);
+    // On error, also return a default object to ensure resilience
+    return { openaiApiKey: null, openaiApiBase: null };
+  } finally {
+    if (client) client.release();
   }
 }
 

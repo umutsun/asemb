@@ -1,38 +1,27 @@
 document.addEventListener('DOMContentLoaded', () => {
-    // Connect to API server on port 3003
-    const socket = io('http://localhost:3003');
+    const API_BASE_URL = 'http://localhost:8083'; // Updated API port
 
-    // Status indicators
-    const apiStatus = document.getElementById('api-status').querySelector('.status-indicator');
-    const redisStatus = document.getElementById('redis-status').querySelector('.status-indicator');
-    const n8nStatus = document.getElementById('n8n-status').querySelector('.status-indicator');
-
-    // Agent metrics
+    // --- Element Selections ---
+    const apiStatus = document.getElementById('api-status')?.querySelector('.status-indicator');
+    const redisStatus = document.getElementById('redis-status')?.querySelector('.status-indicator');
+    const n8nStatus = document.getElementById('n8n-status')?.querySelector('.status-indicator');
     const claudeTasks = document.getElementById('claude-tasks');
     const claudeMemory = document.getElementById('claude-memory');
     const geminiTasks = document.getElementById('gemini-tasks');
     const geminiMemory = document.getElementById('gemini-memory');
     const codexTasks = document.getElementById('codex-tasks');
     const codexMemory = document.getElementById('codex-memory');
-
-    // Performance metrics elements
     const searchLatency = document.getElementById('search-latency');
     const throughput = document.getElementById('throughput');
     const cacheHitRate = document.getElementById('cache-hit-rate');
     const errorRate = document.getElementById('error-rate');
-
-    // Workflow list
     const workflowList = document.getElementById('workflow-list');
-
-    // Redis stats
     const redisUsed = document.getElementById('redis-used');
     const redisPeak = document.getElementById('redis-peak');
     const redisKeys = document.getElementById('redis-keys');
-
-    // Activity log
     const activityLog = document.getElementById('activity-log');
 
-    // Redis chart
+    // --- Chart.js Initialization ---
     const redisChartCtx = document.getElementById('redis-chart').getContext('2d');
     const redisChart = new Chart(redisChartCtx, {
         type: 'line',
@@ -46,73 +35,78 @@ document.addEventListener('DOMContentLoaded', () => {
                 borderWidth: 1
             }]
         },
-        options: {
-            scales: {
-                y: {
-                    beginAtZero: true
-                }
+        options: { scales: { y: { beginAtZero: true } } }
+    });
+
+    // --- Main Data Fetching and UI Update Logic ---
+    async function fetchAndUpdateDashboard() {
+        try {
+            const response = await fetch(`${API_BASE_URL}/api/analytics/metrics`);
+            if (!response.ok) {
+                throw new Error(`API responded with status ${response.status}`);
             }
+            const data = await response.json();
+
+            // --- Data Adapter ---
+            // Convert new API data structure to the format the old UI functions expect
+            const adaptedData = {
+                api: 'active',
+                redis: data.cache ? 'active' : 'inactive',
+                n8n: 'checking', // This info is not in the new API, so we set a default
+                agents: {
+                    // Mocking agent data as it's not in the new API
+                    claude: { tasks: data.lightrag.entities || 0, memory: 'N/A' },
+                    gemini: { tasks: data.lightrag.relationships || 0, memory: 'N/A' },
+                    codex: { tasks: 0, memory: 'N/A' }
+                },
+                performance: {
+                    searchLatency: parseFloat(data.performance.avgResponseTime) || 0,
+                    throughput: 0, // Not available in new API
+                    cacheHitRate: ((data.cache.hits / (data.cache.hits + data.cache.misses || 1)) * 100).toFixed(1),
+                    errorRate: (100 - parseFloat(data.performance.successRate)).toFixed(1)
+                },
+                workflows: [
+                    { name: 'LightRAG Service', status: data.lightrag.status }
+                ],
+                redis_stats: {
+                    used: (data.cache.size / (1024*1024)).toFixed(2), // Assuming size is in bytes
+                    peak: 'N/A',
+                    keys: data.cache.size
+                }
+            };
+
+            // --- UI Updates ---
+            updateStatus(apiStatus, adaptedData.api);
+            updateStatus(redisStatus, adaptedData.redis);
+            updateStatus(n8nStatus, adaptedData.n8n);
+            updateAgent(adaptedData.agents.claude, claudeTasks, claudeMemory);
+            updateAgent(adaptedData.agents.gemini, geminiTasks, geminiMemory);
+            updateAgent(adaptedData.agents.codex, codexTasks, codexMemory);
+            updatePerformance(adaptedData.performance);
+            updateWorkflows(adaptedData.workflows);
+            updateRedis(adaptedData.redis_stats);
+            
+            addLogEntry({ timestamp: new Date(), message: 'Successfully fetched and updated metrics.' });
+
+        } catch (error) {
+            console.error('Failed to fetch status:', error);
+            updateStatus(apiStatus, 'inactive');
+            updateStatus(redisStatus, 'inactive');
+            addLogEntry({ timestamp: new Date(), message: `Failed to fetch metrics: ${error.message}` });
         }
-    });
+    }
 
-    // WebSocket event listeners
-    socket.on('connect', () => {
-        console.log('Connected to WebSocket');
-        updateStatus(apiStatus, 'active');
-        addLogEntry({ timestamp: new Date(), message: 'Dashboard connected to API server' });
-    });
-
-    socket.on('disconnect', () => {
-        console.log('Disconnected from WebSocket');
-        updateStatus(apiStatus, 'inactive');
-        addLogEntry({ timestamp: new Date(), message: 'Dashboard disconnected from API server' });
-    });
-
-    socket.on('status_update', (data) => {
-        console.log('Received status update:', data);
-        
-        // Update status indicators
-        updateStatus(apiStatus, data.api);
-        updateStatus(redisStatus, data.redis);
-        updateStatus(n8nStatus, data.n8n);
-
-        // Update agent metrics
-        if (data.agents) {
-            updateAgent(data.agents.claude, claudeTasks, claudeMemory);
-            updateAgent(data.agents.gemini, geminiTasks, geminiMemory);
-            updateAgent(data.agents.codex, codexTasks, codexMemory);
-        }
-
-        // Update performance metrics
-        if (data.performance) {
-            updatePerformance(data.performance);
-        }
-
-        // Update workflow list
-        if (data.workflows) {
-            updateWorkflows(data.workflows);
-        }
-
-        // Update Redis stats and chart
-        if (data.redis) {
-            updateRedis(data.redis);
-        }
-    });
-
-    socket.on('log_entry', (entry) => {
-        addLogEntry(entry);
-    });
-
-    // Helper functions
+    // --- Helper Functions (unchanged but kept for UI rendering) ---
     function updateStatus(element, status) {
+        if (!element) return;
         element.className = `status-indicator ${status}`;
         element.textContent = status === 'active' ? 'Online' : status === 'inactive' ? 'Offline' : 'Checking...';
     }
 
     function updateAgent(agent, tasksElement, memoryElement) {
-        if (!agent) return;
+        if (!agent || !tasksElement || !memoryElement) return;
         tasksElement.textContent = agent.tasks;
-        memoryElement.textContent = `${agent.memory}MB`;
+        memoryElement.textContent = `${agent.memory}`;
     }
 
     function updatePerformance(performance) {
@@ -123,6 +117,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function updateWorkflows(workflows) {
+        if (!workflowList) return;
         workflowList.innerHTML = '';
         workflows.forEach(workflow => {
             const item = document.createElement('div');
@@ -133,11 +128,10 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function updateRedis(redis) {
-        redisUsed.textContent = `${redis.used}MB`;
-        redisPeak.textContent = `${redis.peak}MB`;
-        redisKeys.textContent = redis.keys;
+        if (redisUsed) redisUsed.textContent = `${redis.used}MB`;
+        if (redisPeak) redisPeak.textContent = `${redis.peak}`;
+        if (redisKeys) redisKeys.textContent = redis.keys;
 
-        // Update chart
         redisChart.data.labels.push(new Date().toLocaleTimeString());
         redisChart.data.datasets[0].data.push(redis.used);
         if (redisChart.data.labels.length > 20) {
@@ -148,38 +142,27 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function addLogEntry(entry) {
+        if (!activityLog) return;
         const item = document.createElement('div');
         item.className = 'log-item';
         item.innerHTML = `<span class="log-timestamp">${new Date(entry.timestamp).toLocaleTimeString()}</span><span class="log-message">${entry.message}</span>`;
         activityLog.appendChild(item);
         activityLog.scrollTop = activityLog.scrollHeight;
         
-        // Keep only last 50 entries
         while (activityLog.children.length > 50) {
             activityLog.removeChild(activityLog.firstChild);
         }
     }
 
-    // Load MetricsPanel
-    const metricsFrame = document.querySelector('iframe[src*="MetricsPanel"]');
-    if (metricsFrame) {
-        metricsFrame.onload = function() {
-            console.log('MetricsPanel loaded');
-        };
-    }
-    
-    // Periodic status updates
-    setInterval(() => {
-        fetch('http://localhost:3003/api/dashboard/status')
-            .then(res => res.json())
-            .then(data => {
-                socket.emit('status_update', data);
-            })
-            .catch(err => console.error('Failed to fetch status:', err));
-    }, 5000);
+    // --- Initial Load and Periodic Refresh ---
+    addLogEntry({ timestamp: new Date(), message: 'Dashboard initialized. Fetching data...' });
+    fetchAndUpdateDashboard(); // Initial fetch
+    setInterval(fetchAndUpdateDashboard, 5000); // Refresh every 5 seconds
 });
 
-// Control panel functions
+// --- Control Panel Functions (unchanged but pointing to new API) ---
+const API_BASE_URL = 'http://localhost:8083';
+
 function deployToProduction() {
     console.log('Deploying to production...');
     alert('Deployment feature coming soon!');
@@ -187,28 +170,18 @@ function deployToProduction() {
 
 function runTests() {
     console.log('Running tests...');
-    fetch('http://localhost:3003/api/tests/run')
-        .then(res => res.json())
-        .then(data => {
-            alert('Tests completed! Check console for results.');
-            console.log(data);
-        })
-        .catch(err => {
-            alert('Tests feature not yet implemented');
-        });
+    alert('Test functionality should be triggered from the new API.');
 }
 
 function clearCache() {
     console.log('Clearing cache...');
-    if (confirm('Are you sure you want to clear the cache?')) {
-        fetch('http://localhost:3003/api/cache/clear', { method: 'POST' })
-            .then(res => res.json())
-            .then(data => {
-                alert('Cache cleared successfully!');
-            })
-            .catch(err => {
-                alert('Cache clear feature not yet implemented');
-            });
+    if (confirm('Are you sure you want to clear the cache? This is not yet implemented in the new API.')) {
+        // Example of how it would be implemented:
+        // fetch(`${API_BASE_URL}/api/cache/clear`, { method: 'POST' })
+        //     .then(res => res.json())
+        //     .then(data => alert('Cache cleared successfully!'))
+        //     .catch(err => alert('Cache clear feature not yet implemented'));
+        alert('Cache clear feature not yet implemented');
     }
 }
 

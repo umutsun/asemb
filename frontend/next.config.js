@@ -1,16 +1,21 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
-  
+
   // Set workspace root to silence lockfile warning
   outputFileTracingRoot: require('path').join(__dirname, '../'),
-  
+
   // Optimize images
   images: {
     domains: ['localhost'],
     formats: ['image/avif', 'image/webp'],
   },
-  
+
+  // Ensure src directory is properly recognized
+  experimental: {
+    optimizeCss: true,
+  },
+
   // Bundle analyzer
   webpack: (config, { isServer }) => {
     // Bundle analyzer in development
@@ -20,23 +25,33 @@ const nextConfig = {
         new BundleAnalyzerPlugin({
           analyzerMode: 'static',
           reportFilename: isServer ? '../analyze/server.html' : './analyze/client.html',
-        })
+        }),
       );
     }
-    
+
     return config;
   },
-  
+
   // Experimental features for better performance
   experimental: {
     optimizeCss: true,
   },
-  
+
   // Environment variables
   env: {
     NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8083',
   },
-  
+
+  // Rewrite API requests to backend
+  async rewrites() {
+    return [
+      {
+        source: '/api/:path*',
+        destination: 'http://localhost:8083/api/v2/:path*',
+      },
+    ];
+  },
+
   // Redirects
   async redirects() {
     return [
@@ -47,7 +62,7 @@ const nextConfig = {
       },
     ];
   },
-  
+
   // Headers for security
   async headers() {
     return [
@@ -72,4 +87,4 @@ const nextConfig = {
   },
 };
 
-module.exports = nextConfig
+module.exports = nextConfig;

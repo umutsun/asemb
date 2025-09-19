@@ -1,4 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
+import fs from 'fs/promises';
+import path from 'path';
+
+// Correctly resolve the path to the root config directory
+const configFilePath = path.resolve(process.cwd(), '..', 'config', 'config.json');
 
 const defaultConfig = {
   app: {
@@ -88,21 +93,81 @@ const defaultConfig = {
   }
 };
 
-let currentConfig = { ...defaultConfig };
+const isObject = (item: any) => {
+  return (item && typeof item === 'object' && !Array.isArray(item));
+};
+
+const deepMerge = (target: any, source: any) => {
+  let output = { ...target };
+  if (isObject(target) && isObject(source)) {
+    Object.keys(source).forEach(key => {
+      if (isObject(source[key])) {
+        if (!(key in target)) {
+          Object.assign(output, { [key]: source[key] });
+        } else {
+          output[key] = deepMerge(target[key], source[key]);
+        }
+      } else {
+        Object.assign(output, { [key]: source[key] });
+      }
+    });
+  }
+  return output;
+};
+
+
+// Helper function to read the config file
+async function readConfig() {
+  try {
+    await fs.access(configFilePath);
+    const fileContent = await fs.readFile(configFilePath, 'utf-8');
+    const parsedContent = fileContent ? JSON.parse(fileContent) : {};
+    // Ensure the config always has all the default keys
+    return deepMerge(defaultConfig, parsedContent);
+  } catch (error) {
+    // If the file doesn't exist or is invalid, write the default config and return it
+    await writeConfig(defaultConfig);
+    return defaultConfig;
+  }
+}
+
+// Helper function to write to the config file
+async function writeConfig(data: any) {
+  try {
+    const dirPath = path.dirname(configFilePath);
+    await fs.mkdir(dirPath, { recursive: true });
+    await fs.writeFile(configFilePath, JSON.stringify(data, null, 2), 'utf-8');
+  } catch (error) {
+    console.error('Failed to write config file:', error);
+    throw new Error('Failed to write configuration.');
+  }
+}
 
 export async function GET() {
-  return NextResponse.json(currentConfig);
+  try {
+    const config = await readConfig();
+    return NextResponse.json(config);
+  } catch (error) {
+    return NextResponse.json(
+      { error: 'Failed to read configuration' },
+      { status: 500 }
+    );
+  }
 }
 
 export async function PUT(request: NextRequest) {
   try {
     const body = await request.json();
-    currentConfig = { ...currentConfig, ...body };
+    // Read the latest config first to merge with it
+    const currentConfig = await readConfig();
+    const newConfig = deepMerge(currentConfig, body);
     
-    return NextResponse.json({ 
-      success: true, 
+    await writeConfig(newConfig);
+    
+    return NextResponse.json({
+      success: true,
       message: 'Configuration updated successfully',
-      config: currentConfig 
+      config: newConfig
     });
   } catch (error) {
     return NextResponse.json(
