@@ -5,6 +5,57 @@ import Redis from 'ioredis';
 import crypto from 'crypto';
 import { getDatabaseSettings, asembPool } from '../config/database.config';
 
+// Helper function to log embedding operations
+async function logEmbeddingOperation(data: {
+  operation_id: string;
+  source_table: string[];
+  embedding_model: string;
+  batch_size: number;
+  worker_count: number;
+  status: string;
+  started_at?: Date;
+  completed_at?: Date;
+  records_processed: number;
+  records_success: number;
+  records_error: number;
+  error_message?: string;
+  metadata?: any;
+}) {
+  try {
+    await pgPool.query(`
+      INSERT INTO embedding_history (
+        operation_id, source_table, source_type, embedding_model, batch_size, worker_count,
+        status, started_at, completed_at, records_processed, records_success, records_failed, error_message, metadata
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+      ON CONFLICT (operation_id) DO UPDATE SET
+        status = EXCLUDED.status,
+        completed_at = EXCLUDED.completed_at,
+        records_processed = EXCLUDED.records_processed,
+        records_success = EXCLUDED.records_success,
+        records_failed = EXCLUDED.records_failed,
+        error_message = EXCLUDED.error_message,
+        metadata = EXCLUDED.metadata
+    `, [
+      data.operation_id,
+      data.source_table,
+      'database', // source_type
+      data.embedding_model,
+      data.batch_size,
+      data.worker_count,
+      data.status,
+      data.started_at || new Date(),
+      data.completed_at,
+      data.records_processed,
+      data.records_success,
+      data.records_error,
+      data.error_message,
+      data.metadata || {}
+    ]);
+  } catch (error) {
+    console.error('Error logging embedding operation:', error);
+  }
+}
+
 // ASEMB database - where unified_embeddings table is stored
 // Using asembPool from database.config.ts
 
@@ -69,6 +120,7 @@ let migrationProgress: any = {
   estimatedCost: 0,
   startTime: null,
   estimatedTimeRemaining: null,
+  processingSpeed: 0, // records per minute
   processedTables: [],
   currentBatch: 0,
   totalBatches: 0,
@@ -90,6 +142,11 @@ async function saveProgressToRedis() {
 
     // Also save to migration:progress for v2 system
     await redis.set('migration:progress', JSON.stringify(migrationProgress));
+
+    // Save selected tables separately for resume functionality
+    if (migrationProgress.tables && migrationProgress.tables.length > 0) {
+      await redis.set('embedding:selected_tables', JSON.stringify(migrationProgress.tables));
+    }
 
     // Update the status key
     await redis.set('embedding:status', migrationProgress.status);
@@ -342,6 +399,21 @@ router.get('/progress', async (req: Request, res: Response) => {
   res.json(migrationProgress);
 });
 
+// Get last selected tables for resume functionality
+router.get('/selected-tables', async (req: Request, res: Response) => {
+  try {
+    const selectedTables = await redis.get('embedding:selected_tables');
+    if (selectedTables) {
+      res.json({ tables: JSON.parse(selectedTables) });
+    } else {
+      res.json({ tables: [] });
+    }
+  } catch (error) {
+    console.error('Error fetching selected tables:', error);
+    res.json({ tables: [] });
+  }
+});
+
 // Generate embeddings for tables
 router.post('/generate', async (req: Request, res: Response) => {
   try {
@@ -418,8 +490,32 @@ router.post('/generate', async (req: Request, res: Response) => {
     // Save initial progress
     await saveProgressToRedis();
 
+    // Log embedding operation start
+    const operationId = `embedding_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    try {
+      await logEmbeddingOperation({
+        operation_id: operationId,
+        source_table: tables,
+        embedding_model: embeddingMethod,
+        batch_size: batchSize,
+        worker_count: workerCount,
+        status: 'started',
+        total_records: 0, // Will be updated during processing
+        processed_records: 0,
+        error_count: 0,
+        execution_time: 0,
+        metadata: {
+          resume,
+          startTime: Date.now(),
+          operationId
+        }
+      });
+    } catch (logError) {
+      console.error('Failed to log embedding operation start:', logError);
+    }
+
     // Start processing (don't wait for completion)
-    processTables(tables, batchSize, embeddingMethod).catch(err => {
+    processTables(tables, batchSize, embeddingMethod, operationId).catch(err => {
       console.error('Processing error:', err);
       migrationProgress.error = err.message;
       migrationProgress.status = 'error';
@@ -434,7 +530,7 @@ router.post('/generate', async (req: Request, res: Response) => {
 });
 
 // Process tables with resume support
-async function processTables(tables: string[], batchSize: number, embeddingMethod: string) {
+async function processTables(tables: string[], batchSize: number, embeddingMethod: string, operationId?: string) {
   try {
     // Calculate total records to process
     let totalToProcess = 0;
@@ -483,6 +579,31 @@ async function processTables(tables: string[], batchSize: number, embeddingMetho
     migrationProgress.total = totalToProcess;
     migrationProgress.newlyEmbedded = 0; // Track newly embedded in this session
     await saveProgressToRedis();
+
+    // Update embedding operation with total records
+    if (operationId) {
+      try {
+        await logEmbeddingOperation({
+          operation_id: operationId,
+          source_table: tables,
+          embedding_model: embeddingMethod,
+          batch_size: batchSize,
+          worker_count: 2, // Default worker count
+          status: 'processing',
+          total_records: totalToProcess,
+          processed_records: 0,
+          error_count: 0,
+          execution_time: Date.now() - (migrationProgress.startTime || Date.now()),
+          metadata: {
+            operationId,
+            totalTables: tables.length,
+            startTime: migrationProgress.startTime
+          }
+        });
+      } catch (logError) {
+        console.error('Failed to update embedding operation:', logError);
+      }
+    }
 
     // Process each table
     for (const table of tables) {
@@ -1054,9 +1175,12 @@ async function processTables(tables: string[], batchSize: number, embeddingMetho
         // Update percentage
         migrationProgress.percentage = (migrationProgress.current / migrationProgress.total) * 100;
 
-        // Calculate estimated time
+        // Calculate processing speed and estimated time
         const elapsed = Date.now() - migrationProgress.startTime;
         if (elapsed > 0 && migrationProgress.current > 0) {
+          const elapsedSeconds = elapsed / 1000;
+          migrationProgress.processingSpeed = migrationProgress.current / elapsedSeconds / 60; // records per minute
+
           const ratePerMs = migrationProgress.current / elapsed;
           const remaining = migrationProgress.total - migrationProgress.current;
           migrationProgress.estimatedTimeRemaining = Math.round(remaining / ratePerMs);
@@ -1064,6 +1188,32 @@ async function processTables(tables: string[], batchSize: number, embeddingMetho
 
         // Save progress to Redis
         await saveProgressToRedis();
+
+        // Log progress update every 100 records
+        if (migrationProgress.current > 0 && migrationProgress.current % 100 === 0 && operationId) {
+          try {
+            await logEmbeddingOperation({
+              operation_id: operationId,
+              source_table: migrationProgress.tables || [],
+              embedding_model: migrationProgress.embeddingMethod || 'google-text-embedding-004',
+              batch_size: 100, // Default batch size
+              worker_count: 1, // Default worker count
+              status: 'processing',
+              total_records: migrationProgress.total || 0,
+              processed_records: migrationProgress.current || 0,
+              error_count: migrationProgress.errorCount || 0,
+              execution_time: Date.now() - (migrationProgress.startTime || Date.now()),
+              metadata: {
+                currentTable: migrationProgress.currentTable,
+                percentage: migrationProgress.percentage || 0,
+                processingSpeed: migrationProgress.processingSpeed || 0,
+                estimatedTimeRemaining: migrationProgress.estimatedTimeRemaining || 0
+              }
+            });
+          } catch (logError) {
+            console.error('Failed to log progress update:', logError);
+          }
+        }
 
         // Small delay to prevent overwhelming
         await new Promise(resolve => setTimeout(resolve, 50));
@@ -1076,12 +1226,67 @@ async function processTables(tables: string[], batchSize: number, embeddingMetho
 
     if (migrationProgress.status === 'processing') {
       migrationProgress.status = 'completed';
+
+      // Log embedding operation completion
+      if (operationId) {
+        try {
+          await logEmbeddingOperation({
+            operation_id: operationId,
+            source_table: migrationProgress.tables || [],
+            embedding_model: migrationProgress.embeddingMethod || 'google-text-embedding-004',
+            batch_size: 100, // Default batch size
+            worker_count: 1, // Default worker count
+            status: 'completed',
+            total_records: migrationProgress.total || 0,
+            processed_records: migrationProgress.current || 0,
+            error_count: migrationProgress.errorCount || 0,
+            execution_time: Date.now() - (migrationProgress.startTime || Date.now()),
+            metadata: {
+              processingTime: Date.now() - (migrationProgress.startTime || Date.now()),
+              tables: migrationProgress.tables || [],
+              errorCount: migrationProgress.errorCount || 0
+            }
+          });
+          console.log('✅ Embedding operation logged successfully');
+        } catch (error) {
+          console.error('Failed to log embedding operation:', error);
+        }
+      }
+
       await saveProgressToRedis();
     }
   } catch (error) {
     console.error('Processing error:', error);
     migrationProgress.error = error.message;
     migrationProgress.status = 'error';
+
+    // Log embedding operation error
+    if (operationId) {
+      try {
+        await logEmbeddingOperation({
+          operation_id: operationId,
+          source_table: migrationProgress.tables || [],
+          embedding_model: migrationProgress.embeddingMethod || 'google-text-embedding-004',
+          batch_size: 100, // Default batch size
+          worker_count: 1, // Default worker count
+          status: 'error',
+          total_records: migrationProgress.total || 0,
+          processed_records: migrationProgress.current || 0,
+          error_count: (migrationProgress.errorCount || 0) + 1,
+          execution_time: Date.now() - (migrationProgress.startTime || Date.now()),
+          error_message: error.message,
+          metadata: {
+            error: error.message,
+            tables: migrationProgress.tables || [],
+            stack: error.stack
+          }
+        });
+        console.log('✅ Embedding error logged successfully');
+      } catch (historyError) {
+        console.error('Failed to log embedding error:', historyError);
+      }
+    }
+
     await saveProgressToRedis();
   }
 }
@@ -1136,6 +1341,33 @@ router.post('/pause', async (req: Request, res: Response) => {
   if (migrationProgress.status === 'processing') {
     migrationProgress.status = 'paused';
     await saveProgressToRedis();
+
+    // Log pause operation
+    try {
+      // Get operation ID from metadata if available
+      const operationId = migrationProgress.metadata?.operationId || `embedding_${Date.now()}`;
+      await logEmbeddingOperation({
+        operation_id: operationId,
+        source_table: migrationProgress.tables || [],
+        embedding_model: migrationProgress.embeddingMethod || 'google-text-embedding-004',
+        batch_size: 100,
+        worker_count: 1,
+        status: 'paused',
+        total_records: migrationProgress.total || 0,
+        processed_records: migrationProgress.current || 0,
+        error_count: migrationProgress.errorCount || 0,
+        execution_time: Date.now() - (migrationProgress.startTime || Date.now()),
+        metadata: {
+          pauseTime: Date.now(),
+          currentTable: migrationProgress.currentTable,
+          percentage: migrationProgress.percentage || 0
+        }
+      });
+      console.log('✅ Embedding pause logged successfully');
+    } catch (logError) {
+      console.error('Failed to log embedding pause:', logError);
+    }
+
     res.json({ message: 'Migration paused', progress: migrationProgress });
   } else {
     res.json({ message: 'No migration in progress', progress: migrationProgress });
@@ -1169,6 +1401,7 @@ router.post('/clear', async (req: Request, res: Response) => {
       estimatedCost: 0,
       startTime: null,
       estimatedTimeRemaining: null,
+      processingSpeed: 0,
       processedTables: [],
       currentBatch: 0,
       totalBatches: 0,
@@ -1323,8 +1556,21 @@ router.get('/progress/stream', async (req: Request, res: Response) => {
   // Send initial progress
   const sendProgress = async () => {
     try {
-      const progress = await getProgressFromRedis();
-      const data = `data: ${JSON.stringify(progress)}\n\n`;
+      await loadProgressFromRedis();
+
+      // Calculate processing speed if we have start time and progress
+      if (migrationProgress.startTime && migrationProgress.current > 0) {
+        const elapsed = (Date.now() - migrationProgress.startTime) / 1000; // seconds
+        migrationProgress.processingSpeed = migrationProgress.current / elapsed / 60; // records per minute
+
+        // Estimate time remaining
+        if (migrationProgress.processingSpeed > 0) {
+          const remaining = (migrationProgress.total - migrationProgress.current) / migrationProgress.processingSpeed / 60; // minutes
+          migrationProgress.estimatedTimeRemaining = remaining * 60 * 1000; // convert to milliseconds
+        }
+      }
+
+      const data = `data: ${JSON.stringify(migrationProgress)}\n\n`;
       res.write(data);
     } catch (error) {
       console.error('Error sending progress:', error);

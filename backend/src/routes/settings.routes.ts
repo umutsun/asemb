@@ -530,4 +530,225 @@ router.get('/services/redis/status', async (req: Request, res: Response) => {
   }
 });
 
+// Get AI settings
+router.get('/ai', async (req: Request, res: Response) => {
+  try {
+    const keys = [
+      'active_chat_model',
+      'active_embedding_model',
+      'temperature',
+      'top_p',
+      'max_tokens',
+      'presence_penalty',
+      'frequency_penalty',
+      'rag_weight',
+      'llm_knowledge_weight',
+      'stream_response',
+      'system_prompt',
+      'response_style',
+      'response_language',
+      'gemini_api_key'
+    ];
+
+    const result = await pgPool.query(
+      'SELECT setting_key, setting_value FROM chatbot_settings WHERE setting_key = ANY($1)',
+      [keys]
+    );
+
+    const settings: any = {
+      activeChatModel: 'google/gemini-pro',
+      activeEmbeddingModel: 'google/text-embedding-004',
+      temperature: 0.1,
+      topP: 0.9,
+      maxTokens: 2048,
+      presencePenalty: 0,
+      frequencyPenalty: 0,
+      ragWeight: 95,
+      llmKnowledgeWeight: 5,
+      streamResponse: true,
+      systemPrompt: 'Sen bir RAG asistanısın. SADECE verilen context\'ten cevap ver. Context dışında bilgi verme.',
+      responseStyle: 'professional',
+      language: 'tr'
+    };
+
+    result.rows.forEach(row => {
+      switch(row.setting_key) {
+        case 'active_chat_model':
+          settings.activeChatModel = row.setting_value;
+          break;
+        case 'active_embedding_model':
+          settings.activeEmbeddingModel = row.setting_value;
+          break;
+        case 'temperature':
+          settings.temperature = parseFloat(row.setting_value);
+          break;
+        case 'top_p':
+          settings.topP = parseFloat(row.setting_value);
+          break;
+        case 'max_tokens':
+          settings.maxTokens = parseInt(row.setting_value);
+          break;
+        case 'presence_penalty':
+          settings.presencePenalty = parseFloat(row.setting_value);
+          break;
+        case 'frequency_penalty':
+          settings.frequencyPenalty = parseFloat(row.setting_value);
+          break;
+        case 'rag_weight':
+          settings.ragWeight = parseInt(row.setting_value);
+          break;
+        case 'llm_knowledge_weight':
+          settings.llmKnowledgeWeight = parseInt(row.setting_value);
+          break;
+        case 'stream_response':
+          settings.streamResponse = row.setting_value === 'true';
+          break;
+        case 'system_prompt':
+          settings.systemPrompt = row.setting_value;
+          break;
+        case 'response_style':
+          settings.responseStyle = row.setting_value;
+          break;
+        case 'response_language':
+          settings.language = row.setting_value;
+          break;
+      }
+    });
+
+    res.json(settings);
+  } catch (error) {
+    console.error('Error fetching AI settings:', error);
+    res.status(500).json({
+      error: 'AI ayarları alınamadı.',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
+// Save AI settings
+router.post('/ai', async (req: Request, res: Response) => {
+  try {
+    const {
+      activeChatModel,
+      activeEmbeddingModel,
+      temperature,
+      topP,
+      maxTokens,
+      presencePenalty,
+      frequencyPenalty,
+      ragWeight,
+      llmKnowledgeWeight,
+      streamResponse,
+      systemPrompt,
+      responseStyle,
+      language
+    } = req.body;
+
+    // Save each setting separately
+    const settings = [
+      { key: 'active_chat_model', value: activeChatModel },
+      { key: 'active_embedding_model', value: activeEmbeddingModel },
+      { key: 'temperature', value: temperature.toString() },
+      { key: 'top_p', value: topP.toString() },
+      { key: 'max_tokens', value: maxTokens.toString() },
+      { key: 'presence_penalty', value: presencePenalty.toString() },
+      { key: 'frequency_penalty', value: frequencyPenalty.toString() },
+      { key: 'rag_weight', value: ragWeight.toString() },
+      { key: 'llm_knowledge_weight', value: llmKnowledgeWeight.toString() },
+      { key: 'stream_response', value: streamResponse.toString() },
+      { key: 'system_prompt', value: systemPrompt },
+      { key: 'response_style', value: responseStyle },
+      { key: 'response_language', value: language }
+    ];
+
+    for (const setting of settings) {
+      // Check if setting exists
+      const checkResult = await pgPool.query(
+        'SELECT setting_key FROM chatbot_settings WHERE setting_key = $1',
+        [setting.key]
+      );
+
+      if (checkResult.rows.length === 0) {
+        // Insert new setting
+        await pgPool.query(
+          'INSERT INTO chatbot_settings (setting_key, setting_value) VALUES ($1, $2)',
+          [setting.key, setting.value]
+        );
+      } else {
+        // Update existing setting
+        await pgPool.query(
+          'UPDATE chatbot_settings SET setting_value = $1 WHERE setting_key = $2',
+          [setting.value, setting.key]
+        );
+      }
+    }
+
+    res.json({
+      success: true,
+      message: 'AI ayarları başarıyla kaydedildi.'
+    });
+  } catch (error) {
+    console.error('Error saving AI settings:', error);
+    res.status(500).json({
+      error: 'AI ayarları kaydedilemedi.',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
+// Save Gemini API key
+router.post('/gemini-api-key', async (req: Request, res: Response) => {
+  try {
+    const { apiKey } = req.body;
+
+    if (!apiKey) {
+      return res.status(400).json({ error: 'API key is required' });
+    }
+
+    // Check if setting exists
+    const checkResult = await pgPool.query(
+      'SELECT setting_key FROM chatbot_settings WHERE setting_key = $1',
+      ['gemini_api_key']
+    );
+
+    if (checkResult.rows.length === 0) {
+      // Insert new setting
+      await pgPool.query(
+        'INSERT INTO chatbot_settings (setting_key, setting_value) VALUES ($1, $2)',
+        ['gemini_api_key', apiKey]
+      );
+    } else {
+      // Update existing setting
+      await pgPool.query(
+        'UPDATE chatbot_settings SET setting_value = $1 WHERE setting_key = $2',
+        [apiKey, 'gemini_api_key']
+      );
+    }
+
+    res.json({ success: true, message: 'Gemini API key saved successfully' });
+  } catch (error) {
+    console.error('Error saving Gemini API key:', error);
+    res.status(500).json({ error: 'Failed to save Gemini API key' });
+  }
+});
+
+// Get Gemini API key
+router.get('/gemini-api-key', async (req: Request, res: Response) => {
+  try {
+    const result = await pgPool.query(
+      'SELECT setting_value FROM chatbot_settings WHERE setting_key = $1',
+      ['gemini_api_key']
+    );
+
+    if (result.rows.length === 0) {
+      return res.json({ apiKey: '' });
+    }
+
+    res.json({ apiKey: result.rows[0].setting_value });
+  } catch (error) {
+    console.error('Error fetching Gemini API key:', error);
+    res.status(500).json({ error: 'Failed to fetch Gemini API key' });
+  }
+});
+
 export default router;

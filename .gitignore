@@ -301,4 +301,5 @@ jest.config.cjs
 /frontend/nul
 
 # Moved to old
-/old/
+/old/"config/config.json"  
+"config/config.json"  

@@ -29,6 +29,7 @@ import activityRoutes from './routes/activity.routes';
 import ragAnythingRoutes from './routes/raganything.routes';
 import authRoutes from './routes/auth.routes';
 import usersRoutes from './routes/users.routes';
+import embeddingHistoryRoutes from './routes/embedding-history.routes';
 
 // Load environment variables
 dotenv.config();
@@ -134,6 +135,7 @@ app.use('/api/v2/activity', activityRoutes);
 app.use('/api/v2/raganything', ragAnythingRoutes);
 app.use('/api/v2/auth', authRoutes);
 app.use('/api/v2/users', usersRoutes);
+app.use('/api/v2/embedding-history', embeddingHistoryRoutes);
 
 // Base route
 app.get('/api/v2', (req: Request, res: Response) => {

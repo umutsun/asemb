@@ -291,8 +291,8 @@ export default function SettingsPage() {
       llmKnowledgeWeight: 5, // %5 LLM kendi bilgisi
       streamResponse: true,
       systemPrompt: 'Sen bir RAG asistanısın. SADECE verilen context\'ten cevap ver. Context dışında bilgi verme.',
-      activeChatModel: 'openai/gpt-4-turbo-preview',
-      activeEmbeddingModel: 'openai/text-embedding-3-small',
+      activeChatModel: 'google/gemini-pro',
+      activeEmbeddingModel: 'google/text-embedding-004',
       responseStyle: 'professional',
       language: 'tr',
     },
@@ -398,6 +398,7 @@ TASK:
     fetchServiceStatus();
     fetchPrompts();
     fetchChatbotSettings();
+    fetchAISettings();
   }, []);
 
   useEffect(() => {
@@ -450,6 +451,38 @@ TASK:
       }
     } catch (error) {
       console.error('Failed to fetch chatbot settings:', error);
+    }
+  };
+
+  const fetchAISettings = async () => {
+    try {
+      const response = await fetch('/api/settings/ai');
+      if (response.ok) {
+        const data = await response.json();
+
+        // Update config with AI settings
+        setConfig(prev => ({
+          ...prev,
+          llmSettings: {
+            ...prev.llmSettings,
+            activeChatModel: data.activeChatModel,
+            activeEmbeddingModel: data.activeEmbeddingModel,
+            temperature: data.temperature,
+            topP: data.topP,
+            maxTokens: data.maxTokens,
+            presencePenalty: data.presencePenalty,
+            frequencyPenalty: data.frequencyPenalty,
+            ragWeight: data.ragWeight,
+            llmKnowledgeWeight: data.llmKnowledgeWeight,
+            streamResponse: data.streamResponse,
+            systemPrompt: data.systemPrompt,
+            responseStyle: data.responseStyle,
+            language: data.language
+          }
+        }));
+      }
+    } catch (error) {
+      console.error('Failed to fetch AI settings:', error);
     }
   };
 
@@ -810,7 +843,8 @@ TASK:
     }
   };
 
-  const updateConfig = (section: keyof Config, field: string, value: any) => {
+  const updateConfig = async (section: keyof Config, field: string, value: any) => {
+    // Update local state first
     setConfig({
       ...config,
       [section]: {
@@ -818,6 +852,43 @@ TASK:
         [field]: value,
       },
     });
+
+    // If it's an LLM setting, save to backend
+    if (section === 'llmSettings') {
+      try {
+        const response = await fetch('/api/settings/ai', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            ...config.llmSettings,
+            [field]: value
+          })
+        });
+
+        if (response.ok) {
+          toast({
+            title: "Başarılı",
+            description: "AI ayarı güncellendi",
+            duration: 2000,
+          });
+        } else {
+          toast({
+            title: "Hata",
+            description: "AI ayarı kaydedilemedi",
+            variant: "destructive",
+            duration: 3000,
+          });
+        }
+      } catch (error) {
+        console.error('Failed to save AI setting:', error);
+        toast({
+          title: "Hata",
+          description: "AI ayarı kaydedilemedi",
+          variant: "destructive",
+          duration: 3000,
+        });
+      }
+    }
   };
 
   const handleLanguageChange = (newLang: string) => {
@@ -1405,6 +1476,10 @@ TASK:
                     onChange={(e) => updateConfig('llmSettings', 'activeChatModel', e.target.value)}
                     className="w-full p-2 border rounded-md text-sm mt-1"
                   >
+                    <optgroup label="Google (Default)">
+                      <option value="google/gemini-pro">Gemini Pro</option>
+                      <option value="google/gemini-1.5-pro">Gemini 1.5 Pro</option>
+                    </optgroup>
                     <optgroup label="OpenAI">
                       <option value="openai/gpt-4-turbo-preview">GPT-4 Turbo</option>
                       <option value="openai/gpt-4">GPT-4</option>
@@ -1418,6 +1493,11 @@ TASK:
                     <optgroup label="DeepSeek">
                       <option value="deepseek/deepseek-chat">DeepSeek Chat</option>
                       <option value="deepseek/deepseek-coder">DeepSeek Coder</option>
+                    </optgroup>
+                    <optgroup label="HuggingFace">
+                      <option value="huggingface/mistralai/Mistral-7B-Instruct-v0.2">Mistral 7B Instruct</option>
+                      <option value="huggingface/meta-llama/Llama-2-7b-chat-hf">Llama 2 7B Chat</option>
+                      <option value="huggingface/microsoft/DialoGPT-medium">DialoGPT Medium</option>
                     </optgroup>
                     <optgroup label="Ollama (Local)">
                       <option value="ollama/llama2">Llama 2</option>

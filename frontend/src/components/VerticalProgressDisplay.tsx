@@ -1,5 +1,6 @@
 'use client';
 
+import { useState, useEffect } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -10,7 +11,10 @@ import {
   AlertTriangle,
   Clock,
   Zap,
-  Database
+  Database,
+  Activity,
+  TrendingUp,
+  BarChart3
 } from 'lucide-react';
 
 interface EmbeddingProgress {
@@ -42,22 +46,53 @@ export default function VerticalProgressDisplay({
   getCurrentTableInfo,
   migrationTables = []
 }: VerticalProgressDisplayProps) {
+  const [pulse, setPulse] = useState(false);
+  const [currentProgress, setCurrentProgress] = useState(0);
+
+  useEffect(() => {
+    if (progress.status === 'processing') {
+      // Smooth progress animation only
+      const progressInterval = setInterval(() => {
+        setCurrentProgress(prev => {
+          const target = progress.percentage || 0;
+          const diff = target - prev;
+          if (Math.abs(diff) < 0.1) return target;
+          return prev + diff * 0.1;
+        });
+      }, 100);
+
+      return () => {
+        clearInterval(progressInterval);
+      };
+    }
+  }, [progress.status, progress.percentage]);
+
   if (!progress || progress.status === 'idle' || progress.status === 'completed' || progress.status === 'error') {
     return null;
   }
 
   const formatTime = (ms: number) => {
-    const minutes = Math.floor(ms / 1000 / 60);
+    const hours = Math.floor(ms / 1000 / 60 / 60);
+    const minutes = Math.floor((ms / 1000 / 60) % 60);
     const seconds = Math.floor((ms / 1000) % 60);
+
+    if (hours > 0) {
+      return `${hours}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+    }
     return `${minutes}:${seconds.toString().padStart(2, '0')}`;
   };
 
   const getElapsedTime = () => {
     if (!progress.startTime) return '-';
     const elapsed = Date.now() - progress.startTime;
-    const minutes = Math.floor(elapsed / 1000 / 60);
+    const hours = Math.floor(elapsed / 1000 / 60 / 60);
+    const minutes = Math.floor((elapsed / 1000 / 60) % 60);
     const seconds = Math.floor((elapsed / 1000) % 60);
-    return `${minutes}d ${seconds}s`;
+
+    if (hours > 0) {
+      return `${hours}sa ${minutes}dk ${seconds}s`;
+    }
+    return `${minutes}dk ${seconds}s`;
   };
 
   return (
@@ -96,8 +131,8 @@ export default function VerticalProgressDisplay({
           <span>{(progress.total || 0).toLocaleString('tr-TR')}</span>
         </div>
         <Progress
-          value={progress.percentage || 0}
-          className="h-2"
+          value={currentProgress}
+          className="h-2 transition-all duration-300"
         />
         <div className="flex items-center justify-center gap-2">
           <span className="text-xs font-mono bg-primary/10 px-2 py-0.5 rounded text-primary">

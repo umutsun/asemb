@@ -183,16 +183,16 @@ export default function EmbeddingsManagerPage() {
           console.error('Failed to fetch embedding stats:', statsError);
         }
 
-        // Fetch embedding history - disabled for now (v2 endpoint doesn't exist)
-        // try {
-        //   const historyResponse = await fetch(`${API_BASE}/history?limit=100`);
-        //   if (historyResponse.ok) {
-        //     const historyData = await historyResponse.json();
-        //     setEmbeddingHistory(historyData);
-        //   }
-        // } catch (historyError) {
-        //   console.error('Error fetching embedding history:', historyError);
-        // }
+        // Fetch embedding history
+        try {
+          const historyResponse = await fetch('/api/embedding-history?limit=100');
+          if (historyResponse.ok) {
+            const historyData = await historyResponse.json();
+            setEmbeddingHistory(historyData.history || []);
+          }
+        } catch (historyError) {
+          console.error('Error fetching embedding history:', historyError);
+        }
       } else {
         setError('Failed to fetch tables.');
       }
@@ -223,7 +223,7 @@ export default function EmbeddingsManagerPage() {
     useEffect(() => {
       // Only connect if there's an active process
       if (progress?.status === 'processing' || progress?.status === 'paused') {
-        const eventSource = new EventSource('/api/embeddings/progress/stream');
+        const eventSource = new EventSource('/api/v2/embeddings/progress/stream');
         eventSourceRef.current = eventSource;
 
         eventSource.onmessage = (event) => {
@@ -809,24 +809,24 @@ export default function EmbeddingsManagerPage() {
                           <th className="text-left p-2">Tarih</th>
                           <th className="text-left p-2">Model</th>
                           <th className="text-left p-2">Tablolar</th>
-                          <th className="text-right p-2">Kayıt Sayısı</th>
-                          <th className="text-right p-2">Token Kullanımı</th>
-                          <th className="text-right p-2">Maliyet</th>
+                          <th className="text-right p-2">İşlenen</th>
+                          <th className="text-right p-2">Başarılı / Hatalı</th>
+                          <th className="text-right p-2">Batch / Worker</th>
                           <th className="text-center p-2">Durum</th>
                         </tr>
                       </thead>
                       <tbody>
                         {embeddingHistory.map((record: any, index: number) => (
-                          <tr key={index} className="border-b hover:bg-muted/50">
+                          <tr key={record.id || index} className="border-b hover:bg-muted/50">
                             <td className="p-2">
-                              {new Date(record.started_at).toLocaleString('tr-TR')}
+                              {new Date(record.started_at || record.created_at).toLocaleString('tr-TR')}
                             </td>
                             <td className="p-2 font-mono text-xs">
-                              {record.model_used || '-'}
+                              {record.embedding_model || '-'}
                             </td>
                             <td className="p-2">
                               <div className="flex flex-wrap gap-1">
-                                {record.tables?.map((table: string, i: number) => (
+                                {record.source_table?.map((table: string, i: number) => (
                                   <Badge key={i} variant="outline" className="text-xs">
                                     {table}
                                   </Badge>
@@ -834,25 +834,27 @@ export default function EmbeddingsManagerPage() {
                               </div>
                             </td>
                             <td className="p-2 text-right">
-                              {record.processed_records?.toLocaleString('tr-TR') || '0'}
+                              {record.records_processed?.toLocaleString('tr-TR') || '0'}
                             </td>
                             <td className="p-2 text-right">
-                              {record.tokens_used?.toLocaleString('tr-TR') || '0'}
+                              {record.records_success?.toLocaleString('tr-TR') || '0'} / {record.records_failed?.toLocaleString('tr-TR') || '0'}
                             </td>
                             <td className="p-2 text-right">
-                              ${record.estimated_cost?.toFixed(4) || '0.0000'}
+                              {record.batch_size || '-'} / {record.worker_count || '-'}
                             </td>
                             <td className="p-2 text-center">
                               <Badge variant={
                                 record.status === 'completed' ? 'default' :
-                                record.status === 'failed' ? 'destructive' :
+                                record.status === 'error' ? 'destructive' :
                                 record.status === 'processing' ? 'default' :
+                                record.status === 'paused' ? 'secondary' :
                                 'secondary'
                               }>
                                 {record.status === 'completed' ? 'Tamamlandı' :
-                                 record.status === 'failed' ? 'Başarısız' :
+                                 record.status === 'error' ? 'Hata' :
                                  record.status === 'processing' ? 'İşleniyor' :
-                                 record.status === 'paused' ? 'Duraklatıldı' : record.status}
+                                 record.status === 'paused' ? 'Duraklatıldı' :
+                                 record.status === 'started' ? 'Başlatıldı' : record.status}
                               </Badge>
                             </td>
                           </tr>
