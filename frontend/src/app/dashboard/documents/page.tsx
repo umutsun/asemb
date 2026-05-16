@@ -3466,7 +3466,7 @@ export default function DocumentManagerPage() {
           >
             <CardContent className="p-3">
               <div className="text-xs text-red-700 dark:text-red-300 font-medium mb-1 flex items-center gap-1">
-                {t('documents.stats.failed') || 'Başarısız'}
+                {t('documents.stats.failed') || 'Failed'}
                 {(stats.documents?.failed || 0) > 0 && <AlertCircle className="w-3 h-3 text-red-500" />}
               </div>
               <div className="text-xl font-bold text-red-900 dark:text-red-100">
@@ -3474,9 +3474,9 @@ export default function DocumentManagerPage() {
               </div>
               <div className="text-xs text-red-600 dark:text-red-400 mt-0.5">
                 {(stats.documents?.failed || 0) > 0 ? (
-                  <span className="opacity-75 text-xs">Tıkla → detaylar</span>
+                  <span className="opacity-75 text-xs">Click → details</span>
                 ) : (
-                  <span className="opacity-75 text-xs">✓ Hata yok</span>
+                  <span className="opacity-75 text-xs">✓ No errors</span>
                 )}
               </div>
             </CardContent>
@@ -3501,7 +3501,7 @@ export default function DocumentManagerPage() {
                     <span className="opacity-75 ml-1 text-xs">skipped</span>
                   </>
                 ) : (
-                  <span className="opacity-75 text-xs">✓ RAG hazır</span>
+                  <span className="opacity-75 text-xs">✓ RAG ready</span>
                 )}
               </div>
             </CardContent>
@@ -4090,10 +4090,10 @@ export default function DocumentManagerPage() {
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="all">Tümü</SelectItem>
-                        <SelectItem value="pending">Bekleyen</SelectItem>
-                        <SelectItem value="analyzed">Analiz Edildi</SelectItem>
-                        <SelectItem value="embedded">Gömülü</SelectItem>
+                        <SelectItem value="all">All</SelectItem>
+                        <SelectItem value="pending">Pending</SelectItem>
+                        <SelectItem value="analyzed">Analyzed</SelectItem>
+                        <SelectItem value="embedded">Embedded</SelectItem>
                       </SelectContent>
                     </Select>
                     <Badge variant="outline" className="px-2 py-1 text-xs whitespace-nowrap">
@@ -5068,10 +5068,10 @@ export default function DocumentManagerPage() {
           <DialogHeader className="px-6 py-4 border-b">
             <DialogTitle className="flex items-center gap-2">
               <AlertCircle className="w-5 h-5 text-red-500" />
-              Başarısız Dokümanlar ({failedCount})
+              Failed Documents ({failedCount})
             </DialogTitle>
             <DialogDescription>
-              Bu dokümanların metin çıkarma işlemi başarısız oldu. Harita/plan dosyaları OCR ile okunamaz.
+              Text extraction failed for these documents. Map/plan files cannot be read by OCR.
             </DialogDescription>
           </DialogHeader>
 
@@ -5083,7 +5083,7 @@ export default function DocumentManagerPage() {
             ) : failedDocuments.length === 0 ? (
               <div className="text-center py-12">
                 <CheckCircle className="w-12 h-12 text-green-500 mx-auto mb-4" />
-                <p className="text-muted-foreground">Başarısız doküman yok</p>
+                <p className="text-muted-foreground">No failed documents</p>
               </div>
             ) : (
               <ScrollArea className="h-[400px]">
@@ -5102,10 +5102,10 @@ export default function DocumentManagerPage() {
                           }}
                         />
                       </TableHead>
-                      <TableHead>Dosya Adı</TableHead>
-                      <TableHead>Tür</TableHead>
-                      <TableHead>Başarısızlık Nedeni</TableHead>
-                      <TableHead className="w-32">Tarih</TableHead>
+                      <TableHead>File Name</TableHead>
+                      <TableHead>Type</TableHead>
+                      <TableHead>Failure Reason</TableHead>
+                      <TableHead className="w-32">Date</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -5139,7 +5139,7 @@ export default function DocumentManagerPage() {
                           </span>
                         </TableCell>
                         <TableCell className="text-xs text-muted-foreground">
-                          {doc.updated_at ? new Date(doc.updated_at).toLocaleDateString('tr-TR') : '-'}
+                          {doc.updated_at ? new Date(doc.updated_at).toLocaleDateString('en-US') : '-'}
                         </TableCell>
                       </TableRow>
                     ))}
@@ -5153,7 +5153,7 @@ export default function DocumentManagerPage() {
           {failedDocuments.length > 0 && (
             <div className="flex items-center justify-between px-4 py-3 border-t bg-muted/30">
               <span className="text-sm text-muted-foreground">
-                {selectedFailedIds.size} / {failedDocuments.length} seçili
+                {selectedFailedIds.size} / {failedDocuments.length} selected
               </span>
               <div className="flex gap-2">
                 <Button

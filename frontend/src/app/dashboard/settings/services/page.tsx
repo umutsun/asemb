@@ -386,7 +386,6 @@ export default function ServicesPage() {
               {activeService === "whisper" && <WhisperConfig />}
               {activeService === "pgai" && <PgaiConfig />}
               {activeService === "pgvectorscale" && <PgvectorscaleConfig />}
-              {activeService === "n8n" && <N8NConfig />}
 
               {/* Actions */}
               {!["database", "pgai", "pgvectorscale"].includes(activeService) && (
@@ -741,15 +740,15 @@ function PythonConfig() {
       case 'available':
       case 'running':
       case 'idle':
-        return <Badge className="bg-green-500">Aktif</Badge>;
+        return <Badge className="bg-green-500">Active</Badge>;
       case 'degraded':
       case 'partial':
-        return <Badge className="bg-yellow-500">Kısmi</Badge>;
+        return <Badge className="bg-yellow-500">Partial</Badge>;
       case 'unavailable':
       case 'error':
-        return <Badge className="bg-red-500">Hata</Badge>;
+        return <Badge className="bg-red-500">Error</Badge>;
       case 'not_configured':
-        return <Badge variant="outline">Yapılandırılmadı</Badge>;
+        return <Badge variant="outline">Not configured</Badge>;
       default:
         return <Badge variant="secondary">{status}</Badge>;
     }
@@ -782,10 +781,10 @@ function PythonConfig() {
       {/* Microservices List */}
       <div>
         <div className="flex items-center justify-between mb-4">
-          <Label className="text-lg font-semibold">Python Mikroservisleri</Label>
+          <Label className="text-lg font-semibold">Python Microservices</Label>
           <Button size="sm" variant="outline" onClick={fetchMicroservicesStatus} disabled={loading}>
             <RefreshCw className={`h-3 w-3 mr-1 ${loading ? 'animate-spin' : ''}`} />
-            Yenile
+            Refresh
           </Button>
         </div>
 
@@ -799,7 +798,7 @@ function PythonConfig() {
         {loading && microservices.length === 0 ? (
           <div className="flex items-center justify-center py-8">
             <Loader2 className="h-6 w-6 animate-spin mr-2" />
-            Yükleniyor...
+            Loading...
           </div>
         ) : (
           <div className="space-y-3">
@@ -819,16 +818,16 @@ function PythonConfig() {
                         {/* Document Analyzer specific */}
                         {service.name === 'Document Analyzer' && service.details.is_running && (
                           <div className="text-xs bg-blue-50 dark:bg-blue-900/20 p-2 rounded">
-                            <span className="font-medium">İşleniyor: </span>
-                            {service.details.stats?.total_processed || 0} döküman
+                            <span className="font-medium">Processing: </span>
+                            {service.details.stats?.total_processed || 0} documents
                             {service.details.stats?.total_success > 0 && (
                               <span className="text-green-600 ml-2">
-                                ✓ {service.details.stats.total_success} başarılı
+                                ✓ {service.details.stats.total_success} succeeded
                               </span>
                             )}
                             {service.details.stats?.total_errors > 0 && (
                               <span className="text-red-600 ml-2">
-                                ✗ {service.details.stats.total_errors} hata
+                                ✗ {service.details.stats.total_errors} failed
                               </span>
                             )}
                           </div>
@@ -839,9 +838,9 @@ function PythonConfig() {
                           <div className="text-xs text-muted-foreground">
                             Tesseract: {service.details.tesseract.status === 'available'
                               ? `v${service.details.tesseract.version}`
-                              : 'Yüklü değil'}
+                              : 'Not installed'}
                             {service.details.google_vision?.status === 'configured' && (
-                              <span className="ml-2">| Google Vision: Yapılandırılmış</span>
+                              <span className="ml-2">| Google Vision: Configured</span>
                             )}
                           </div>
                         )}
@@ -1606,8 +1605,8 @@ function DevOpsCard() {
         await Promise.all(registrations.map(reg => reg.unregister()));
       }
 
-      toast.success('Önbellek temizlendi', {
-        description: 'Sayfa yeniden yüklenecek...'
+      toast.success('Cache cleared', {
+        description: 'Reloading page...'
       });
 
       // Reload page after short delay
@@ -1616,7 +1615,7 @@ function DevOpsCard() {
       }, 1000);
     } catch (error) {
       console.error('Cache clear error:', error);
-      toast.error('Önbellek temizlenemedi');
+      toast.error('Failed to clear cache');
     } finally {
       setClearingCache(false);
     }
@@ -1637,7 +1636,7 @@ function DevOpsCard() {
             <div className="flex items-center gap-2">
               <RefreshCw className="h-3.5 w-3.5 text-muted-foreground" />
               <div>
-                <span className="text-xs font-medium">Önbellek Temizle</span>
+                <span className="text-xs font-medium">Clear Cache</span>
                 <p className="text-[10px] text-muted-foreground">LocalStorage, Cache, SW</p>
               </div>
             </div>
@@ -1651,7 +1650,7 @@ function DevOpsCard() {
               {clearingCache ? (
                 <Loader2 className="h-3 w-3 animate-spin" />
               ) : (
-                'Temizle'
+                'Clear'
               )}
             </Button>
           </div>
@@ -1773,7 +1772,7 @@ function MicroservicesCard() {
       <CardHeader className="pb-2">
         <CardTitle className="text-sm flex items-center gap-2">
           <Brain className="h-4 w-4" />
-          Mikroservisler
+          Microservices
           <Button
             variant="ghost"
             size="sm"
@@ -1840,7 +1839,7 @@ function MicroservicesCard() {
 
             {microservices.length === 0 && !loading && (
               <div className="text-center py-4 text-xs text-muted-foreground">
-                Python servisleri erişilemez
+                Python services unreachable
               </div>
             )}
           </div>

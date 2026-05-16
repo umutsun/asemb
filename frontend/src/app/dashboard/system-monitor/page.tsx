@@ -499,9 +499,9 @@ export default function SystemMonitor() {
                               service.status === 'error' ? 'error' : 'outline'
                         }
                       >
-                        {service.status === 'running' ? 'Çalışıyor' :
-                          service.status === 'warning' ? 'Uyarı' :
-                            service.status === 'error' ? 'Hata' : 'Bilinmiyor'}
+                        {service.status === 'running' ? 'Running' :
+                          service.status === 'warning' ? 'Warning' :
+                            service.status === 'error' ? 'Error' : 'Unknown'}
                       </Badge>
                     </div>
                   </div>

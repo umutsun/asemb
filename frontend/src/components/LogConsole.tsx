@@ -149,7 +149,7 @@ export default function LogConsole({ className }: LogConsoleProps) {
           id: `init-${logIdCounter.current++}`,
           timestamp: new Date().toISOString(),
           level: 'info',
-          message: 'Log konsolu başlatıldı',
+          message: 'Log console started',
           source: 'frontend',
           service: 'log-console',
           metadata: { version: '1.0.0' }
@@ -159,7 +159,7 @@ export default function LogConsole({ className }: LogConsoleProps) {
           id: `init-${logIdCounter.current++}`,
           timestamp: new Date().toISOString(),
           level: 'info',
-          message: 'Backend WebSocket bağlantısı bekleniyor...',
+          message: 'Waiting for backend WebSocket connection...',
           source: 'frontend',
           service: 'log-console',
           metadata: { wsUrl: 'ws://localhost:8084/ws/logs' }
@@ -250,9 +250,9 @@ export default function LogConsole({ className }: LogConsoleProps) {
         <div className="flex items-center justify-between">
           <CardTitle className="flex items-center gap-2">
             <Terminal className="h-5 w-5" />
-            Log Konsolu
+            Log Console
             <Badge variant={isConnected ? 'default' : 'destructive'}>
-              {isConnected ? 'Bağlı' : 'Bağlı Değil'}
+              {isConnected ? 'Connected' : 'Disconnected'}
             </Badge>
             <Badge variant="secondary">
               {filteredLogs.length} log
@@ -265,7 +265,7 @@ export default function LogConsole({ className }: LogConsoleProps) {
               onClick={() => setIsLive(!isLive)}
             >
               {isLive ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
-              {isLive ? 'Duraklat' : 'Devam Et'}
+              {isLive ? 'Pause' : 'Resume'}
             </Button>
             <Button
               variant="outline"
@@ -297,7 +297,7 @@ export default function LogConsole({ className }: LogConsoleProps) {
               <div className="flex items-center gap-2 flex-1">
                 <Search className="h-4 w-4 text-muted-foreground" />
                 <Input
-                  placeholder="Loglarda ara..."
+                  placeholder="Search logs..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   className="flex-1"
@@ -308,10 +308,10 @@ export default function LogConsole({ className }: LogConsoleProps) {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">Tüm Seviyeler</SelectItem>
-                  <SelectItem value="error">Hata</SelectItem>
-                  <SelectItem value="warn">Uyarı</SelectItem>
-                  <SelectItem value="info">Bilgi</SelectItem>
+                  <SelectItem value="all">All Levels</SelectItem>
+                  <SelectItem value="error">Error</SelectItem>
+                  <SelectItem value="warn">Warning</SelectItem>
+                  <SelectItem value="info">Info</SelectItem>
                   <SelectItem value="debug">Debug</SelectItem>
                 </SelectContent>
               </Select>
@@ -320,7 +320,7 @@ export default function LogConsole({ className }: LogConsoleProps) {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">Tüm Kaynaklar</SelectItem>
+                  <SelectItem value="all">All Sources</SelectItem>
                   <SelectItem value="backend">Backend</SelectItem>
                   <SelectItem value="frontend">Frontend</SelectItem>
                   <SelectItem value="system">System</SelectItem>
@@ -338,8 +338,8 @@ export default function LogConsole({ className }: LogConsoleProps) {
               <div className="flex items-center justify-center h-32 text-muted-foreground">
                 <div className="text-center">
                   <Terminal className="h-8 w-8 mx-auto mb-2 opacity-50" />
-                  <p>Henüz log gösterilemiyor</p>
-                  <p className="text-xs">Loglar burada görünecek</p>
+                  <p>No logs to display yet</p>
+                  <p className="text-xs">Logs will appear here</p>
                 </div>
               </div>
             ) : (
@@ -349,7 +349,7 @@ export default function LogConsole({ className }: LogConsoleProps) {
                     <div className="flex items-center gap-1 mt-0.5">
                       {getSourceIcon(log.source)}
                       <span className="text-xs text-muted-foreground">
-                        {new Date(log.timestamp).toLocaleTimeString('tr-TR')}
+                        {new Date(log.timestamp).toLocaleTimeString('en-US')}
                       </span>
                     </div>
 
@@ -370,7 +370,7 @@ export default function LogConsole({ className }: LogConsoleProps) {
                       {log.stack && (
                         <details className="mt-1">
                           <summary className="cursor-pointer text-xs text-muted-foreground hover:text-foreground">
-                            Stack trace göster
+                            Show stack trace
                           </summary>
                           <pre className="mt-1 text-xs bg-muted p-2 rounded overflow-x-auto">
                             {log.stack}
@@ -390,7 +390,7 @@ export default function LogConsole({ className }: LogConsoleProps) {
                               }));
                             }}
                           >
-                            Metadata {showMetadata[log.id] ? 'gizle' : 'göster'}
+                            Metadata {showMetadata[log.id] ? 'hide' : 'show'}
                           </summary>
                           {showMetadata[log.id] && (
                             <pre className="mt-1 text-xs bg-muted p-2 rounded overflow-x-auto">

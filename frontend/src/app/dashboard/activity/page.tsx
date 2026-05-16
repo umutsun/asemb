@@ -297,7 +297,7 @@ export default function ActivityPage() {
       <div className="flex items-center justify-center h-screen bg-background">
         <div className="text-center space-y-4">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
-          <p className="text-muted-foreground">Aktivite geçmişi yükleniyor...</p>
+          <p className="text-muted-foreground">Loading activity history...</p>
         </div>
       </div>
     );
@@ -313,13 +313,13 @@ export default function ActivityPage() {
   }));
 
   const dailyActivityData = [
-    { date: 'Pazartesi', activities: 45, success: 40 },
-    { date: 'Salı', activities: 52, success: 48 },
-    { date: 'Çarşamba', activities: 38, success: 35 },
-    { date: 'Perşembe', activities: 67, success: 62 },
-    { date: 'Cuma', activities: 58, success: 54 },
-    { date: 'Cumartesi', activities: 29, success: 27 },
-    { date: 'Pazar', activities: 15, success: 14 }
+    { date: 'Monday', activities: 45, success: 40 },
+    { date: 'Tuesday', activities: 52, success: 48 },
+    { date: 'Wednesday', activities: 38, success: 35 },
+    { date: 'Thursday', activities: 67, success: 62 },
+    { date: 'Friday', activities: 58, success: 54 },
+    { date: 'Saturday', activities: 29, success: 27 },
+    { date: 'Sunday', activities: 15, success: 14 }
   ];
 
   return (
@@ -345,7 +345,7 @@ export default function ActivityPage() {
             <Activity className="h-6 w-6 text-[#3b82f6]" />
             {t('dashboard.activity.title')}
           </h1>
-          <p className="text-muted-foreground mt-1">Tüm sistem aktivitelerini ve metrikleri takip edin</p>
+          <p className="text-muted-foreground mt-1">Track all system activities and metrics</p>
         </div>
         <Button
           onClick={() => fetchActivities()}
@@ -353,7 +353,7 @@ export default function ActivityPage() {
           className="bg-[#3b82f6] hover:bg-[#2563eb]"
         >
           <RefreshCw className={`w-4 h-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
-          Yenile
+          Refresh
         </Button>
       </div>
 
@@ -362,7 +362,7 @@ export default function ActivityPage() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           <Card className="border-2 border-[#3b82f6]/20">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Toplam Aktivite</CardTitle>
+              <CardTitle className="text-sm font-medium">Total Activity</CardTitle>
               <Activity className="h-4 w-4 text-[#3b82f6]" />
             </CardHeader>
             <CardContent>
@@ -375,7 +375,7 @@ export default function ActivityPage() {
 
           <Card className="border-2 border-[#10b981]/20">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Başarı Oranı</CardTitle>
+              <CardTitle className="text-sm font-medium">Success Rate</CardTitle>
               <CheckCircle2 className="h-4 w-4 text-[#10b981]" />
             </CardHeader>
             <CardContent>
@@ -386,26 +386,26 @@ export default function ActivityPage() {
 
           <Card className="border-2 border-[#8b5cf6]/20">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Son 24 Saat</CardTitle>
+              <CardTitle className="text-sm font-medium">Last 24 Hours</CardTitle>
               <Clock className="h-4 w-4 text-[#8b5cf6]" />
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">{formatNumber(summary.last_24h_count)}</div>
               <p className="text-xs text-muted-foreground">
-                Yeni aktivite
+                New activities
               </p>
             </CardContent>
           </Card>
 
           <Card className="border-2 border-[#f59e0b]/20">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">En Aktif</CardTitle>
+              <CardTitle className="text-sm font-medium">Most Active</CardTitle>
               <TrendingUp className="h-4 w-4 text-[#f59e0b]" />
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold capitalize">{summary.most_active_type}</div>
               <p className="text-xs text-muted-foreground">
-                İşlem tipi
+                Operation type
               </p>
             </CardContent>
           </Card>
@@ -420,7 +420,7 @@ export default function ActivityPage() {
               <PieChart className="h-5 w-5" />
               {t('dashboard.activity.activityDistribution')}
             </CardTitle>
-            <CardDescription>İşlem tiplerine göre dağılım</CardDescription>
+            <CardDescription>Distribution by operation type</CardDescription>
           </CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={300}>
@@ -451,7 +451,7 @@ export default function ActivityPage() {
               <BarChart3 className="h-5 w-5" />
               {t('dashboard.activity.weeklyActivity')}
             </CardTitle>
-            <CardDescription>Son 7 günlük aktivite trendi</CardDescription>
+            <CardDescription>Last 7 days activity trend</CardDescription>
           </CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={300}>
@@ -473,7 +473,7 @@ export default function ActivityPage() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           <Card className="border-2 border-[#10b981]/20">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Toplam Doküman</CardTitle>
+              <CardTitle className="text-sm font-medium">Total Documents</CardTitle>
               <FileText className="h-4 w-4 text-[#10b981]" />
             </CardHeader>
             <CardContent>
@@ -486,15 +486,15 @@ export default function ActivityPage() {
 
           <Card className="border-2 border-[#8b5cf6]/20">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">LightRAG Durum</CardTitle>
+              <CardTitle className="text-sm font-medium">LightRAG Status</CardTitle>
               <Brain className="h-4 w-4 text-[#8b5cf6]" />
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">
-                {dashboardData.lightrag?.initialized ? 'Aktif' : 'Pasif'}
+                {dashboardData.lightrag?.initialized ? 'Active' : 'Inactive'}
               </div>
               <p className="text-xs text-muted-foreground">
-                {dashboardData.lightrag?.documentCount || 0} doküman
+                {dashboardData.lightrag?.documentCount || 0} documents
               </p>
             </CardContent>
           </Card>
@@ -507,7 +507,7 @@ export default function ActivityPage() {
             <CardContent>
               <div className="text-2xl font-bold">{formatNumber(dashboardData.rag?.totalChunks || 0)}</div>
               <p className="text-xs text-muted-foreground">
-                Ort. {dashboardData.rag?.avgChunkSize || 0} karakter
+                Avg. {dashboardData.rag?.avgChunkSize || 0} characters
               </p>
             </CardContent>
           </Card>
@@ -518,7 +518,7 @@ export default function ActivityPage() {
               <Database className="h-4 w-4 text-[#ec4899]" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{dashboardData.redis?.connected ? 'Bağlı' : 'Çevrimdışı'}</div>
+              <div className="text-2xl font-bold">{dashboardData.redis?.connected ? 'Connected' : 'Offline'}</div>
               <p className="text-xs text-muted-foreground">
                 {dashboardData.redis?.used_memory || '0 MB'}
               </p>
@@ -538,11 +538,11 @@ export default function ActivityPage() {
         <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
-              <label className="text-sm font-medium mb-2 block">Arama</label>
+              <label className="text-sm font-medium mb-2 block">Search</label>
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
                 <Input
-                  placeholder="URL veya başlık ara..."
+                  placeholder="Search URL or title..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   className="pl-10"
@@ -550,7 +550,7 @@ export default function ActivityPage() {
               </div>
             </div>
             <div>
-              <label className="text-sm font-medium mb-2 block">Başlangıç Tarihi</label>
+              <label className="text-sm font-medium mb-2 block">Start Date</label>
               <Input
                 type="date"
                 value={dateRange.start}
@@ -558,7 +558,7 @@ export default function ActivityPage() {
               />
             </div>
             <div>
-              <label className="text-sm font-medium mb-2 block">Bitiş Tarihi</label>
+              <label className="text-sm font-medium mb-2 block">End Date</label>
               <Input
                 type="date"
                 value={dateRange.end}
@@ -578,14 +578,14 @@ export default function ActivityPage() {
                 <Database className="h-5 w-5" />
                 {t('dashboard.activity.activityRecords')}
               </CardTitle>
-              <CardDescription>Tüm işlemlerin detaylı logları</CardDescription>
+              <CardDescription>Detailed logs of all operations</CardDescription>
             </div>
             <Tabs value={selectedType} onValueChange={setSelectedType}>
               <TabsList>
-                <TabsTrigger value="all">Tümü</TabsTrigger>
+                <TabsTrigger value="all">All</TabsTrigger>
                 <TabsTrigger value="scrape">Scraping</TabsTrigger>
                 <TabsTrigger value="embedding">Embeddings</TabsTrigger>
-                <TabsTrigger value="delete">Silme</TabsTrigger>
+                <TabsTrigger value="delete">Delete</TabsTrigger>
               </TabsList>
             </Tabs>
           </div>
@@ -595,7 +595,7 @@ export default function ActivityPage() {
             {activities.length === 0 ? (
               <div className="text-center py-8 text-muted-foreground">
                 <Activity className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                <p>Aktivite bulunamadı</p>
+                <p>No activities found</p>
               </div>
             ) : (
               activities.map((activity) => (
@@ -638,15 +638,15 @@ export default function ActivityPage() {
                         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-3 p-3 bg-muted/30 rounded-lg">
                           {activity.metrics.content_length && (
                             <div className="text-center">
-                              <div className="text-sm text-muted-foreground">İçerik</div>
+                              <div className="text-sm text-muted-foreground">Content</div>
                               <div className="font-semibold">
-                                {formatNumber(activity.metrics.content_length)} karakter
+                                {formatNumber(activity.metrics.content_length)} characters
                               </div>
                             </div>
                           )}
                           {activity.metrics.chunk_count && (
                             <div className="text-center">
-                              <div className="text-sm text-muted-foreground">Chunk'lar</div>
+                              <div className="text-sm text-muted-foreground">Chunks</div>
                               <div className="font-semibold">
                                 {formatNumber(activity.metrics.chunk_count)}
                               </div>
@@ -654,7 +654,7 @@ export default function ActivityPage() {
                           )}
                           {activity.metrics.token_count && (
                             <div className="text-center">
-                              <div className="text-sm text-muted-foreground">Token'lar</div>
+                              <div className="text-sm text-muted-foreground">Tokens</div>
                               <div className="font-semibold">
                                 {formatNumber(activity.metrics.token_count)}
                               </div>
@@ -662,7 +662,7 @@ export default function ActivityPage() {
                           )}
                           {activity.metrics.extraction_time_ms && (
                             <div className="text-center">
-                              <div className="text-sm text-muted-foreground">Süre</div>
+                              <div className="text-sm text-muted-foreground">Duration</div>
                               <div className="font-semibold">
                                 {activity.metrics.extraction_time_ms}ms
                               </div>
@@ -691,8 +691,8 @@ export default function ActivityPage() {
       {/* Quick Actions */}
       <Card>
         <CardHeader>
-          <CardTitle>Hızlı İşlemler</CardTitle>
-          <CardDescription>Sık kullanılan aktivite işlemleri</CardDescription>
+          <CardTitle>Quick Actions</CardTitle>
+          <CardDescription>Frequently used activity operations</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -701,7 +701,7 @@ export default function ActivityPage() {
                 <CardContent className="p-4 text-center">
                   <Globe className="h-8 w-8 mx-auto mb-2 text-[#3b82f6]" />
                   <p className="font-medium">Web Scraping</p>
-                  <p className="text-sm text-muted-foreground">Yeni içerik çek</p>
+                  <p className="text-sm text-muted-foreground">Scrape new content</p>
                 </CardContent>
               </Card>
             </Link>
@@ -711,7 +711,7 @@ export default function ActivityPage() {
                 <CardContent className="p-4 text-center">
                   <Brain className="h-8 w-8 mx-auto mb-2 text-[#10b981]" />
                   <p className="font-medium">Embeddings</p>
-                  <p className="text-sm text-muted-foreground">Vektör yönetimi</p>
+                  <p className="text-sm text-muted-foreground">Vector management</p>
                 </CardContent>
               </Card>
             </Link>
@@ -721,7 +721,7 @@ export default function ActivityPage() {
                 <CardContent className="p-4 text-center">
                   <BarChart3 className="h-8 w-8 mx-auto mb-2 text-[#8b5cf6]" />
                   <p className="font-medium">Analytics</p>
-                  <p className="text-sm text-muted-foreground">Detaylı raporlar</p>
+                  <p className="text-sm text-muted-foreground">Detailed reports</p>
                 </CardContent>
               </Card>
             </Link>

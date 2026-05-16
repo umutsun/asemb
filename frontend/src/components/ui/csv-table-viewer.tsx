@@ -203,16 +203,16 @@ export default function CSVTableViewer({
         setEditableHeaders(response.data.headers);
         setIsEditingHeaders(true); // Enable editing so user can review
         toast({
-          title: 'AI önerisi hazır',
-          description: `${response.data.provider} ile ${response.data.headers.length} başlık önerildi`,
+          title: 'AI suggestion ready',
+          description: `${response.data.headers.length} headers suggested via ${response.data.provider}`,
           duration: 3000
         });
       }
     } catch (error: any) {
       console.error('Failed to suggest headers:', error);
       toast({
-        title: 'Öneri başarısız',
-        description: error.message || 'LLM bağlantı hatası',
+        title: 'Suggestion failed',
+        description: error.message || 'LLM connection error',
         variant: 'destructive',
         duration: 3000
       });
@@ -338,7 +338,7 @@ export default function CSVTableViewer({
                 onClick={suggestHeaders}
                 disabled={isSuggestingHeaders || rows.length === 0}
                 className="h-7 w-7 p-0"
-                title="AI ile başlık öner"
+                title="Suggest headers with AI"
               >
                 {isSuggestingHeaders ? (
                   <Loader2 className="h-3 w-3 animate-spin" />

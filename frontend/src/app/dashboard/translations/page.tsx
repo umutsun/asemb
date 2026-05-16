@@ -490,20 +490,20 @@ export default function DataTranslationsPage() {
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="auto">{t('dataTranslations.setup.autoDetect')}</SelectItem>
-                      <SelectItem value="en">İngilizce</SelectItem>
-                      <SelectItem value="tr">Türkçe</SelectItem>
-                      <SelectItem value="de">Almanca</SelectItem>
-                      <SelectItem value="fr">Fransızca</SelectItem>
-                      <SelectItem value="es">İspanyolca</SelectItem>
-                      <SelectItem value="it">İtalyanca</SelectItem>
-                      <SelectItem value="pt">Portekizce</SelectItem>
-                      <SelectItem value="ru">Rusça</SelectItem>
-                      <SelectItem value="zh">Çince</SelectItem>
-                      <SelectItem value="ja">Japonca</SelectItem>
-                      <SelectItem value="ko">Korece</SelectItem>
-                      <SelectItem value="el">Yunanca</SelectItem>
-                      <SelectItem value="th">Tayca</SelectItem>
-                      <SelectItem value="ar">Arapça</SelectItem>
+                      <SelectItem value="en">English</SelectItem>
+                      <SelectItem value="tr">Turkish</SelectItem>
+                      <SelectItem value="de">German</SelectItem>
+                      <SelectItem value="fr">French</SelectItem>
+                      <SelectItem value="es">Spanish</SelectItem>
+                      <SelectItem value="it">Italian</SelectItem>
+                      <SelectItem value="pt">Portuguese</SelectItem>
+                      <SelectItem value="ru">Russian</SelectItem>
+                      <SelectItem value="zh">Chinese</SelectItem>
+                      <SelectItem value="ja">Japanese</SelectItem>
+                      <SelectItem value="ko">Korean</SelectItem>
+                      <SelectItem value="el">Greek</SelectItem>
+                      <SelectItem value="th">Thai</SelectItem>
+                      <SelectItem value="ar">Arabic</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -514,20 +514,20 @@ export default function DataTranslationsPage() {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="tr">Türkçe</SelectItem>
-                      <SelectItem value="en">İngilizce</SelectItem>
-                      <SelectItem value="de">Almanca</SelectItem>
-                      <SelectItem value="fr">Fransızca</SelectItem>
-                      <SelectItem value="es">İspanyolca</SelectItem>
-                      <SelectItem value="it">İtalyanca</SelectItem>
-                      <SelectItem value="pt">Portekizce</SelectItem>
-                      <SelectItem value="ru">Rusça</SelectItem>
-                      <SelectItem value="zh">Çince</SelectItem>
-                      <SelectItem value="ja">Japonca</SelectItem>
-                      <SelectItem value="ko">Korece</SelectItem>
-                      <SelectItem value="el">Yunanca</SelectItem>
-                      <SelectItem value="th">Tayca</SelectItem>
-                      <SelectItem value="ar">Arapça</SelectItem>
+                      <SelectItem value="tr">Turkish</SelectItem>
+                      <SelectItem value="en">English</SelectItem>
+                      <SelectItem value="de">German</SelectItem>
+                      <SelectItem value="fr">French</SelectItem>
+                      <SelectItem value="es">Spanish</SelectItem>
+                      <SelectItem value="it">Italian</SelectItem>
+                      <SelectItem value="pt">Portuguese</SelectItem>
+                      <SelectItem value="ru">Russian</SelectItem>
+                      <SelectItem value="zh">Chinese</SelectItem>
+                      <SelectItem value="ja">Japanese</SelectItem>
+                      <SelectItem value="ko">Korean</SelectItem>
+                      <SelectItem value="el">Greek</SelectItem>
+                      <SelectItem value="th">Thai</SelectItem>
+                      <SelectItem value="ar">Arabic</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>

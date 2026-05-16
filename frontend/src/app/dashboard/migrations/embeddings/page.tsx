@@ -181,7 +181,7 @@ export default function EmbeddingsPage() {
 
   const startMigration = async () => {
     if (selectedTables.length === 0) {
-      alert('Lütfen en az bir tablo seçin');
+      alert('Please select at least one table');
       return;
     }
 
@@ -262,9 +262,9 @@ export default function EmbeddingsPage() {
     const minutes = Math.floor((seconds % 3600) / 60);
     const secs = seconds % 60;
     
-    if (hours > 0) return `${hours}s ${minutes}d ${secs}sn`;
-    if (minutes > 0) return `${minutes}d ${secs}sn`;
-    return `${secs}sn`;
+    if (hours > 0) return `${hours}h ${minutes}m ${secs}s`;
+    if (minutes > 0) return `${minutes}m ${secs}s`;
+    return `${secs}s`;
   };
 
   const formatCost = (cost: number) => {
@@ -286,7 +286,7 @@ export default function EmbeddingsPage() {
         <div>
           <h1 className="text-xl font-semibold">Embeddings Migration</h1>
           <p className="text-sm text-muted-foreground mt-1">
-            Veritabanı tablolarından embedding oluşturun ve yönetin
+            Create and manage embeddings from database tables
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -306,19 +306,19 @@ export default function EmbeddingsPage() {
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">
-              Toplam Kayıt
+              Total Records
             </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{totalStats.totalRecords.toLocaleString()}</div>
-            <p className="text-xs text-muted-foreground mt-1">Tüm tablolar</p>
+            <p className="text-xs text-muted-foreground mt-1">All tables</p>
           </CardContent>
         </Card>
         
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">
-              Embed Edilmiş
+              Embedded
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -335,7 +335,7 @@ export default function EmbeddingsPage() {
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">
-              Bekleyen
+              Pending
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -351,13 +351,13 @@ export default function EmbeddingsPage() {
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">
-              Token Kullanımı
+              Token Usage
             </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{formatTokens(totalStats.totalTokens)}</div>
             <p className="text-xs text-muted-foreground mt-1">
-              ~{totalStats.avgTokensPerRecord} token/kayıt
+              ~{totalStats.avgTokensPerRecord} tokens/record
             </p>
           </CardContent>
         </Card>
@@ -365,7 +365,7 @@ export default function EmbeddingsPage() {
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">
-              Toplam Maliyet
+              Total Cost
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -384,7 +384,7 @@ export default function EmbeddingsPage() {
         >
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">
-              Durum
+              Status
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -392,17 +392,17 @@ export default function EmbeddingsPage() {
               {migrationProgress?.status === 'processing' ? (
                 <>
                   <Activity className="h-5 w-5 text-green-500 animate-pulse" />
-                  <span className="font-semibold">Aktif</span>
+                  <span className="font-semibold">Active</span>
                 </>
               ) : migrationProgress?.status === 'paused' ? (
                 <>
                   <Pause className="h-5 w-5 text-yellow-500" />
-                  <span className="font-semibold">Duraklatıldı</span>
+                  <span className="font-semibold">Paused</span>
                 </>
               ) : (
                 <>
                   <CheckCircle className="h-5 w-5 text-gray-400" />
-                  <span className="font-semibold">Hazır</span>
+                  <span className="font-semibold">Ready</span>
                 </>
               )}
             </div>
@@ -417,23 +417,23 @@ export default function EmbeddingsPage() {
             <div className="flex items-center justify-between">
               <CardTitle className="flex items-center gap-2">
                 <Loader2 className="h-5 w-5 animate-spin" />
-                Migration İlerlemesi
+                Migration Progress
               </CardTitle>
               <div className="flex gap-2">
                 {migrationProgress.status === 'processing' ? (
                   <Button onClick={pauseMigration} variant="outline" size="sm">
                     <Pause className="h-4 w-4 mr-2" />
-                    Duraklat
+                    Pause
                   </Button>
                 ) : (
                   <Button onClick={resumeMigration} variant="outline" size="sm">
                     <Play className="h-4 w-4 mr-2" />
-                    Devam Et
+                    Resume
                   </Button>
                 )}
                 <Button onClick={stopMigration} variant="destructive" size="sm">
                   <StopCircle className="h-4 w-4 mr-2" />
-                  İptal
+                  Cancel
                 </Button>
               </div>
             </div>
@@ -448,9 +448,9 @@ export default function EmbeddingsPage() {
                   size={160}
                 />
                 <div className="text-center mt-3">
-                  <div className="text-sm font-medium">Tablo: {migrationProgress.currentTable}</div>
+                  <div className="text-sm font-medium">Table: {migrationProgress.currentTable}</div>
                   <div className="text-xs text-muted-foreground mt-1">
-                    {migrationProgress.current} / {migrationProgress.total} kayıt
+                    {migrationProgress.current} / {migrationProgress.total} records
                   </div>
                 </div>
               </div>
@@ -458,22 +458,22 @@ export default function EmbeddingsPage() {
               {/* Stats Grid */}
               <div className="grid grid-cols-2 gap-4 text-sm content-center">
                 <div>
-                  <span className="text-muted-foreground">Token Kullanımı:</span>
+                  <span className="text-muted-foreground">Token Usage:</span>
                   <p className="font-semibold">{formatTokens(migrationProgress.tokensUsed)}</p>
                 </div>
                 <div>
-                  <span className="text-muted-foreground">Tahmini Maliyet:</span>
+                  <span className="text-muted-foreground">Estimated Cost:</span>
                   <p className="font-semibold">{formatCost(migrationProgress.estimatedCost)}</p>
                 </div>
                 <div>
-                  <span className="text-muted-foreground">Kalan Süre:</span>
-                  <p className="font-semibold">{migrationProgress.estimatedTimeRemaining || 'Hesaplanıyor...'}</p>
+                  <span className="text-muted-foreground">Time Remaining:</span>
+                  <p className="font-semibold">{migrationProgress.estimatedTimeRemaining || 'Calculating...'}</p>
                 </div>
                 <div>
-                  <span className="text-muted-foreground">Hız:</span>
+                  <span className="text-muted-foreground">Speed:</span>
                   <p className="font-semibold">
                     {migrationProgress.startTime
-                      ? `${Math.round(migrationProgress.current / ((Date.now() - migrationProgress.startTime) / 1000))} kayıt/sn`
+                      ? `${Math.round(migrationProgress.current / ((Date.now() - migrationProgress.startTime) / 1000))} records/sec`
                       : '-'}
                   </p>
                 </div>
@@ -493,17 +493,17 @@ export default function EmbeddingsPage() {
       {/* Main Content */}
       <Card>
         <CardHeader>
-          <CardTitle>Veri Kaynakları ve Migration</CardTitle>
+          <CardTitle>Data Sources and Migration</CardTitle>
           <CardDescription>
-            Embedding oluşturmak için tabloları seçin ve migration başlatın
+            Select tables and start migration to create embeddings
           </CardDescription>
         </CardHeader>
         <CardContent>
           <Tabs value={activeTab} onValueChange={setActiveTab}>
             <TabsList className="grid w-full grid-cols-3">
-              <TabsTrigger value="overview">Genel Bakış</TabsTrigger>
-              <TabsTrigger value="tables">Tablolar</TabsTrigger>
-              <TabsTrigger value="history">Geçmiş</TabsTrigger>
+              <TabsTrigger value="overview">Overview</TabsTrigger>
+              <TabsTrigger value="tables">Tables</TabsTrigger>
+              <TabsTrigger value="history">History</TabsTrigger>
             </TabsList>
             
             <TabsContent value="overview" className="space-y-4">
@@ -514,24 +514,24 @@ export default function EmbeddingsPage() {
                       <div className="flex items-center justify-between">
                         <CardTitle className="text-base">{table.displayName}</CardTitle>
                         <Badge variant={table.embeddedRecords === table.totalRecords ? "success" : "secondary"}>
-                          {table.embeddedRecords === table.totalRecords ? "Tamamlandı" : "Eksik"}
+                          {table.embeddedRecords === table.totalRecords ? "Completed" : "Incomplete"}
                         </Badge>
                       </div>
                     </CardHeader>
                     <CardContent>
                       <div className="space-y-2">
                         <div className="flex justify-between text-sm">
-                          <span className="text-muted-foreground">Toplam Kayıt:</span>
+                          <span className="text-muted-foreground">Total Records:</span>
                           <span className="font-medium">{table.totalRecords.toLocaleString()}</span>
                         </div>
                         <div className="flex justify-between text-sm">
-                          <span className="text-muted-foreground">Embed Edilmiş:</span>
+                          <span className="text-muted-foreground">Embedded:</span>
                           <span className="font-medium text-green-600">
                             {table.embeddedRecords.toLocaleString()}
                           </span>
                         </div>
                         <div className="flex justify-between text-sm">
-                          <span className="text-muted-foreground">Bekleyen:</span>
+                          <span className="text-muted-foreground">Pending:</span>
                           <span className="font-medium text-orange-600">
                             {(table.totalRecords - table.embeddedRecords).toLocaleString()}
                           </span>
@@ -541,7 +541,7 @@ export default function EmbeddingsPage() {
                           className="mt-2"
                         />
                         <p className="text-xs text-muted-foreground text-right">
-                          {((table.embeddedRecords / table.totalRecords) * 100).toFixed(1)}% tamamlandı
+                          {((table.embeddedRecords / table.totalRecords) * 100).toFixed(1)}% complete
                         </p>
                       </div>
                     </CardContent>
@@ -555,7 +555,7 @@ export default function EmbeddingsPage() {
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-4">
                     <div>
-                      <label className="text-sm font-medium">Batch Boyutu</label>
+                      <label className="text-sm font-medium">Batch Size</label>
                       <input
                         type="number"
                         value={batchSize}
@@ -573,12 +573,12 @@ export default function EmbeddingsPage() {
                     {loading ? (
                       <>
                         <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        Başlatılıyor...
+                        Starting...
                       </>
                     ) : (
                       <>
                         <Play className="mr-2 h-4 w-4" />
-                        Migration Başlat
+                        Start Migration
                       </>
                     )}
                   </Button>
@@ -599,12 +599,12 @@ export default function EmbeddingsPage() {
                           }}
                         />
                       </TableHead>
-                      <TableHead>Tablo</TableHead>
-                      <TableHead>Veritabanı</TableHead>
-                      <TableHead>Toplam</TableHead>
+                      <TableHead>Table</TableHead>
+                      <TableHead>Database</TableHead>
+                      <TableHead>Total</TableHead>
                       <TableHead>Embed</TableHead>
-                      <TableHead>Bekleyen</TableHead>
-                      <TableHead>İlerleme</TableHead>
+                      <TableHead>Pending</TableHead>
+                      <TableHead>Progress</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -656,20 +656,20 @@ export default function EmbeddingsPage() {
               {migrationHistory.length === 0 ? (
                 <div className="text-center py-12">
                   <Clock className="mx-auto h-12 w-12 text-muted-foreground" />
-                  <p className="mt-2 text-muted-foreground">Henüz migration geçmişi yok</p>
+                  <p className="mt-2 text-muted-foreground">No migration history yet</p>
                 </div>
               ) : (
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Tablo</TableHead>
-                      <TableHead>Durum</TableHead>
-                      <TableHead>Kayıtlar</TableHead>
-                      <TableHead>Token</TableHead>
-                      <TableHead>Maliyet</TableHead>
-                      <TableHead>Süre</TableHead>
+                      <TableHead>Table</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Records</TableHead>
+                      <TableHead>Tokens</TableHead>
+                      <TableHead>Cost</TableHead>
+                      <TableHead>Duration</TableHead>
                       <TableHead>Model</TableHead>
-                      <TableHead>Tarih</TableHead>
+                      <TableHead>Date</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -684,9 +684,9 @@ export default function EmbeddingsPage() {
                               'secondary'
                             }
                           >
-                            {history.status === 'completed' ? 'Tamamlandı' :
-                             history.status === 'failed' ? 'Başarısız' :
-                             history.status === 'processing' ? 'İşleniyor' : history.status}
+                            {history.status === 'completed' ? 'Completed' :
+                             history.status === 'failed' ? 'Failed' :
+                             history.status === 'processing' ? 'Processing' : history.status}
                           </Badge>
                         </TableCell>
                         <TableCell>
@@ -708,7 +708,7 @@ export default function EmbeddingsPage() {
                           </Badge>
                         </TableCell>
                         <TableCell className="text-xs">
-                          {new Date(history.started_at).toLocaleString('tr-TR')}
+                          {new Date(history.started_at).toLocaleString('en-US')}
                         </TableCell>
                       </TableRow>
                     ))}
@@ -724,9 +724,9 @@ export default function EmbeddingsPage() {
       <Alert>
         <Info className="h-4 w-4" />
         <AlertDescription>
-          <strong>Migration Bilgileri:</strong> Embedding oluşturma işlemi OpenAI text-embedding-ada-002 modeli kullanır. 
-          Her 1000 token için yaklaşık $0.0001 maliyet oluşur. Ortalama bir kayıt 2000-3000 token kullanır.
-          Tüm embeddings lsemb veritabanındaki unified_embeddings tablosuna kaydedilir.
+          <strong>Migration Info:</strong> Embedding generation uses OpenAI's text-embedding-ada-002 model.
+          Cost is approximately $0.0001 per 1,000 tokens. Average record uses 2,000-3,000 tokens.
+          All embeddings are stored in the unified_embeddings table in the lsemb database.
         </AlertDescription>
       </Alert>
     </div>

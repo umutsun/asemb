@@ -59,7 +59,7 @@ export function SmartAutocomplete({
         results.push({
           text: term,
           type: 'local',
-          category: 'terim'
+          category: 'term'
         });
       }
     });
@@ -71,7 +71,7 @@ export function SmartAutocomplete({
         results.push({
           text: recent,
           type: 'recent',
-          category: 'son soru'
+          category: 'recent'
         });
       }
     });
@@ -115,7 +115,7 @@ export function SmartAutocomplete({
         const llmResults: SmartAutocompleteSuggestion[] = (data.suggestions || []).map((s: string) => ({
           text: s,
           type: 'llm' as const,
-          category: 'akıllı öneri'
+          category: 'smart suggestion'
         }));
         setLlmSuggestions(llmResults);
       }
@@ -238,7 +238,7 @@ export function SmartAutocomplete({
           {isLlmLoading && (
             <div className="px-3 py-1.5 border-b bg-purple-50/50 dark:bg-purple-900/10 flex items-center gap-2">
               <Loader2 className="w-3 h-3 animate-spin text-purple-500" />
-              <span className="text-xs text-purple-600 dark:text-purple-400">Akıllı öneri yükleniyor...</span>
+              <span className="text-xs text-purple-600 dark:text-purple-400">Loading smart suggestions...</span>
             </div>
           )}
 
@@ -269,12 +269,12 @@ export function SmartAutocomplete({
           {/* Footer hint */}
           <div className="px-3 py-1.5 border-t bg-muted/30 flex items-center justify-between">
             <span className="text-[10px] text-muted-foreground">
-              ↑↓ gezin • Tab seç • Esc kapat
+              ↑↓ navigate • Tab select • Esc close
             </span>
             {llmEnabled && (
               <span className="text-[10px] text-purple-500 flex items-center gap-1">
                 <Sparkles className="w-2.5 h-2.5" />
-                LLM destekli
+                LLM powered
               </span>
             )}
           </div>

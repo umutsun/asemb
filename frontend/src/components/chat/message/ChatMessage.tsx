@@ -328,7 +328,7 @@ const KeywordTags: React.FC<{ keywords: string[] }> = ({ keywords }) => {
   return (
     <div className="mt-3 mb-3">
       <div className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">
-        Anahtar Terimler
+        Key Terms
       </div>
       <div className="flex flex-wrap gap-1.5">
         {keywords.map((keyword, idx) => (
@@ -484,7 +484,7 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
                             {/* Legal Basis */}
                             {parsedResponse.legalBasis && (
                               <div className="text-[11px] sm:text-xs text-muted-foreground bg-muted/50 rounded px-2 py-1.5">
-                                <span className="font-semibold">Dayanaklar: </span>
+                                <span className="font-semibold">Legal Basis: </span>
                                 {parsedResponse.legalBasis}
                               </div>
                             )}
@@ -650,14 +650,14 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
                   <div className="text-[8px] sm:text-[9px] font-medium opacity-40 text-right">
                     {message.role === 'assistant' && message.isStreaming ? (
                       <span className="tabular-nums">
-                        {new Date(message.timestamp).toLocaleTimeString('tr-TR', {
+                        {new Date(message.timestamp).toLocaleTimeString('en-US', {
                           hour: '2-digit',
                           minute: '2-digit'
                         })} • {Math.floor((Date.now() - message.timestamp.getTime()) / 1000)}s
                       </span>
                     ) : (
                       <span className="tabular-nums">
-                        {new Date(message.timestamp).toLocaleTimeString('tr-TR', {
+                        {new Date(message.timestamp).toLocaleTimeString('en-US', {
                           hour: '2-digit',
                           minute: '2-digit'
                         })}
@@ -666,7 +666,7 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
                             <span className="hidden sm:inline">
                               {' • '}{(message.responseTime / 1000).toFixed(1)}s
                               {message.tokens?.total && (
-                                <> • {message.tokens.total.toLocaleString('tr-TR')} tk</>
+                                <> • {message.tokens.total.toLocaleString('en-US')} tk</>
                               )}
                             </span>
                           </>

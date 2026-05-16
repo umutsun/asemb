@@ -90,8 +90,8 @@ export default function MessagesPage() {
     } catch (error) {
       console.error('Error loading conversations:', error);
       toast({
-        title: 'Yükleme başarısız',
-        description: 'Konuşmalar yüklenirken hata oluştu',
+        title: 'Loading failed',
+        description: 'Error loading conversations',
         variant: 'destructive'
       });
     } finally {
@@ -127,7 +127,7 @@ export default function MessagesPage() {
   const handleDeleteConversation = async (conversationId: string, e: React.MouseEvent) => {
     e.stopPropagation();
 
-    if (!confirm('Bu konuşmayı silmek istediğinizden emin misiniz?')) return;
+    if (!confirm('Are you sure you want to delete this conversation?')) return;
 
     try {
       const token = localStorage.getItem('accessToken');
@@ -137,7 +137,7 @@ export default function MessagesPage() {
       });
 
       if (response.ok) {
-        toast({ title: 'Konuşma silindi' });
+        toast({ title: 'Conversation deleted' });
         loadConversations();
         if (selectedConversation?.id === conversationId) {
           setSelectedConversation(null);
@@ -147,7 +147,7 @@ export default function MessagesPage() {
     } catch (error) {
       console.error('Error deleting conversation:', error);
       toast({
-        title: 'Silme başarısız',
+        title: 'Delete failed',
         variant: 'destructive'
       });
     }
@@ -161,11 +161,11 @@ export default function MessagesPage() {
     const diffHours = Math.floor(diffMs / 3600000);
     const diffDays = Math.floor(diffMs / 86400000);
 
-    if (diffMins < 1) return 'Az önce';
-    if (diffMins < 60) return `${diffMins} dk önce`;
-    if (diffHours < 24) return `${diffHours} sa önce`;
-    if (diffDays < 7) return `${diffDays} gün önce`;
-    return date.toLocaleDateString('tr-TR');
+    if (diffMins < 1) return 'Just now';
+    if (diffMins < 60) return `${diffMins} min ago`;
+    if (diffHours < 24) return `${diffHours} hr ago`;
+    if (diffDays < 7) return `${diffDays} days ago`;
+    return date.toLocaleDateString('en-US');
   };
 
   // Filter conversations by search
@@ -179,7 +179,7 @@ export default function MessagesPage() {
         {/* Header */}
         <div className="mb-6">
           <h1 className="text-xl font-semibold text-neutral-900 dark:text-neutral-100">
-            Mesajlar ve Konuşmalar
+            Messages and Conversations
           </h1>
         </div>
 
@@ -188,13 +188,13 @@ export default function MessagesPage() {
           {/* Total Conversations - Blue */}
           <Card className="bg-gradient-to-br from-blue-50 to-cyan-50 dark:from-blue-950/20 dark:to-cyan-950/20 border-blue-200 dark:border-blue-800">
             <CardContent className="p-3">
-              <div className="text-xs text-blue-700 dark:text-blue-300 font-medium mb-1">Toplam Konuşma</div>
+              <div className="text-xs text-blue-700 dark:text-blue-300 font-medium mb-1">Total Conversations</div>
               <div className="text-xl font-bold text-blue-900 dark:text-blue-100">
                 {loading ? <Loader2 className="h-5 w-5 animate-spin" /> : stats.total_conversations.toLocaleString()}
               </div>
               <div className="text-xs text-blue-600 dark:text-blue-400 mt-0.5">
                 <span className="font-mono text-xs">+{stats.today_conversations}</span>
-                <span className="opacity-75 ml-1 text-xs">bugün</span>
+                <span className="opacity-75 ml-1 text-xs">today</span>
               </div>
             </CardContent>
           </Card>
@@ -202,12 +202,12 @@ export default function MessagesPage() {
           {/* Total Messages - Green */}
           <Card className="bg-gradient-to-br from-green-50 to-emerald-50 dark:from-green-950/20 dark:to-emerald-950/20 border-green-200 dark:border-green-800">
             <CardContent className="p-3">
-              <div className="text-xs text-green-700 dark:text-green-300 font-medium mb-1">Toplam Mesaj</div>
+              <div className="text-xs text-green-700 dark:text-green-300 font-medium mb-1">Total Messages</div>
               <div className="text-xl font-bold text-green-900 dark:text-green-100">
                 {loading ? <Loader2 className="h-5 w-5 animate-spin" /> : stats.total_messages.toLocaleString()}
               </div>
               <div className="text-xs text-green-600 dark:text-green-400 mt-0.5">
-                <span className="opacity-75 text-xs">soru + cevap</span>
+                <span className="opacity-75 text-xs">questions + answers</span>
               </div>
             </CardContent>
           </Card>
@@ -215,7 +215,7 @@ export default function MessagesPage() {
           {/* Avg Messages - Violet */}
           <Card className="bg-gradient-to-br from-violet-50 to-purple-50 dark:from-violet-950/20 dark:to-purple-950/20 border-violet-200 dark:border-violet-800">
             <CardContent className="p-3">
-              <div className="text-xs text-violet-700 dark:text-violet-300 font-medium mb-1">Ort. Mesaj/Konuşma</div>
+              <div className="text-xs text-violet-700 dark:text-violet-300 font-medium mb-1">Avg. Messages/Conversation</div>
               <div className="text-xl font-bold text-violet-900 dark:text-violet-100">
                 {loading ? <Loader2 className="h-5 w-5 animate-spin" /> :
                   stats.total_conversations > 0
@@ -223,7 +223,7 @@ export default function MessagesPage() {
                     : 0}
               </div>
               <div className="text-xs text-violet-600 dark:text-violet-400 mt-0.5">
-                <span className="opacity-75 text-xs">ortalama</span>
+                <span className="opacity-75 text-xs">average</span>
               </div>
             </CardContent>
           </Card>
@@ -231,12 +231,12 @@ export default function MessagesPage() {
           {/* Today Activity - Orange */}
           <Card className="bg-gradient-to-br from-orange-50 to-amber-50 dark:from-orange-950/20 dark:to-amber-950/20 border-orange-200 dark:border-orange-800">
             <CardContent className="p-3">
-              <div className="text-xs text-orange-700 dark:text-orange-300 font-medium mb-1">Bugün</div>
+              <div className="text-xs text-orange-700 dark:text-orange-300 font-medium mb-1">Today</div>
               <div className="text-xl font-bold text-orange-900 dark:text-orange-100">
                 {loading ? <Loader2 className="h-5 w-5 animate-spin" /> : stats.today_conversations}
               </div>
               <div className="text-xs text-orange-600 dark:text-orange-400 mt-0.5">
-                <span className="opacity-75 text-xs">yeni konuşma</span>
+                <span className="opacity-75 text-xs">new conversations</span>
               </div>
             </CardContent>
           </Card>
@@ -249,8 +249,8 @@ export default function MessagesPage() {
             <CardHeader className="pb-3">
               <div className="flex items-center justify-between">
                 <div>
-                  <CardTitle className="text-base">Konuşmalar</CardTitle>
-                  <CardDescription>{filteredConversations.length} konuşma</CardDescription>
+                  <CardTitle className="text-base">Conversations</CardTitle>
+                  <CardDescription>{filteredConversations.length} conversations</CardDescription>
                 </div>
                 <Button variant="ghost" size="sm" onClick={loadConversations} disabled={loading}>
                   <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
@@ -260,7 +260,7 @@ export default function MessagesPage() {
               <div className="relative mt-2">
                 <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
                 <Input
-                  placeholder="Konuşma ara..."
+                  placeholder="Search conversations..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className="pl-8 h-9"
@@ -278,7 +278,7 @@ export default function MessagesPage() {
                 ) : filteredConversations.length === 0 ? (
                   <div className="p-8 text-center text-muted-foreground">
                     <MessageSquare className="h-8 w-8 mx-auto mb-2 opacity-50" />
-                    <p>Henüz konuşma yok</p>
+                    <p>No conversations yet</p>
                   </div>
                 ) : (
                   <div className="divide-y">
@@ -293,7 +293,7 @@ export default function MessagesPage() {
                         <div className="flex items-start justify-between gap-2">
                           <div className="flex-1 min-w-0">
                             <p className="text-sm font-medium truncate">
-                              {conv.title || 'Başlıksız Konuşma'}
+                              {conv.title || 'Untitled Conversation'}
                             </p>
                             <p className="text-xs text-muted-foreground mt-1">
                               {formatDate(conv.created_at)}
@@ -320,12 +320,12 @@ export default function MessagesPage() {
           <Card className="lg:col-span-2">
             <CardHeader className="pb-3">
               <CardTitle className="text-base">
-                {selectedConversation ? (selectedConversation.title || 'Konuşma Detayı') : 'Mesajlar'}
+                {selectedConversation ? (selectedConversation.title || 'Conversation Details') : 'Messages'}
               </CardTitle>
               <CardDescription>
                 {selectedConversation
-                  ? `${messages.length} mesaj`
-                  : 'Detayları görüntülemek için bir konuşma seçin'}
+                  ? `${messages.length} messages`
+                  : 'Select a conversation to view details'}
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -333,7 +333,7 @@ export default function MessagesPage() {
                 <div className="h-[450px] flex items-center justify-center text-muted-foreground">
                   <div className="text-center">
                     <MessageSquare className="h-12 w-12 mx-auto mb-3 opacity-30" />
-                    <p>Bir konuşma seçin</p>
+                    <p>Select a conversation</p>
                   </div>
                 </div>
               ) : messagesLoading ? (
@@ -344,7 +344,7 @@ export default function MessagesPage() {
                 </div>
               ) : messages.length === 0 ? (
                 <div className="h-[450px] flex items-center justify-center text-muted-foreground">
-                  Bu konuşmada mesaj yok
+                  No messages in this conversation
                 </div>
               ) : (
                 <ScrollArea className="h-[450px] pr-4">
@@ -363,7 +363,7 @@ export default function MessagesPage() {
                         >
                           <div className="flex items-center gap-2 mb-1">
                             <Badge variant={msg.role === 'user' ? 'secondary' : 'outline'} className="text-xs">
-                              {msg.role === 'user' ? 'Kullanıcı' : 'AI'}
+                              {msg.role === 'user' ? 'User' : 'AI'}
                             </Badge>
                             {msg.model && (
                               <span className="text-xs opacity-70">{msg.model}</span>
@@ -372,11 +372,11 @@ export default function MessagesPage() {
                           <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
                           {msg.sources && msg.sources.length > 0 && (
                             <div className="mt-2 pt-2 border-t border-current/10">
-                              <p className="text-xs opacity-70 mb-1">Kaynaklar:</p>
+                              <p className="text-xs opacity-70 mb-1">Sources:</p>
                               <div className="flex flex-wrap gap-1">
                                 {msg.sources.slice(0, 3).map((src: any, idx: number) => (
                                   <Badge key={idx} variant="outline" className="text-xs">
-                                    {src.title || src.source || `Kaynak ${idx + 1}`}
+                                    {src.title || src.source || `Source ${idx + 1}`}
                                   </Badge>
                                 ))}
                                 {msg.sources.length > 3 && (

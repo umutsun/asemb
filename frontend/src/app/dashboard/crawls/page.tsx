@@ -779,18 +779,18 @@ export default function CrawlerDataPage() {
 
       const data = await response.json();
       toast({
-        title: 'Başarılı',
+        title: 'Success',
         description: action === 'toggle'
-          ? (data.enabled ? 'Crawler aktif edildi' : 'Crawler durduruldu')
-          : 'Crawler çalışmaya başladı'
+          ? (data.enabled ? 'Crawler enabled' : 'Crawler stopped')
+          : 'Crawler started'
       });
 
       // Refresh the list
       await fetchScheduledCrawlers();
     } catch (error: any) {
       toast({
-        title: 'Hata',
-        description: error.message || `İşlem başarısız`,
+        title: 'Error',
+        description: error.message || `Operation failed`,
         variant: 'destructive'
       });
     } finally {
@@ -2623,7 +2623,7 @@ export default function CrawlerDataPage() {
                                     ) : showCrawlerSelect === directory.name ? (
                                       // Crawler selection dropdown - grouped by category
                                       <div className="flex flex-col gap-1 w-full max-h-[200px] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
-                                        <div className="text-[8px] text-muted-foreground mb-0.5">Crawler Seç:</div>
+                                        <div className="text-[8px] text-muted-foreground mb-0.5">Select Crawler:</div>
                                         {crawlerCategories.length > 0 ? (
                                           crawlerCategories.map(category => (
                                             <div key={category} className="mb-1">

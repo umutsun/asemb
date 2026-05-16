@@ -88,7 +88,7 @@ export default function EmbeddingsList() {
   };
 
   const deleteEmbedding = async (id: string) => {
-    if (!confirm('Bu embedding\'i silmek istediğinizden emin misiniz?')) return;
+    if (!confirm('Are you sure you want to delete this embedding?')) return;
     
     try {
       const response = await fetch(`/api/embeddings/${id}`, {
@@ -117,14 +117,14 @@ export default function EmbeddingsList() {
       <CardHeader>
         <div className="flex justify-between items-center">
           <div>
-            <CardTitle>Embedding Geçmişi</CardTitle>
+            <CardTitle>Embedding History</CardTitle>
             <CardDescription>
-              Sistemde kayıtlı {embeddings.length} embedding bulunuyor
+              {embeddings.length} embeddings registered in the system
             </CardDescription>
           </div>
           <Button onClick={fetchEmbeddings} variant="outline" size="sm">
             <RefreshCw className="h-4 w-4 mr-2" />
-            Yenile
+            Refresh
           </Button>
         </div>
       </CardHeader>
@@ -135,7 +135,7 @@ export default function EmbeddingsList() {
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
               <Input
-                placeholder="Embedding ara..."
+                placeholder="Search embeddings..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 onKeyPress={(e) => e.key === 'Enter' && searchEmbeddings()}
@@ -143,7 +143,7 @@ export default function EmbeddingsList() {
               />
             </div>
             <Button onClick={searchEmbeddings} variant="outline">
-              Ara
+              Search
             </Button>
           </div>
 
@@ -158,18 +158,18 @@ export default function EmbeddingsList() {
                 <TableHeader>
                   <TableRow>
                     <TableHead className="w-[50px]">#</TableHead>
-                    <TableHead>İçerik</TableHead>
-                    <TableHead>Kaynak</TableHead>
-                    <TableHead>Boyut</TableHead>
-                    <TableHead>Tarih</TableHead>
-                    <TableHead className="text-right">İşlemler</TableHead>
+                    <TableHead>Content</TableHead>
+                    <TableHead>Source</TableHead>
+                    <TableHead>Size</TableHead>
+                    <TableHead>Date</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {filteredEmbeddings.length === 0 ? (
                     <TableRow>
                       <TableCell colSpan={6} className="text-center text-muted-foreground">
-                        Henüz embedding bulunmuyor
+                        No embeddings yet
                       </TableCell>
                     </TableRow>
                   ) : (
@@ -179,7 +179,7 @@ export default function EmbeddingsList() {
                         <TableCell>
                           <div className="max-w-[300px]">
                             <p className="truncate font-medium">
-                              {embedding.metadata?.title || 'İsimsiz'}
+                              {embedding.metadata?.title || 'Untitled'}
                             </p>
                             <p className="text-xs text-muted-foreground truncate">
                               {embedding.content.slice(0, 100)}...
@@ -203,7 +203,7 @@ export default function EmbeddingsList() {
                           <div className="flex items-center gap-1">
                             <Calendar className="h-3 w-3" />
                             <span className="text-sm">
-                              {new Date(embedding.created_at).toLocaleDateString('tr-TR')}
+                              {new Date(embedding.created_at).toLocaleDateString('en-US')}
                             </span>
                           </div>
                         </TableCell>
@@ -240,7 +240,7 @@ export default function EmbeddingsList() {
             <Card className="w-[600px] max-h-[80vh] overflow-auto">
               <CardHeader>
                 <div className="flex justify-between items-center">
-                  <CardTitle>Embedding Detayları</CardTitle>
+                  <CardTitle>Embedding Details</CardTitle>
                   <Button
                     variant="ghost"
                     size="sm"
@@ -259,22 +259,22 @@ export default function EmbeddingsList() {
                       <span className="font-mono">{selectedEmbedding.id}</span>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-muted-foreground">Kaynak:</span>
+                      <span className="text-muted-foreground">Source:</span>
                       <span>{selectedEmbedding.metadata?.source || 'N/A'}</span>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-muted-foreground">Tarih:</span>
-                      <span>{new Date(selectedEmbedding.created_at).toLocaleString('tr-TR')}</span>
+                      <span className="text-muted-foreground">Date:</span>
+                      <span>{new Date(selectedEmbedding.created_at).toLocaleString('en-US')}</span>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-muted-foreground">Boyut:</span>
+                      <span className="text-muted-foreground">Size:</span>
                       <span>{selectedEmbedding.embedding?.length || 0} dimension</span>
                     </div>
                   </div>
                 </div>
                 
                 <div>
-                  <h4 className="font-medium mb-2">İçerik</h4>
+                  <h4 className="font-medium mb-2">Content</h4>
                   <div className="bg-gray-50 dark:bg-gray-800 p-3 rounded text-sm max-h-[200px] overflow-auto">
                     <p className="whitespace-pre-wrap">{selectedEmbedding.content}</p>
                   </div>
@@ -282,7 +282,7 @@ export default function EmbeddingsList() {
 
                 {selectedEmbedding.embedding && (
                   <div>
-                    <h4 className="font-medium mb-2">Embedding Vektörü (İlk 20)</h4>
+                    <h4 className="font-medium mb-2">Embedding Vector (First 20)</h4>
                     <div className="bg-gray-50 dark:bg-gray-800 p-3 rounded">
                       <code className="text-xs">
                         [{selectedEmbedding.embedding.slice(0, 20).map(v => v.toFixed(4)).join(', ')}...]

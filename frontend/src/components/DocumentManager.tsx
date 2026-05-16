@@ -509,9 +509,9 @@ export default function DocumentManager() {
       {/* Main Tabs */}
       <Tabs defaultValue="list" className="space-y-4">
         <TabsList>
-          <TabsTrigger value="list">Doküman Listesi</TabsTrigger>
-          <TabsTrigger value="add">Yeni Doküman</TabsTrigger>
-          <TabsTrigger value="import">URL\'den İçe Aktar</TabsTrigger>
+          <TabsTrigger value="list">Document List</TabsTrigger>
+          <TabsTrigger value="add">New Document</TabsTrigger>
+          <TabsTrigger value="import">Import from URL</TabsTrigger>
         </TabsList>
 
         {/* Documents List */}
@@ -630,9 +630,9 @@ export default function DocumentManager() {
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="all">Tümü</SelectItem>
-                        <SelectItem value="embedded">Embedding Var</SelectItem>
-                        <SelectItem value="not-embedded">Embedding Yok</SelectItem>
+                        <SelectItem value="all">All</SelectItem>
+                        <SelectItem value="embedded">Has Embedding</SelectItem>
+                        <SelectItem value="not-embedded">No Embedding</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -937,9 +937,9 @@ export default function DocumentManager() {
         <TabsContent value="import" className="space-y-4">
           <Card>
             <CardHeader>
-              <CardTitle>URL\'den İçe Aktar</CardTitle>
+              <CardTitle>Import from URL</CardTitle>
               <CardDescription>
-                Web sayfasından içerik çekip doküman olarak ekleyin
+                Scrape content from a webpage and add as a document
               </CardDescription>
             </CardHeader>
             <CardContent>

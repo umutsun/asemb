@@ -119,7 +119,7 @@ export default function DatabaseConnectionError() {
                     transition={{ delay: 0.2 }}
                     className="text-xl font-semibold"
                   >
-                    {isRetrying ? 'Sistem kontrol ediliyor...' : 'Sistem başlatılıyor...'}
+                    {isRetrying ? 'Checking system...' : 'System initializing...'}
                   </motion.h2>
                   <motion.p
                     initial={{ opacity: 0, y: 10 }}
@@ -127,7 +127,7 @@ export default function DatabaseConnectionError() {
                     transition={{ delay: 0.3 }}
                     className="text-sm text-muted-foreground"
                   >
-                    Luwi Semantic Bridge hazırlanıyor
+                    Luwi Semantic Bridge is preparing
                   </motion.p>
                 </div>
 
@@ -142,7 +142,7 @@ export default function DatabaseConnectionError() {
                     />
                   </div>
                   <div className="flex justify-between text-xs text-muted-foreground">
-                    <span>Sistem kontrolü</span>
+                    <span>System check</span>
                     <span>{progress}%</span>
                   </div>
                 </div>
@@ -157,9 +157,9 @@ export default function DatabaseConnectionError() {
                     size="sm"
                   >
                     {isRetrying ? (
-                      <>Kontrol ediliyor...</>
+                      <>Checking...</>
                     ) : (
-                      <>Şimdi Dene<ArrowRight className="w-4 h-4 ml-2" /></>
+                      <>Try Now<ArrowRight className="w-4 h-4 ml-2" /></>
                     )}
                   </Button>
                 </div>
@@ -188,7 +188,7 @@ export default function DatabaseConnectionError() {
                     animate={{ opacity: 1, y: 0 }}
                     className="text-xl font-semibold"
                   >
-                    Sistem hazır
+                    System ready
                   </motion.h2>
                   <motion.p
                     initial={{ opacity: 0, y: 10 }}
@@ -196,7 +196,7 @@ export default function DatabaseConnectionError() {
                     transition={{ delay: 0.1 }}
                     className="text-sm text-muted-foreground"
                   >
-                    Dashboard'a yönlendiriliyorsunuz
+                    Redirecting to dashboard
                   </motion.p>
                 </div>
 
@@ -205,7 +205,7 @@ export default function DatabaseConnectionError() {
                   className="w-full"
                   size="sm"
                 >
-                  Dashboard'a Git<ArrowRight className="w-4 h-4 ml-2" />
+                  Go to Dashboard<ArrowRight className="w-4 h-4 ml-2" />
                 </Button>
               </motion.div>
             )}

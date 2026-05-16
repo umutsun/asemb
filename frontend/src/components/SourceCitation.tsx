@@ -41,7 +41,7 @@ const SourceCitation: React.FC<SourceCitationProps> = ({
       // Remove source table name
       if (keyword === sourceTableDisplayName) return false;
       // Remove generic terms
-      const genericTerms = ['Hukuki', 'Yasal', 'Meşru', 'Geçerli', 'İdari', 'Yargı'];
+      const genericTerms = ['Legal', 'Lawful', 'Valid', 'Administrative', 'Judicial'];
       return !genericTerms.includes(keyword) && keyword.length > 3;
     });
 
@@ -140,8 +140,8 @@ const SourceCitation: React.FC<SourceCitationProps> = ({
             }`}
             onClick={() => onSourceClick?.(source)}
             title={isRelatedTopics ?
-              `İlgili konuyu araştır: ${formatSourceTitle(source)}\nAnlamsal olarak zenginleştirilmiş sorgu oluşturulacak` :
-              `Konuyu detaylı araştır: ${formatSourceTitle(source)}`
+              `Explore related topic: ${formatSourceTitle(source)}\nA semantically enriched query will be generated` :
+              `Research topic in detail: ${formatSourceTitle(source)}`
             }
           >
             <div className="flex items-start gap-2">
@@ -185,7 +185,7 @@ const SourceCitation: React.FC<SourceCitationProps> = ({
                         handleKeywordClick(source, keyword);
                       }}
                       className={`text-xs px-2 py-1 rounded-full font-medium transition-all duration-150 hover:shadow-sm bg-blue-100 text-blue-700 dark:bg-blue-900/20 dark:text-blue-300 hover:scale-105`}
-                      title={`"${keyword}" ile ilgili araştırma yap`}
+                      title={`Search for content related to "${keyword}"`}
                     >
                       {keyword}
                     </button>
@@ -227,7 +227,7 @@ const SourceCitation: React.FC<SourceCitationProps> = ({
                   <div className="mt-1 flex items-center gap-1">
                     <ExternalLink className="w-3 h-3 text-gray-400" />
                     <span className="text-xs text-gray-500">
-                      Anlamsal arama etkin
+                      Semantic search enabled
                     </span>
                   </div>
                 )}

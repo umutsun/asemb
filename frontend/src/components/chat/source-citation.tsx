@@ -105,7 +105,7 @@ export function SourceCitation({ sources, onLoadMore, hasMore = false, showLoadM
 
   // Helper to map source table to display name with hierarchy and marker color
   const getSourceTypeInfo = (sourceTable?: string, category?: string) => {
-    if (!sourceTable && !category) return { label: 'Kaynak', weight: 0, markerClass: 'marker-cyan' };
+    if (!sourceTable && !category) return { label: 'Source', weight: 0, markerClass: 'marker-cyan' };
 
     const sourceStr = (sourceTable || category || '').toLowerCase()
       .replace(/^csv_/, '')
@@ -114,19 +114,19 @@ export function SourceCitation({ sources, onLoadMore, hasMore = false, showLoadM
 
     // Source type hierarchy with weights and marker colors
     const typeMap: Record<string, { label: string; weight: number; markerClass: string }> = {
-      'kanun': { label: 'Kanun/Mevzuat', weight: 100, markerClass: 'marker-purple' },
-      'teblig': { label: 'Tebliğ/Yönetmelik', weight: 95, markerClass: 'marker-cyan' },
-      'tebliğ': { label: 'Tebliğ/Yönetmelik', weight: 95, markerClass: 'marker-cyan' },
-      'yonetmelik': { label: 'Yönetmelik', weight: 95, markerClass: 'marker-cyan' },
-      'sirkuler': { label: 'Sirküler', weight: 90, markerClass: 'marker-pink' },
-      'ozelge': { label: 'GİB Özelgesi', weight: 75, markerClass: 'marker-yellow' },
-      'danistay': { label: 'Danıştay Kararı', weight: 70, markerClass: 'marker-orange' },
-      'danistaykararlari': { label: 'Danıştay Kararı', weight: 70, markerClass: 'marker-orange' },
-      'makale': { label: 'Makale', weight: 50, markerClass: 'marker-green' },
-      'sorucevap': { label: 'Soru-Cevap', weight: 50, markerClass: 'marker-green' },
-      'hukdkk': { label: 'Hukuki Değerlendirme', weight: 60, markerClass: 'marker-cyan' },
-      'genelyazi': { label: 'Genel Yazı', weight: 65, markerClass: 'marker-yellow' },
-      'genelyazı': { label: 'Genel Yazı', weight: 65, markerClass: 'marker-yellow' }
+      'kanun': { label: 'Law/Legislation', weight: 100, markerClass: 'marker-purple' },
+      'teblig': { label: 'Notice/Regulation', weight: 95, markerClass: 'marker-cyan' },
+      'tebliğ': { label: 'Notice/Regulation', weight: 95, markerClass: 'marker-cyan' },
+      'yonetmelik': { label: 'Regulation', weight: 95, markerClass: 'marker-cyan' },
+      'sirkuler': { label: 'Circular', weight: 90, markerClass: 'marker-pink' },
+      'ozelge': { label: 'Tax Ruling', weight: 75, markerClass: 'marker-yellow' },
+      'danistay': { label: 'Council of State Decision', weight: 70, markerClass: 'marker-orange' },
+      'danistaykararlari': { label: 'Council of State Decision', weight: 70, markerClass: 'marker-orange' },
+      'makale': { label: 'Article', weight: 50, markerClass: 'marker-green' },
+      'sorucevap': { label: 'Q&A', weight: 50, markerClass: 'marker-green' },
+      'hukdkk': { label: 'Legal Assessment', weight: 60, markerClass: 'marker-cyan' },
+      'genelyazi': { label: 'General Letter', weight: 65, markerClass: 'marker-yellow' },
+      'genelyazı': { label: 'General Letter', weight: 65, markerClass: 'marker-yellow' }
     };
 
     // Try exact match first
@@ -142,7 +142,7 @@ export function SourceCitation({ sources, onLoadMore, hasMore = false, showLoadM
     }
 
     // Fallback
-    return { label: 'Kaynak', weight: 0, markerClass: 'marker-cyan' };
+    return { label: 'Source', weight: 0, markerClass: 'marker-cyan' };
   };
 
   // Generate a follow-up question based on the excerpt
@@ -160,19 +160,19 @@ export function SourceCitation({ sources, onLoadMore, hasMore = false, showLoadM
       if (hasPercentage) {
         const percentageMatch = excerptText.match(/\d+%?/);
         if (percentageMatch) {
-          return `${percentageMatch[0]} oranının uygulama şartları nelerdir?`;
+          return `What are the conditions for applying the ${percentageMatch[0]} rate?`;
         }
       }
 
       if (hasCondition) {
         const keyWords = firstSentence.split(' ').filter(w => w.length > 5).slice(0, 2);
         if (keyWords.length > 0) {
-          return `${keyWords[0]} için gerekli şartlar?`;
+          return `What are the requirements for ${keyWords[0]}?`;
         }
       }
 
       if (hasException) {
-        return 'Bu durumda istisnalar nelerdir?';
+        return 'What are the exceptions in this case?';
       }
 
       const words = firstSentence.split(' ');
@@ -188,7 +188,7 @@ export function SourceCitation({ sources, onLoadMore, hasMore = false, showLoadM
 
       if (subjectWords.length > 0) {
         const subject = subjectWords.join(' ').charAt(0).toUpperCase() + subjectWords.join(' ').slice(1);
-        return `${subject} hakkında detaylı bilgi`;
+        return `More details about ${subject}`;
       }
     }
 
@@ -196,18 +196,18 @@ export function SourceCitation({ sources, onLoadMore, hasMore = false, showLoadM
       const titleWords = title.split(' ').filter(w => w.length > 4);
       if (titleWords.length > 0) {
         const mainWord = titleWords[0].replace(/[^\w]/g, '');
-        return `${mainWord.charAt(0).toUpperCase() + mainWord.slice(1)} nedir?`;
+        return `What is ${mainWord.charAt(0).toUpperCase() + mainWord.slice(1)}?`;
       }
     }
 
-    return 'Bu konu hakkında daha fazla bilgi';
+    return 'More information about this topic';
   };
 
   return (
     <div className="mt-4 pt-3 border-t border-white/5">
       <div className="flex items-center gap-2 mb-2">
         <span className="text-[11px] font-medium text-gray-400">
-          Atıflar ({sources.length} kaynak)
+          Citations ({sources.length} sources)
         </span>
       </div>
       <div className="space-y-1">
@@ -231,7 +231,7 @@ export function SourceCitation({ sources, onLoadMore, hasMore = false, showLoadM
                 const firstSentence = cleanExcerpt.split(/[.!?]/)[0]?.trim();
                 displayTitle = firstSentence?.length > 10 ? firstSentence : cleanExcerpt.slice(0, 100);
               } else {
-                displayTitle = getSourceTableName(source.sourceTable) + ' Kaynağı';
+                displayTitle = getSourceTableName(source.sourceTable) + ' Source';
               }
             } else {
               displayTitle = rawTitle
@@ -249,7 +249,7 @@ export function SourceCitation({ sources, onLoadMore, hasMore = false, showLoadM
           displayTitle = cleanCitationText(displayTitle)
             .replace(/Danıştay Kararları$/i, '')
             .replace(/^\s*[-•]\s*/, '')
-            .trim() || 'Kaynak';
+            .trim() || 'Source';
 
           return (
             <div
@@ -307,7 +307,7 @@ export function SourceCitation({ sources, onLoadMore, hasMore = false, showLoadM
                         {(source.metadata.esasno || source.metadata.esas_no) && (source.metadata.kararno || source.metadata.karar_no) && ' • '}
                         {(source.metadata.kararno || source.metadata.karar_no) && `K: ${source.metadata.kararno || source.metadata.karar_no}`}
                         {(source.metadata.kararno || source.metadata.karar_no || source.metadata.esasno || source.metadata.esas_no) && (source.metadata.sayisirano || source.metadata.sayi) && ' • '}
-                        {(source.metadata.sayisirano || source.metadata.sayi) && `Sayı: ${source.metadata.sayisirano || source.metadata.sayi}`}
+                        {(source.metadata.sayisirano || source.metadata.sayi) && `No: ${source.metadata.sayisirano || source.metadata.sayi}`}
                       </p>
                     )}
                     {/* Makale metadata */}
@@ -315,7 +315,7 @@ export function SourceCitation({ sources, onLoadMore, hasMore = false, showLoadM
                       <p className="line-clamp-1">
                         {source.metadata.dergi && <span className="uppercase text-[10px]">{source.metadata.dergi}</span>}
                         {source.metadata.dergi && source.metadata.yazar && ' • '}
-                        {source.metadata.yazar && `Yazar: ${source.metadata.yazar}`}
+                        {source.metadata.yazar && `Author: ${source.metadata.yazar}`}
                         {(source.metadata.yazar || source.metadata.dergi) && source.metadata.tarih && !source.metadata.daire && ` • ${source.metadata.tarih}`}
                       </p>
                     )}
@@ -338,15 +338,15 @@ export function SourceCitation({ sources, onLoadMore, hasMore = false, showLoadM
                             onClick={() => {
                               const question = generateFollowUpQuestion(
                                 excerpt,
-                                stripHtml(source.citation || source.title || 'Bu kaynak')
+                                stripHtml(source.citation || source.title || 'This source')
                               );
                               onExcerptClick(question);
                             }}
                             className="flex items-center gap-1 mt-1.5 text-[10px] text-purple-400 hover:text-purple-300 transition-colors"
-                            title="Bu konuyla ilgili soru sor"
+                            title="Ask a question about this topic"
                           >
                             <MessageSquareText className="w-3 h-3" />
-                            Soru sor
+                            Ask question
                           </button>
                         )}
                       </div>
@@ -414,7 +414,7 @@ export function SourceCitation({ sources, onLoadMore, hasMore = false, showLoadM
               className="flex items-center gap-2 mx-auto text-xs px-3 py-1.5 text-gray-400 hover:text-gray-300 transition-colors"
             >
               <ChevronDown className="w-3 h-3" />
-              {sources.length - initialSourcesToShow} kaynak daha
+              {sources.length - initialSourcesToShow} more sources
             </button>
           ) : (
             <button
@@ -422,7 +422,7 @@ export function SourceCitation({ sources, onLoadMore, hasMore = false, showLoadM
               className="flex items-center gap-2 mx-auto text-xs px-3 py-1.5 text-gray-400 hover:text-gray-300 transition-colors"
             >
               <ChevronUp className="w-3 h-3" />
-              Daha az göster
+              Show less
             </button>
           )}
         </div>
@@ -436,7 +436,7 @@ export function SourceCitation({ sources, onLoadMore, hasMore = false, showLoadM
             className="flex items-center gap-2 mx-auto text-xs px-3 py-1.5 text-purple-400 hover:text-purple-300 transition-colors"
           >
             <Plus className="w-3 h-3" />
-            Daha fazla kaynak yükle
+            Load more sources
           </button>
         </div>
       )}

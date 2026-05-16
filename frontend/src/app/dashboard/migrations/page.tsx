@@ -947,7 +947,7 @@ export default function EmbeddingsManagerPage() {
     } catch (error) {
       toast({
         title: "Hata",
-        description: 'Migration durdurulamadı.',
+        description: 'Could not stop migration.',
         variant: "destructive",
       });
     }
@@ -1153,10 +1153,10 @@ export default function EmbeddingsManagerPage() {
         const issues = summary.orphan_count + summary.missing_metadata_count + summary.duplicate_count;
 
         toast({
-          title: `Veri Sağlığı: ${summary.health_score.toFixed(0)}%`,
+          title: `Data Health: ${summary.health_score.toFixed(0)}%`,
           description: issues > 0
-            ? `${summary.total_embeddings.toLocaleString()} kayıt tarandı. ${issues.toLocaleString()} sorun bulundu.`
-            : `${summary.total_embeddings.toLocaleString()} kayıt tarandı. Sorun bulunamadı.`,
+            ? `Scanned ${summary.total_embeddings.toLocaleString()} records. ${issues.toLocaleString()} issues found.`
+            : `Scanned ${summary.total_embeddings.toLocaleString()} records. No issues found.`,
           variant: issues > 100 ? 'destructive' : 'default'
         });
       } else {
@@ -1164,8 +1164,8 @@ export default function EmbeddingsManagerPage() {
       }
     } catch (error: any) {
       toast({
-        title: 'Sağlık Kontrolü Başarısız',
-        description: error.message || 'Python servise bağlanılamadı',
+        title: 'Health Check Failed',
+        description: error.message || 'Could not connect to Python service',
         variant: 'destructive'
       });
     } finally {
@@ -1207,8 +1207,8 @@ export default function EmbeddingsManagerPage() {
       if (response.ok) {
         const data = await response.json();
         toast({
-          title: 'Başarılı',
-          description: `${data.deleted?.total || 0} kayıt silindi`,
+          title: 'Success',
+          description: `${data.deleted?.total || 0} records deleted`,
           variant: 'default'
         });
         // Refresh table list
@@ -1224,7 +1224,7 @@ export default function EmbeddingsManagerPage() {
     } catch (error) {
       toast({
         title: 'Hata',
-        description: 'Silme işlemi sırasında bir hata oluştu',
+        description: 'An error occurred during deletion',
         variant: 'destructive'
       });
     }
@@ -1364,7 +1364,7 @@ export default function EmbeddingsManagerPage() {
                         </div>
                       )}
                       <div className="flex justify-between">
-                        <span className="text-violet-600 dark:text-violet-400">İlerleme:</span>
+                        <span className="text-violet-600 dark:text-violet-400">Progress:</span>
                         <span className="font-medium text-violet-900 dark:text-violet-100">
                           {optimizeProgress.tablesProcessed} / {optimizeProgress.totalTables} tablo
                         </span>
@@ -1483,7 +1483,7 @@ export default function EmbeddingsManagerPage() {
                   {(!progress || progress.status === 'idle') && !isOptimizing && optimizeProgress.status !== 'completed' && healthReport && (
                     <div className="w-full bg-slate-50 dark:bg-slate-900/50 rounded-lg p-3 border border-slate-200 dark:border-slate-700">
                       <div className="flex items-center justify-between mb-2">
-                        <span className="text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide">Veri Sağlığı</span>
+                        <span className="text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide">Data Health</span>
                         <span className={cn(
                           "text-sm font-bold",
                           healthReport.summary.health_score >= 80 ? "text-emerald-600 dark:text-emerald-400" :
@@ -1518,13 +1518,13 @@ export default function EmbeddingsManagerPage() {
                             const tableCount = Object.keys(healthReport?.tables || {}).length || 1;
                             setOptimizeProgress({
                               status: 'processing',
-                              currentTable: 'Başlatılıyor...',
+                              currentTable: 'Starting...',
                               tablesProcessed: 0,
                               totalTables: tableCount,
                               orphansDeleted: 0,
                               duplicatesDeleted: 0,
                               metadataFixed: 0,
-                              message: 'Veri optimizasyonu başlatıldı'
+                              message: 'Data optimization started'
                             });
 
                             try {
@@ -1546,21 +1546,21 @@ export default function EmbeddingsManagerPage() {
                                 fetchHealthReport();
                                 fetchAvailableTables();
                                 toast({
-                                  title: 'Başarılı',
-                                  description: 'Veri optimizasyonu tamamlandı',
+                                  title: 'Success',
+                                  description: 'Data optimization completed',
                                 });
                               } else {
-                                throw new Error('Optimizasyon başarısız');
+                                throw new Error('Optimization failed');
                               }
                             } catch (error) {
                               setOptimizeProgress(prev => ({
                                 ...prev,
                                 status: 'error',
-                                message: 'Optimizasyon sırasında hata oluştu'
+                                message: 'An error occurred during optimization'
                               }));
                               toast({
                                 title: 'Hata',
-                                description: 'Optimizasyon sırasında bir hata oluştu.',
+                                description: 'An error occurred during optimization.',
                                 variant: 'destructive',
                               });
                             } finally {
@@ -1903,14 +1903,14 @@ export default function EmbeddingsManagerPage() {
                           });
                           setSelectedTableRows(new Set());
                           toast({
-                            title: 'Kuyruğa Eklendi',
-                            description: `${tablesToAdd.length} tablo migration kuyruğuna eklendi. Sol panelden başlatabilirsiniz.`,
+                            title: 'Added to Queue',
+                            description: `${tablesToAdd.length} tables added to migration queue. You can start from the left panel.`,
                           });
                         }}
                         className="h-7 text-xs"
                       >
                         <Plus className="w-3 h-3 mr-1" />
-                        Kuyruğa Ekle
+                        Add to Queue
                       </Button>
                       <Button
                         size="sm"
@@ -1925,7 +1925,7 @@ export default function EmbeddingsManagerPage() {
                             %{healthProgress.toFixed(0)}
                           </>
                         ) : (
-                          'Veri Sağlığı'
+                          'Data Health'
                         )}
                       </Button>
                       <Button
@@ -1938,8 +1938,8 @@ export default function EmbeddingsManagerPage() {
                       </Button>
                       <ConfirmTooltip
                         onConfirm={handleBulkDelete}
-                        title="Seçili Tabloların Embeddinglerini Sil"
-                        description={`${selectedTableRows.size} tablo için tüm embedding kayıtlarını silmek istediğinize emin misiniz? Bu işlem geri alınamaz.`}
+                        title="Delete Embeddings for Selected Tables"
+                        description={`Are you sure you want to delete all embedding records for ${selectedTableRows.size} tables? This action cannot be undone.`}
                       >
                         <Button
                           size="sm"
@@ -2038,12 +2038,12 @@ export default function EmbeddingsManagerPage() {
             {isLoadingPreview ? (
               <div className="flex items-center justify-center py-12">
                 <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
-                <span className="ml-2 text-sm text-muted-foreground">Yükleniyor...</span>
+                <span className="ml-2 text-sm text-muted-foreground">Loading...</span>
               </div>
             ) : tablePreviewData.length === 0 ? (
               <div className="text-center py-12 text-muted-foreground">
-                <p className="text-sm">Bu tablo için embed kaydı bulunamadı.</p>
-                <p className="text-xs mt-1">Migration çalıştırarak embedding oluşturabilirsiniz.</p>
+                <p className="text-sm">No embedding records found for this table.</p>
+                <p className="text-xs mt-1">You can create embeddings by running a migration.</p>
               </div>
             ) : (
               <div className="space-y-2">
@@ -2055,7 +2055,7 @@ export default function EmbeddingsManagerPage() {
                     <div className="flex items-start justify-between gap-3 mb-2">
                       <div className="flex-1 min-w-0">
                         <div className="font-medium text-sm truncate">
-                          {record.source_name || record.title || `Kayıt #${record.source_id || record.id}`}
+                          {record.source_name || record.title || `Record #${record.source_id || record.id}`}
                         </div>
                         <div className="flex items-center gap-1.5 mt-1 text-xs text-muted-foreground">
                           <span>ID: {record.source_id || record.id}</span>
@@ -2093,7 +2093,7 @@ export default function EmbeddingsManagerPage() {
           {tablePreviewData.length > 0 && (
             <div className="px-4 py-3 border-t flex-shrink-0 flex items-center justify-between">
               <span className="text-xs text-muted-foreground">
-                {tablePreviewData.length} kayıt gösteriliyor
+                Showing {tablePreviewData.length} records
               </span>
               {previewHasMore && (
                 <Button
@@ -2110,10 +2110,10 @@ export default function EmbeddingsManagerPage() {
                   {isLoadingMorePreview ? (
                     <>
                       <Loader2 className="w-3 h-3 mr-1.5 animate-spin" />
-                      Yükleniyor...
+                      Loading...
                     </>
                   ) : (
-                    'Daha Fazla Yükle'
+                    'Load More'
                   )}
                 </Button>
               )}

@@ -140,8 +140,8 @@ export default function DataSchemaSettings() {
     } catch (error: any) {
       console.error('🔍 [SCHEMA] Failed to load:', error);
       const errorMsg = error?.response?.status === 401
-        ? 'Oturum süresi doldu. Lütfen tekrar giriş yapın.'
-        : error?.response?.data?.error || error?.message || 'Veriler yüklenemedi';
+        ? 'Session expired. Please sign in again.'
+        : error?.response?.data?.error || error?.message || 'Failed to load data';
       setLoadError(errorMsg);
       toast.error(errorMsg);
     } finally {
@@ -179,12 +179,12 @@ export default function DataSchemaSettings() {
         category: 'rag',
         description: 'RAG Response Routing Schema'
       });
-      toast.success('Routing schema kaydedildi');
+      toast.success('Routing schema saved');
     } catch (error: any) {
       if (error instanceof SyntaxError) {
-        toast.error('Geçersiz JSON formatı');
+        toast.error('Invalid JSON format');
       } else {
-        toast.error('Kaydetme hatası: ' + (error?.message || 'Bilinmeyen hata'));
+        toast.error('Save error: ' + (error?.message || 'Unknown error'));
       }
     } finally {
       setRoutingSchemaSaving(false);
@@ -198,10 +198,10 @@ export default function DataSchemaSettings() {
       const res = await apiClient.get('/api/v2/settings/rag-routing-schema/default');
       if (res?.data?.schema) {
         setRoutingSchema(JSON.stringify(res.data.schema, null, 2));
-        toast.success('Varsayılan şema yüklendi');
+        toast.success('Default schema loaded');
       }
     } catch (error: any) {
-      toast.error('Varsayılan şema yüklenemedi');
+      toast.error('Failed to load default schema');
     } finally {
       setRoutingSchemaLoading(false);
     }
@@ -230,15 +230,15 @@ export default function DataSchemaSettings() {
       setSaving(true);
       await apiClient.post('/api/v2/data-schema/user/active-schema', { schemaId: id });
       setActiveSchemaId(id);
-      toast.success('Aktif şema ayarlandı');
-    } catch { toast.error('Hata'); }
+      toast.success('Active schema set');
+    } catch { toast.error('Error'); }
     finally { setSaving(false); }
   };
 
   const createNew = () => {
     setSelectedSchemaId('new');
     setEditedSchema({
-      id: '', name: 'yeni_sema', displayName: 'Yeni Şema', description: '',
+      id: '', name: 'new_schema', displayName: 'New Schema', description: '',
       fields: [], templates: { analyze: '', citation: '', questions: [] },
       llmGuide: '', llmConfig: {}, isActive: true, isDefault: false, isPreset: false,
       createdAt: '', updatedAt: ''
@@ -268,7 +268,7 @@ export default function DataSchemaSettings() {
         setAllSchemas([...allSchemas, newSchema]);
         setSelectedSchemaId(newSchema.id);
         setEditedSchema({ ...editedSchema, id: newSchema.id, isPreset: false });
-        toast.success('Şema oluşturuldu');
+        toast.success('Schema created');
       } else if (editedSchema.isPreset) {
         // Update industry preset (admin only)
         await apiClient.put(`/api/v2/data-schema/presets/${editedSchema.id}`, data);
@@ -277,7 +277,7 @@ export default function DataSchemaSettings() {
           ...data,
           display_name: data.display_name
         } as UnifiedSchema : s));
-        toast.success('Sistem şeması güncellendi');
+        toast.success('System schema updated');
       } else {
         // Update user schema
         await apiClient.put(`/api/v2/data-schema/schemas/${editedSchema.id}`, data);
@@ -286,11 +286,11 @@ export default function DataSchemaSettings() {
           ...data,
           display_name: data.display_name
         } as UnifiedSchema : s));
-        toast.success('Şema güncellendi');
+        toast.success('Schema updated');
       }
     } catch (error: any) {
       console.error('Save error:', error);
-      toast.error(error?.response?.data?.error || 'Kaydetme hatası');
+      toast.error(error?.response?.data?.error || 'Save error');
     }
     finally { setSaving(false); }
   };
@@ -298,22 +298,22 @@ export default function DataSchemaSettings() {
   const deleteSchema = async (id: string) => {
     const schema = allSchemas.find(s => s.id === id);
     if (schema?.is_system) {
-      toast.error('Sistem şemaları silinemez');
+      toast.error('System schemas cannot be deleted');
       return;
     }
-    if (!confirm('Silmek istediğinize emin misiniz?')) return;
+    if (!confirm('Are you sure you want to delete?')) return;
     try {
       await apiClient.delete(`/api/v2/data-schema/schemas/${id}`);
       setAllSchemas(allSchemas.filter(s => s.id !== id));
       if (selectedSchemaId === id) { setSelectedSchemaId(null); setEditedSchema(null); }
-      toast.success('Silindi');
-    } catch { toast.error('Hata'); }
+      toast.success('Deleted');
+    } catch { toast.error('Error'); }
   };
 
   const cloneSchema = (schema: UnifiedSchema) => {
     setSelectedSchemaId('new');
     setEditedSchema({
-      id: '', name: `${schema.name}_kopya`, displayName: `${schema.display_name} (Kopya)`,
+      id: '', name: `${schema.name}_copy`, displayName: `${schema.display_name} (Copy)`,
       description: schema.description || '', fields: [...schema.fields],
       templates: { ...schema.templates },
       llmGuide: schema.llm_guide || '',
@@ -321,7 +321,7 @@ export default function DataSchemaSettings() {
       isActive: true, isDefault: false, isPreset: false,
       createdAt: '', updatedAt: ''
     });
-    toast.info('Klonlandı, kaydedin');
+    toast.info('Cloned, please save');
   };
 
   const exportSchema = () => {
@@ -341,7 +341,7 @@ export default function DataSchemaSettings() {
     a.download = `schema_${editedSchema.name}_${Date.now()}.json`;
     a.click();
     URL.revokeObjectURL(url);
-    toast.success('Şema JSON olarak indirildi');
+    toast.success('Schema downloaded as JSON');
   };
 
   // Modal save handler
@@ -357,10 +357,10 @@ export default function DataSchemaSettings() {
         }
         setRoutingSchema(value);
         setEditModal({ ...editModal, open: false });
-        toast.success('Güncellendi - Kaydetmeyi unutmayın');
+        toast.success('Updated - remember to save');
         return;
       } catch {
-        toast.error('Geçersiz JSON formatı');
+        toast.error('Invalid JSON format');
         return;
       }
     }
@@ -393,20 +393,20 @@ export default function DataSchemaSettings() {
       try {
         const fields = JSON.parse(value);
         if (Array.isArray(fields)) setEditedSchema({ ...editedSchema, fields });
-      } catch { toast.error('Geçersiz JSON'); return; }
+      } catch { toast.error('Invalid JSON'); return; }
     } else if (field === 'lawCodeConfig') {
       try {
         const lawCodeConfig = JSON.parse(value);
         setEditedSchema({ ...editedSchema, llmConfig: { ...editedSchema.llmConfig, lawCodeConfig } });
-      } catch { toast.error('Geçersiz JSON formatı'); return; }
+      } catch { toast.error('Invalid JSON format'); return; }
     } else if (field === 'chunkConfig') {
       try {
         const chunkConfig = JSON.parse(value);
         setEditedSchema({ ...editedSchema, llmConfig: { ...editedSchema.llmConfig, chunkConfig } });
-      } catch { toast.error('Geçersiz JSON formatı'); return; }
+      } catch { toast.error('Invalid JSON format'); return; }
     }
     setEditModal({ ...editModal, open: false });
-    toast.success('Güncellendi');
+    toast.success('Updated');
   };
 
   const importSchema = () => {
@@ -423,7 +423,7 @@ export default function DataSchemaSettings() {
 
       // Validate JSON structure
       if (!data.name || !data.fields) {
-        toast.error('Geçersiz şema formatı');
+        toast.error('Invalid schema format');
         return;
       }
 
@@ -442,10 +442,10 @@ export default function DataSchemaSettings() {
         isPreset: false,
         createdAt: '', updatedAt: ''
       });
-      toast.success('Şema JSON\'dan yüklendi, kaydedin');
+      toast.success('Schema loaded from JSON, please save');
     } catch (error) {
       console.error('Import error:', error);
-      toast.error('JSON dosyası okunamadı');
+      toast.error('Could not read JSON file');
     }
 
     // Reset file input
@@ -505,11 +505,11 @@ export default function DataSchemaSettings() {
     <div className="flex flex-col items-center justify-center py-12 px-4">
       <div className="text-center max-w-md">
         <Database className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
-        <h3 className="text-lg font-medium mb-2">Şemalar Yüklenemedi</h3>
+        <h3 className="text-lg font-medium mb-2">Failed to Load Schemas</h3>
         <p className="text-sm text-muted-foreground mb-4">{loadError}</p>
         <Button onClick={loadData} variant="outline" size="sm">
           <RefreshCw className="w-4 h-4 mr-2" />
-          Tekrar Dene
+          Retry
         </Button>
       </div>
     </div>
@@ -531,7 +531,7 @@ export default function DataSchemaSettings() {
         <CardHeader className="py-3 px-4">
           <div className="flex items-center justify-between">
             <CardTitle className="text-sm font-medium flex items-center gap-2">
-              <Database className="w-4 h-4" /> Şemalar
+              <Database className="w-4 h-4" /> Schemas
             </CardTitle>
             <div className="flex gap-1">
               <Button size="sm" variant="ghost" onClick={importSchema} className="h-7 px-2" title="JSON Import">
@@ -540,7 +540,7 @@ export default function DataSchemaSettings() {
               <Button size="sm" variant="ghost" onClick={exportSchema} disabled={!editedSchema} className="h-7 px-2" title="JSON Export">
                 <Download className="w-4 h-4" />
               </Button>
-              <Button size="sm" variant="ghost" onClick={createNew} className="h-7 px-2" title="Yeni Şema">
+              <Button size="sm" variant="ghost" onClick={createNew} className="h-7 px-2" title="New Schema">
                 <Plus className="w-4 h-4" />
               </Button>
             </div>
@@ -549,7 +549,7 @@ export default function DataSchemaSettings() {
         <CardContent className="px-4 pb-4 pt-0 space-y-3">
           <div className="relative">
             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
-            <Input placeholder="Ara..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} className="h-8 pl-8 text-sm" />
+            <Input placeholder="Search..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} className="h-8 pl-8 text-sm" />
           </div>
           <div className="space-y-1.5 max-h-[400px] overflow-y-auto">
             {filtered.map(schema => (
@@ -570,39 +570,39 @@ export default function DataSchemaSettings() {
                     <DropdownMenuContent align="end" className="w-32">
                       {activeSchemaId !== schema.id && (
                         <DropdownMenuItem onClick={e => { e.stopPropagation(); setActive(schema.id); }}>
-                          <Check className="w-3 h-3 mr-2" /> Aktif Yap
+                          <Check className="w-3 h-3 mr-2" /> Make Active
                         </DropdownMenuItem>
                       )}
                       <DropdownMenuItem onClick={e => { e.stopPropagation(); cloneSchema(schema); }}>
-                        <Copy className="w-3 h-3 mr-2" /> Klonla
+                        <Copy className="w-3 h-3 mr-2" /> Clone
                       </DropdownMenuItem>
                       {!schema.is_system && (
                         <>
                           <DropdownMenuSeparator />
                           <DropdownMenuItem onClick={e => { e.stopPropagation(); deleteSchema(schema.id); }} className="text-destructive">
-                            <Trash2 className="w-3 h-3 mr-2" /> Sil
+                            <Trash2 className="w-3 h-3 mr-2" /> Delete
                           </DropdownMenuItem>
                         </>
                       )}
                     </DropdownMenuContent>
                   </DropdownMenu>
                 </div>
-                <p className="text-xs text-muted-foreground mt-1 truncate">{schema.fields.length} alan</p>
+                <p className="text-xs text-muted-foreground mt-1 truncate">{schema.fields.length} fields</p>
               </div>
             ))}
             {selectedSchemaId === 'new' && (
               <div className="p-2.5 rounded-md border-2 border-dashed border-primary bg-primary/5 text-sm">
-                <span className="font-medium">Yeni Şema</span>
-                <Badge variant="outline" className="ml-2 text-xs">Kaydedilmedi</Badge>
+                <span className="font-medium">New Schema</span>
+                <Badge variant="outline" className="ml-2 text-xs">Unsaved</Badge>
               </div>
             )}
             {!filtered.length && selectedSchemaId !== 'new' && (
               <div className="text-center py-8 text-muted-foreground">
                 <Database className="w-8 h-8 mx-auto mb-2 opacity-50" />
-                <p className="text-sm">Henüz şema yok</p>
+                <p className="text-sm">No schemas yet</p>
                 <Button size="sm" variant="outline" onClick={createNew} className="mt-3">
                   <Plus className="w-3 h-3 mr-1" />
-                  İlk Şemanı Oluştur
+                  Create Your First Schema
                 </Button>
               </div>
             )}
@@ -615,12 +615,12 @@ export default function DataSchemaSettings() {
                 {saving ? (
                   <>
                     <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
-                    Kaydediliyor...
+                    Saving...
                   </>
                 ) : (
                   <>
                     <Save className="w-4 h-4 mr-2" />
-                    Kaydet
+                    Save
                   </>
                 )}
               </Button>
@@ -636,11 +636,11 @@ export default function DataSchemaSettings() {
             <div className="flex items-center gap-2">
               {editedSchema ? (
                 <>
-                  <span className="font-medium">{editedSchema.displayName || 'Yeni Şema'}</span>
-                  {isActive && <Badge className="bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400 text-xs"><Check className="w-2.5 h-2.5 mr-0.5" />Aktif</Badge>}
+                  <span className="font-medium">{editedSchema.displayName || 'New Schema'}</span>
+                  {isActive && <Badge className="bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400 text-xs"><Check className="w-2.5 h-2.5 mr-0.5" />Active</Badge>}
                 </>
               ) : (
-                <span className="text-muted-foreground">Şema seçin</span>
+                <span className="text-muted-foreground">Select a schema</span>
               )}
             </div>
           </div>
@@ -651,38 +651,38 @@ export default function DataSchemaSettings() {
               {/* Temel Bilgiler */}
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <Label className="text-xs">Şema ID</Label>
+                  <Label className="text-xs">Schema ID</Label>
                   <Input
                     value={editedSchema.name}
                     onChange={e => setEditedSchema({ ...editedSchema, name: e.target.value.toLowerCase().replace(/\s+/g, '_') })}
-                    placeholder="vergi_mevzuati"
+                    placeholder="tax_legislation"
                     className="h-8 mt-1"
                   />
                 </div>
                 <div>
-                  <Label className="text-xs">Görünen Ad</Label>
+                  <Label className="text-xs">Display Name</Label>
                   <Input
                     value={editedSchema.displayName}
                     onChange={e => setEditedSchema({ ...editedSchema, displayName: e.target.value })}
-                    placeholder="Vergi Mevzuatı"
+                    placeholder="Tax Legislation"
                     className="h-8 mt-1"
                   />
                 </div>
               </div>
               <div>
-                <Label className="text-xs">Açıklama</Label>
+                <Label className="text-xs">Description</Label>
                 <Textarea
                   value={editedSchema.description}
                   onChange={e => setEditedSchema({ ...editedSchema, description: e.target.value })}
-                  placeholder="Kısa açıklama..."
+                  placeholder="Short description..."
                   rows={2}
                   className="mt-1 text-sm"
                 />
               </div>
 
-              {/* LLM Konfigürasyonu - Click to Edit */}
+              {/* LLM Configuration - Click to Edit */}
               <div className="border-t pt-4 space-y-2">
-                <h3 className="text-sm font-medium mb-3">LLM Konfigürasyonu</h3>
+                <h3 className="text-sm font-medium mb-3">LLM Configuration</h3>
 
                 {/* Clickable Cards - 3 columns */}
                 <div className="grid grid-cols-3 gap-2">
@@ -711,12 +711,12 @@ export default function DataSchemaSettings() {
                       field: 'analyzePrompt',
                       title: 'Analyze Prompt',
                       value: editedSchema.templates.analyze || '',
-                      placeholder: 'Dokümanı analiz etmek için LLM\'e verilecek talimatlar...'
+                      placeholder: 'Instructions to give the LLM for analyzing the document...'
                     })}
                   >
                     <div className="text-xs font-medium mb-1">Analyze Prompt</div>
                     <div className="text-xs text-muted-foreground line-clamp-1">
-                      {editedSchema.templates.analyze?.substring(0, 30) || 'Tanımsız'}...
+                      {editedSchema.templates.analyze?.substring(0, 30) || 'Undefined'}...
                     </div>
                   </div>
 
@@ -728,12 +728,12 @@ export default function DataSchemaSettings() {
                       field: 'chatbotContext',
                       title: 'Chatbot Context',
                       value: editedSchema.llmConfig?.chatbotContext || '',
-                      placeholder: 'Chatbot\'un domain uzmanlığı ve davranış kuralları...'
+                      placeholder: 'Chatbot domain expertise and behavior rules...'
                     })}
                   >
                     <div className="text-xs font-medium mb-1">Chatbot Context</div>
                     <div className="text-xs text-muted-foreground line-clamp-1">
-                      {editedSchema.llmConfig?.chatbotContext?.substring(0, 30) || 'Tanımsız'}...
+                      {editedSchema.llmConfig?.chatbotContext?.substring(0, 30) || 'Undefined'}...
                     </div>
                   </div>
                 </div>
@@ -741,7 +741,7 @@ export default function DataSchemaSettings() {
 
               {/* Domain Configuration - Click to Edit */}
               <div className="border-t pt-4 space-y-2">
-                <h3 className="text-sm font-medium mb-3">Domain Konfigürasyonu</h3>
+                <h3 className="text-sm font-medium mb-3">Domain Configuration</h3>
 
                 {/* Clickable Cards Grid */}
                 <div className="grid grid-cols-2 gap-2">
@@ -751,15 +751,15 @@ export default function DataSchemaSettings() {
                     onClick={() => setEditModal({
                       open: true,
                       field: 'keyTerms',
-                      title: 'Anahtar Terimler',
+                      title: 'Key Terms',
                       value: (editedSchema.llmConfig?.keyTerms || []).join('\n'),
-                      placeholder: 'Her satıra bir terim:\nceza\nvergi\nkdv\nmuafiyet'
+                      placeholder: 'One term per line:\npenalty\ntax\nvat\nexemption'
                     })}
                   >
-                    <div className="text-xs font-medium mb-1">Anahtar Terimler</div>
+                    <div className="text-xs font-medium mb-1">Key Terms</div>
                     <div className="text-lg font-bold text-primary">{(editedSchema.llmConfig?.keyTerms || []).length}</div>
                     <div className="text-xs text-muted-foreground truncate">
-                      {(editedSchema.llmConfig?.keyTerms || []).slice(0, 3).join(', ') || 'Tanımsız'}
+                      {(editedSchema.llmConfig?.keyTerms || []).slice(0, 3).join(', ') || 'Undefined'}
                     </div>
                   </div>
 
@@ -769,15 +769,15 @@ export default function DataSchemaSettings() {
                     onClick={() => setEditModal({
                       open: true,
                       field: 'authorityLevels',
-                      title: 'Kaynak Öncelikleri',
+                      title: 'Source Priorities',
                       value: Object.entries(editedSchema.llmConfig?.authorityLevels || {}).map(([k, v]) => `${k}=${v}`).join('\n'),
-                      placeholder: 'Her satıra kaynak=öncelik:\nkanun=100\nteblig=90\nmakale=50'
+                      placeholder: 'One source=priority per line:\nlaw=100\nregulation=90\narticle=50'
                     })}
                   >
-                    <div className="text-xs font-medium mb-1">Kaynak Öncelikleri</div>
+                    <div className="text-xs font-medium mb-1">Source Priorities</div>
                     <div className="text-lg font-bold text-primary">{Object.keys(editedSchema.llmConfig?.authorityLevels || {}).length}</div>
                     <div className="text-xs text-muted-foreground truncate">
-                      {Object.keys(editedSchema.llmConfig?.authorityLevels || {}).slice(0, 3).join(', ') || 'Tanımsız'}
+                      {Object.keys(editedSchema.llmConfig?.authorityLevels || {}).slice(0, 3).join(', ') || 'Undefined'}
                     </div>
                   </div>
 
@@ -787,33 +787,33 @@ export default function DataSchemaSettings() {
                     onClick={() => setEditModal({
                       open: true,
                       field: 'topicEntities',
-                      title: 'Konu Eşleşmeleri',
+                      title: 'Topic Matches',
                       value: (editedSchema.llmConfig?.topicEntities || []).map(e => `${e.pattern} → ${e.synonyms?.join(', ') || ''}`).join('\n'),
-                      placeholder: 'Her satıra pattern → synonym1, synonym2:\nvergi levhası → levha, asma\nkdv → katma değer vergisi'
+                      placeholder: 'One pattern → synonym1, synonym2 per line:\ntax plate → plate, board\nvat → value added tax'
                     })}
                   >
-                    <div className="text-xs font-medium mb-1">Konu Eşleşmeleri</div>
+                    <div className="text-xs font-medium mb-1">Topic Matches</div>
                     <div className="text-lg font-bold text-primary">{(editedSchema.llmConfig?.topicEntities || []).length}</div>
                     <div className="text-xs text-muted-foreground truncate">
-                      {(editedSchema.llmConfig?.topicEntities || []).slice(0, 2).map(e => e.pattern).join(', ') || 'Tanımsız'}
+                      {(editedSchema.llmConfig?.topicEntities || []).slice(0, 2).map(e => e.pattern).join(', ') || 'Undefined'}
                     </div>
                   </div>
 
-                  {/* Veri Alanları Card */}
+                  {/* Data Fields Card */}
                   <div
                     className="p-3 border rounded-lg cursor-pointer hover:bg-muted/50 transition-colors"
                     onClick={() => setEditModal({
                       open: true,
                       field: 'fields',
-                      title: 'Veri Alanları (JSON)',
+                      title: 'Data Fields (JSON)',
                       value: JSON.stringify(editedSchema.fields || [], null, 2),
-                      placeholder: '[{"key": "kanun_no", "label": "Kanun No", "type": "reference"}]'
+                      placeholder: '[{"key": "law_no", "label": "Law No", "type": "reference"}]'
                     })}
                   >
-                    <div className="text-xs font-medium mb-1">Veri Alanları</div>
+                    <div className="text-xs font-medium mb-1">Data Fields</div>
                     <div className="text-lg font-bold text-primary">{(editedSchema.fields || []).length}</div>
                     <div className="text-xs text-muted-foreground truncate">
-                      {(editedSchema.fields || []).slice(0, 3).map(f => f.label || f.key).join(', ') || 'Tanımsız'}
+                      {(editedSchema.fields || []).slice(0, 3).map(f => f.label || f.key).join(', ') || 'Undefined'}
                     </div>
                   </div>
                 </div>
@@ -821,9 +821,9 @@ export default function DataSchemaSettings() {
 
               {/* Article Anchoring - Law Code Configuration */}
               <div className="border-t pt-4 space-y-2">
-                <h3 className="text-sm font-medium mb-3">Madde Çapalama (Article Anchoring)</h3>
+                <h3 className="text-sm font-medium mb-3">Article Anchoring</h3>
                 <p className="text-xs text-muted-foreground mb-3">
-                  "VUK 114" veya "GVK 40" gibi kanun madde sorgularının doğru eşleştirilmesi için kanun kodu yapılandırması.
+                  Law code configuration to correctly match article-level queries like "VUK 114" or "GVK 40".
                 </p>
 
                 <div className="grid grid-cols-2 gap-2">
@@ -833,7 +833,7 @@ export default function DataSchemaSettings() {
                     onClick={() => setEditModal({
                       open: true,
                       field: 'lawCodeConfig',
-                      title: 'Kanun Kodu Yapılandırması',
+                      title: 'Law Code Configuration',
                       value: JSON.stringify(editedSchema.llmConfig?.lawCodeConfig || {
                         lawCodes: {
                           "VUK": ["Vergi Usul Kanunu", "VERGİ USUL KANUNU", "213 Sayılı Kanun"],
@@ -857,16 +857,16 @@ export default function DataSchemaSettings() {
                   >
                     <div className="flex items-start justify-between">
                       <div className="flex-1">
-                        <div className="text-xs font-medium mb-1">Kanun Kodu Eşleştirmeleri</div>
+                        <div className="text-xs font-medium mb-1">Law Code Mappings</div>
                         <div className="text-lg font-bold text-primary">
                           {Object.keys(editedSchema.llmConfig?.lawCodeConfig?.lawCodes || {}).length}
                         </div>
                         <div className="text-xs text-muted-foreground truncate">
-                          {Object.keys(editedSchema.llmConfig?.lawCodeConfig?.lawCodes || {}).slice(0, 4).join(', ') || 'Varsayılan'}
+                          {Object.keys(editedSchema.llmConfig?.lawCodeConfig?.lawCodes || {}).slice(0, 4).join(', ') || 'Default'}
                         </div>
                       </div>
                       <Badge variant="outline" className="text-xs shrink-0">
-                        {editedSchema.llmConfig?.lawCodeConfig ? 'Özel' : 'Varsayılan'}
+                        {editedSchema.llmConfig?.lawCodeConfig ? 'Custom' : 'Default'}
                       </Badge>
                     </div>
                   </div>
@@ -877,7 +877,7 @@ export default function DataSchemaSettings() {
                     onClick={() => setEditModal({
                       open: true,
                       field: 'chunkConfig',
-                      title: 'Kanun Chunking Ayarları',
+                      title: 'Law Chunking Settings',
                       value: JSON.stringify(editedSchema.llmConfig?.chunkConfig || {
                         enabled: true,
                         autoChunkOnTransform: true,
@@ -891,19 +891,19 @@ export default function DataSchemaSettings() {
                   >
                     <div className="flex items-start justify-between">
                       <div className="flex-1">
-                        <div className="text-xs font-medium mb-1">Kanun Chunking</div>
+                        <div className="text-xs font-medium mb-1">Law Chunking</div>
                         <div className="text-lg font-bold text-primary">
                           {(editedSchema.llmConfig?.chunkConfig?.sourceTables || []).length}
                         </div>
                         <div className="text-xs text-muted-foreground truncate">
-                          {(editedSchema.llmConfig?.chunkConfig?.sourceTables || []).slice(0, 2).join(', ') || 'Tanımsız'}
+                          {(editedSchema.llmConfig?.chunkConfig?.sourceTables || []).slice(0, 2).join(', ') || 'Undefined'}
                         </div>
                       </div>
                       <Badge
                         variant="outline"
                         className={`text-xs shrink-0 ${editedSchema.llmConfig?.chunkConfig?.enabled ? 'bg-green-100 text-green-700' : ''}`}
                       >
-                        {editedSchema.llmConfig?.chunkConfig?.enabled ? 'Aktif' : 'Pasif'}
+                        {editedSchema.llmConfig?.chunkConfig?.enabled ? 'Active' : 'Inactive'}
                       </Badge>
                     </div>
                   </div>
@@ -914,14 +914,14 @@ export default function DataSchemaSettings() {
           ) : (
             <div className="text-center py-8 text-muted-foreground">
               <Database className="w-10 h-10 mx-auto mb-3 opacity-50" />
-              <p className="text-sm">Düzenlemek için şema seçin</p>
+              <p className="text-sm">Select a schema to edit</p>
             </div>
           )}
 
-          {/* RAG Yanıt Format Şeması - Global Setting (Always Visible) */}
+          {/* RAG Response Format Schema - Global Setting (Always Visible) */}
           <div className="border-t pt-4 space-y-2 mt-4">
             <div className="flex items-center justify-between mb-3">
-              <h3 className="text-sm font-medium">Yanıt Format Şeması</h3>
+              <h3 className="text-sm font-medium">Response Format Schema</h3>
               <div className="flex gap-1">
                 <Button
                   variant="ghost"
@@ -929,7 +929,7 @@ export default function DataSchemaSettings() {
                   className="h-6 px-2 text-xs"
                   onClick={resetRoutingSchema}
                   disabled={routingSchemaLoading}
-                  title="Varsayılan şemayı yükle"
+                  title="Load default schema"
                 >
                   <RefreshCw className={`w-3 h-3 ${routingSchemaLoading ? 'animate-spin' : ''}`} />
                 </Button>
@@ -942,7 +942,7 @@ export default function DataSchemaSettings() {
               onClick={() => setEditModal({
                 open: true,
                 field: 'routingSchema',
-                title: 'RAG Yanıt Format Şeması',
+                title: 'RAG Response Format Schema',
                 value: routingSchema || '',
                 placeholder: '{"version": "1.0", "routes": {...}, "globalSettings": {...}}'
               })}
@@ -958,7 +958,7 @@ export default function DataSchemaSettings() {
                   </div>
                 </div>
                 <Badge variant="outline" className="text-xs shrink-0">
-                  {routingSchema ? 'Özel' : 'Varsayılan'}
+                  {routingSchema ? 'Custom' : 'Default'}
                 </Badge>
               </div>
               {routingSchema && (
@@ -968,7 +968,7 @@ export default function DataSchemaSettings() {
               )}
             </div>
             <p className="text-xs text-muted-foreground">
-              Yanıt formatını, kaynak önceliklerini ve dipnot şablonlarını yapılandırır.
+              Configures response format, source priorities, and footnote templates.
             </p>
           </div>
         </CardContent>
@@ -986,10 +986,10 @@ export default function DataSchemaSettings() {
             <div className="py-2 space-y-3">
               {/* Quick Guide - Minimal */}
               <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
-                <span><strong>NEEDS_CLARIFICATION:</strong> öneri sorular</span>
-                <span><strong>OUT_OF_SCOPE:</strong> tek satır</span>
-                <span><strong>NOT_FOUND:</strong> kısa açıklama</span>
-                <span><strong>FOUND:</strong> 4 bölüm + dipnot</span>
+                <span><strong>NEEDS_CLARIFICATION:</strong> suggested questions</span>
+                <span><strong>OUT_OF_SCOPE:</strong> one line</span>
+                <span><strong>NOT_FOUND:</strong> short explanation</span>
+                <span><strong>FOUND:</strong> 4 sections + footnote</span>
               </div>
 
               {/* JSON Editor */}
@@ -1002,7 +1002,7 @@ export default function DataSchemaSettings() {
                   className="font-mono text-xs"
                 />
                 <p className="text-xs text-muted-foreground mt-2">
-                  Boş bırakılırsa backend varsayılan şemayı kullanır. JSON formatı gereklidir.
+                  If left empty, the backend uses the default schema. JSON format is required.
                 </p>
               </div>
 
@@ -1016,28 +1016,28 @@ export default function DataSchemaSettings() {
                       const res = await apiClient.get('/api/v2/settings/rag-routing-schema/default');
                       if (res?.data?.schema) {
                         setEditModal({ ...editModal, value: JSON.stringify(res.data.schema, null, 2) });
-                        toast.success('Varsayılan şema yüklendi');
+                        toast.success('Default schema loaded');
                       }
                     } catch {
-                      toast.error('Varsayılan şema yüklenemedi');
+                      toast.error('Failed to load default schema');
                     }
                   }}
                 >
                   <RefreshCw className="w-3 h-3 mr-1" />
-                  Varsayılan Şemayı Yükle
+                  Load Default Schema
                 </Button>
               </div>
             </div>
           ) : editModal.field === 'keyTerms' ? (
-            /* Terimler Sözlüğü - Dictionary Style UI */
+            /* Terms Dictionary - Dictionary Style UI */
             <div className="py-2 space-y-3">
               {/* Suggested Terms by Category - Marker Style */}
               <div className="space-y-2">
-                <Label className="text-xs font-medium">Önerilen Terimler (tıkla ekle)</Label>
+                <Label className="text-xs font-medium">Suggested Terms (click to add)</Label>
                 <div className="grid grid-cols-1 gap-2 max-h-[180px] overflow-y-auto">
                   {/* Vergi/Hukuk Terms - Yellow Marker */}
                   <div className="p-2 rounded-lg" style={{ background: 'linear-gradient(45deg, rgba(254, 240, 138, 0.7) 0%, rgba(253, 224, 71, 0.5) 100%)' }}>
-                    <div className="text-xs font-semibold text-yellow-900 dark:text-yellow-100 mb-1.5">Vergi & Hukuk</div>
+                    <div className="text-xs font-semibold text-yellow-900 dark:text-yellow-100 mb-1.5">Tax & Law</div>
                     <div className="flex flex-wrap gap-1">
                       {['vergi', 'kdv', 'stopaj', 'tevkifat', 'muafiyet', 'istisna', 'beyanname', 'matrah', 'ceza', 'usulsüzlük', 'kanun', 'madde', 'tebliğ', 'özelge', 'indirim', 'mahsup'].map(term => {
                         const isAdded = editModal.value.split('\n').includes(term);
@@ -1065,7 +1065,7 @@ export default function DataSchemaSettings() {
 
                   {/* Belge/İşlem Terms - Green Marker */}
                   <div className="p-2 rounded-lg" style={{ background: 'linear-gradient(45deg, rgba(187, 247, 208, 0.7) 0%, rgba(134, 239, 172, 0.5) 100%)' }}>
-                    <div className="text-xs font-semibold text-green-900 dark:text-green-100 mb-1.5">Belge & İşlem</div>
+                    <div className="text-xs font-semibold text-green-900 dark:text-green-100 mb-1.5">Document & Process</div>
                     <div className="flex flex-wrap gap-1">
                       {['fatura', 'belge', 'kayıt', 'defter', 'makbuz', 'dekont', 'tahakkuk', 'tahsil', 'ödeme', 'başvuru', 'bildirim', 'beyan'].map(term => {
                         const isAdded = editModal.value.split('\n').includes(term);
@@ -1093,7 +1093,7 @@ export default function DataSchemaSettings() {
 
                   {/* Zorunluluk/Yaptırım Terms - Pink Marker */}
                   <div className="p-2 rounded-lg" style={{ background: 'linear-gradient(45deg, rgba(251, 207, 232, 0.7) 0%, rgba(249, 168, 212, 0.5) 100%)' }}>
-                    <div className="text-xs font-semibold text-pink-900 dark:text-pink-100 mb-1.5">Zorunluluk & Yaptırım</div>
+                    <div className="text-xs font-semibold text-pink-900 dark:text-pink-100 mb-1.5">Obligation & Sanction</div>
                     <div className="flex flex-wrap gap-1">
                       {['zorunlu', 'mecburi', 'gerekli', 'şart', 'yükümlü', 'sorumlu', 'yasak', 'serbest', 'muaf', 'tabi'].map(term => {
                         const isAdded = editModal.value.split('\n').includes(term);
@@ -1126,7 +1126,7 @@ export default function DataSchemaSettings() {
                 <div className="flex items-center justify-between mb-2">
                   <div className="flex items-center gap-1.5">
                     <Sparkles className="w-3.5 h-3.5 text-violet-700" />
-                    <span className="text-xs font-semibold text-violet-900 dark:text-violet-100">Akıllı Öneriler (LLM)</span>
+                    <span className="text-xs font-semibold text-violet-900 dark:text-violet-100">Smart Suggestions (LLM)</span>
                   </div>
                   <Button
                     variant="ghost"
@@ -1140,7 +1140,7 @@ export default function DataSchemaSettings() {
                     ) : (
                       <RefreshCw className="w-3 h-3" />
                     )}
-                    <span className="ml-1">Yenile</span>
+                    <span className="ml-1">Refresh</span>
                   </Button>
                 </div>
                 <div className="flex flex-wrap gap-1">
@@ -1168,7 +1168,7 @@ export default function DataSchemaSettings() {
                     })
                   ) : (
                     <span className="text-xs text-violet-700/70">
-                      {isLlmLoading ? 'Öneriler yükleniyor...' : 'Yenile butonuna tıklayarak LLM önerileri alın'}
+                      {isLlmLoading ? 'Loading suggestions...' : 'Click Refresh to get LLM suggestions'}
                     </span>
                   )}
                 </div>
@@ -1178,7 +1178,7 @@ export default function DataSchemaSettings() {
               <div className="flex gap-2 pt-2 border-t">
                 <Input
                   id="customTermInput"
-                  placeholder="Terim yaz, LLM önersin..."
+                  placeholder="Type a term, let LLM suggest..."
                   className="flex-1"
                   value={customTermInput}
                   onChange={(e) => setCustomTermInput(e.target.value)}
@@ -1202,7 +1202,7 @@ export default function DataSchemaSettings() {
                     }
                   }}
                   disabled={isLlmLoading || !customTermInput.trim()}
-                  title="LLM ile akıllı öneri al"
+                  title="Get smart suggestion via LLM"
                 >
                   <Sparkles className="w-4 h-4" />
                 </Button>
@@ -1220,9 +1220,9 @@ export default function DataSchemaSettings() {
               {/* Selected Terms */}
               <div className="pt-2 border-t">
                 <div className="flex items-center justify-between mb-2">
-                  <Label className="text-xs font-medium">Seçilen Terimler ({editModal.value.split('\n').filter(t => t.trim()).length})</Label>
+                  <Label className="text-xs font-medium">Selected Terms ({editModal.value.split('\n').filter(t => t.trim()).length})</Label>
                   <Button variant="ghost" size="sm" className="h-6 text-xs text-destructive" onClick={() => setEditModal({ ...editModal, value: '' })}>
-                    Tümünü Sil
+                    Delete All
                   </Button>
                 </div>
                 <div className="border rounded-lg p-2 min-h-[80px] max-h-[120px] overflow-y-auto bg-muted/20">
@@ -1241,7 +1241,7 @@ export default function DataSchemaSettings() {
                         {term} ×
                       </Badge>
                     ))}
-                    {!editModal.value.trim() && <span className="text-xs text-muted-foreground">Terim seçilmedi</span>}
+                    {!editModal.value.trim() && <span className="text-xs text-muted-foreground">No terms selected</span>}
                   </div>
                 </div>
               </div>
@@ -1257,27 +1257,27 @@ export default function DataSchemaSettings() {
                 className="font-mono text-sm"
               />
               <p className="text-xs text-muted-foreground mt-2">
-                {editModal.field === 'authorityLevels' && 'Format: kaynak=öncelik (örn: kanun=100)'}
+                {editModal.field === 'authorityLevels' && 'Format: source=priority (e.g. law=100)'}
                 {editModal.field === 'topicEntities' && 'Format: pattern → synonym1, synonym2'}
-                {editModal.field === 'fields' && 'JSON formatında alan tanımları'}
-                {editModal.field === 'analyzePrompt' && 'Doküman analizi için LLM talimatları'}
-                {editModal.field === 'chatbotContext' && 'Chat yanıtları için domain bağlamı'}
-                {editModal.field === 'citationTemplate' && 'Kaynak gösterim şablonu: {{alan_adi}} formatında değişkenler kullanın'}
-                {editModal.field === 'routingSchema' && 'RAG yanıt formatı ve routing kuralları'}
+                {editModal.field === 'fields' && 'Field definitions in JSON format'}
+                {editModal.field === 'analyzePrompt' && 'LLM instructions for document analysis'}
+                {editModal.field === 'chatbotContext' && 'Domain context for chat responses'}
+                {editModal.field === 'citationTemplate' && 'Source citation template — use {{field_name}} variables'}
+                {editModal.field === 'routingSchema' && 'RAG response format and routing rules'}
                 {editModal.field === 'lawCodeConfig' && (
                   <>
-                    <strong>lawCodes:</strong> Kanun kodu → alias listesi (VUK → ["Vergi Usul Kanunu"]) <br/>
-                    <strong>lawNumberToCode:</strong> Kanun no → kod (213 → VUK) <br/>
-                    <strong>lawNameToCode:</strong> Hatalı isim → kod düzeltmeleri
+                    <strong>lawCodes:</strong> Law code → alias list (VUK → ["Tax Procedure Law"]) <br/>
+                    <strong>lawNumberToCode:</strong> Law number → code (213 → VUK) <br/>
+                    <strong>lawNameToCode:</strong> Incorrect name → code corrections
                   </>
                 )}
                 {editModal.field === 'chunkConfig' && (
                   <>
-                    <strong>enabled:</strong> Chunking aktif mi (true/false) <br/>
-                    <strong>autoChunkOnTransform:</strong> Transform sonrası otomatik chunk (true/false) <br/>
-                    <strong>sourceTables:</strong> Chunk edilecek tablolar listesi <br/>
-                    <strong>chunkPattern:</strong> Madde ayırma regex pattern'i <br/>
-                    <strong>minChunkLength / maxChunkLength:</strong> Min/max karakter limitleri
+                    <strong>enabled:</strong> Is chunking enabled (true/false) <br/>
+                    <strong>autoChunkOnTransform:</strong> Auto-chunk after transform (true/false) <br/>
+                    <strong>sourceTables:</strong> List of tables to chunk <br/>
+                    <strong>chunkPattern:</strong> Article splitter regex pattern <br/>
+                    <strong>minChunkLength / maxChunkLength:</strong> Min/max character limits
                   </>
                 )}
               </p>
@@ -1286,7 +1286,7 @@ export default function DataSchemaSettings() {
 
           <DialogFooter>
             <Button variant="outline" onClick={() => setEditModal({ ...editModal, open: false })}>
-              İptal
+              Cancel
             </Button>
             {editModal.field === 'routingSchema' ? (
               <Button onClick={async () => {
@@ -1308,12 +1308,12 @@ export default function DataSchemaSettings() {
                   }
                   setRoutingSchema(editModal.value);
                   setEditModal({ ...editModal, open: false });
-                  toast.success('Routing şeması kaydedildi');
+                  toast.success('Routing schema saved');
                 } catch (err) {
                   if (err instanceof SyntaxError) {
-                    toast.error('Geçersiz JSON formatı');
+                    toast.error('Invalid JSON format');
                   } else {
-                    toast.error('Kaydetme hatası');
+                    toast.error('Save error');
                   }
                 }
               }}>

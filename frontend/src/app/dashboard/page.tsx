@@ -1681,36 +1681,36 @@ export default function DashboardPage() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
           {/* Scraped Pages */}
           <GlassCard
-            title="Kazınan Sayfalar"
+            title="Scraped Pages"
             value={<AnimatedNumber value={crawlerStats.scrapedPages} />}
-            description="scraped_pages tablosundan"
+            description="from scraped_pages table"
             live={true}
             status="online"
           />
 
           {/* Crawler Items (Redis) */}
           <GlassCard
-            title="Crawler Verileri"
+            title="Crawler Data"
             value={<AnimatedNumber value={crawlerStats.crawlerItems} />}
-            description={`${crawlerStats.crawlerCount} aktif crawler (Redis)`}
+            description={`${crawlerStats.crawlerCount} active crawlers (Redis)`}
             live={true}
             status={crawlerStats.crawlerItems > 0 ? 'online' : 'warning'}
           />
 
           {/* Total Scraped Data */}
           <GlassCard
-            title="Toplam Kazınan Veri"
+            title="Total Scraped Data"
             value={<AnimatedNumber value={crawlerStats.totalScrapedData} />}
-            description="Sayfa + Crawler verileri"
+            description="Pages + Crawler data"
             live={true}
             status="online"
           />
 
           {/* Scheduler Jobs */}
           <GlassCard
-            title="Zamanlanmış Görevler"
+            title="Scheduled Jobs"
             value={<AnimatedNumber value={schedulerStats.totalJobs} />}
-            description={schedulerStats.schedulerRunning ? `${schedulerStats.enabledJobs} aktif görev` : 'Scheduler kapalı'}
+            description={schedulerStats.schedulerRunning ? `${schedulerStats.enabledJobs} active jobs` : 'Scheduler off'}
             live={true}
             status={schedulerStats.schedulerRunning ? 'online' : 'warning'}
           />
@@ -1778,7 +1778,7 @@ export default function DashboardPage() {
                 </div>
                 <div className="space-y-2">
                   <div className="flex justify-between text-sm">
-                    <span className="text-gray-500 dark:text-slate-400">Kazınan Veri</span>
+                    <span className="text-gray-500 dark:text-slate-400">Scraped Data</span>
                     <span className="font-semibold text-gray-900 dark:text-purple-100">{crawlerStats.totalScrapedData?.toLocaleString() || '0'}</span>
                   </div>
                   <div className="flex justify-between text-sm">

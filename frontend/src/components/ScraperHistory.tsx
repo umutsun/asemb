@@ -64,7 +64,7 @@ export default function ScraperHistory({ onSelectContent, onProcessContent }: Sc
   };
 
   const deleteItem = async (id: string) => {
-    if (!confirm('Bu içeriği silmek istediğinizden emin misiniz?')) return;
+    if (!confirm('Are you sure you want to delete this content?')) return;
     
     try {
       const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || process.env.NEXT_PUBLIC_API_URL || process.env.NEXT_PUBLIC_API_URL || ''}/api/v2/scraper/history/${id}`, {
@@ -98,14 +98,14 @@ export default function ScraperHistory({ onSelectContent, onProcessContent }: Sc
       <CardHeader>
         <div className="flex justify-between items-center">
           <div>
-            <CardTitle>Scraper Geçmişi</CardTitle>
+            <CardTitle>Scraper History</CardTitle>
             <p className="text-sm text-muted-foreground">
-              {history.length} içerik çekildi
+              {history.length} items scraped
             </p>
           </div>
           <Button onClick={fetchHistory} variant="outline" size="sm">
             <RefreshCw className="h-4 w-4 mr-2" />
-            Yenile
+            Refresh
           </Button>
         </div>
       </CardHeader>
@@ -115,18 +115,18 @@ export default function ScraperHistory({ onSelectContent, onProcessContent }: Sc
             <TableHeader>
               <TableRow>
                 <TableHead>URL</TableHead>
-                <TableHead>Başlık</TableHead>
-                <TableHead>Boyut</TableHead>
-                <TableHead>Tarih</TableHead>
-                <TableHead>Durum</TableHead>
-                <TableHead className="text-right">İşlemler</TableHead>
+                <TableHead>Title</TableHead>
+                <TableHead>Size</TableHead>
+                <TableHead>Date</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {history.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={6} className="text-center text-muted-foreground">
-                    Henüz içerik çekilmemiş
+                    No content scraped yet
                   </TableCell>
                 </TableRow>
               ) : (
@@ -154,7 +154,7 @@ export default function ScraperHistory({ onSelectContent, onProcessContent }: Sc
                       <div className="flex items-center gap-1">
                         <Calendar className="h-3 w-3" />
                         <span className="text-sm">
-                          {new Date(item.metadata.scraped_at).toLocaleDateString('tr-TR')}
+                          {new Date(item.metadata.scraped_at).toLocaleDateString('en-US')}
                         </span>
                       </div>
                     </TableCell>
@@ -166,7 +166,7 @@ export default function ScraperHistory({ onSelectContent, onProcessContent }: Sc
                           {item.metadata.status}
                         </Badge>
                         {item.metadata.processed && (
-                          <Badge variant="outline">İşlendi</Badge>
+                          <Badge variant="outline">Processed</Badge>
                         )}
                       </div>
                     </TableCell>
@@ -188,7 +188,7 @@ export default function ScraperHistory({ onSelectContent, onProcessContent }: Sc
                               size="sm"
                               variant="ghost"
                               onClick={() => onProcessContent(item, 'document')}
-                              title="Doküman olarak ekle"
+                              title="Add as document"
                             >
                               <CloudUpload className="h-4 w-4" />
                             </Button>
@@ -196,7 +196,7 @@ export default function ScraperHistory({ onSelectContent, onProcessContent }: Sc
                               size="sm"
                               variant="ghost"
                               onClick={() => onProcessContent(item, 'embedding')}
-                              title="Embedding oluştur"
+                              title="Create embedding"
                             >
                               <Zap className="h-4 w-4" />
                             </Button>
@@ -242,14 +242,14 @@ export default function ScraperHistory({ onSelectContent, onProcessContent }: Sc
                       <p className="font-medium">{selectedContent.url}</p>
                     </div>
                     <div>
-                      <span className="text-muted-foreground">Çekilme Tarihi:</span>
+                      <span className="text-muted-foreground">Scraped At:</span>
                       <p className="font-medium">
-                        {new Date(selectedContent.metadata.scraped_at).toLocaleString('tr-TR')}
+                        {new Date(selectedContent.metadata.scraped_at).toLocaleString('en-US')}
                       </p>
                     </div>
                   </div>
                   <div>
-                    <h4 className="font-medium mb-2">İçerik</h4>
+                    <h4 className="font-medium mb-2">Content</h4>
                     <ScrollArea className="h-[300px] rounded-md border p-4 bg-gray-50 dark:bg-gray-800">
                       <p className="text-sm whitespace-pre-wrap">
                         {selectedContent.content}

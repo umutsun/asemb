@@ -140,11 +140,11 @@ export default function RAGSearchInterface() {
                       onChange={(e) => setFilters({ ...filters, category: e.target.value })}
                     >
                       <option value="">All Categories</option>
-                      <option value="mevzuat">Mevzuat</option>
-                      <option value="ozelge">Özelge</option>
-                      <option value="makale">Makale</option>
-                      <option value="karar">Karar</option>
-                      <option value="dokuman">Doküman</option>
+                      <option value="mevzuat">Legislation</option>
+                      <option value="ozelge">Tax Ruling</option>
+                      <option value="makale">Article</option>
+                      <option value="karar">Decision</option>
+                      <option value="dokuman">Document</option>
                     </select>
                   </div>
                   <div>

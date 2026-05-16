@@ -227,7 +227,7 @@ export default function ChatbotSettingsPage() {
                         {suggestion.icon} {suggestion.title || t('prompts.suggestions.suggestion')}
                       </p>
                       <p className="text-xs text-gray-500 mt-1">
-                        {suggestion.description || 'Öneri açıklaması'}
+                        {suggestion.description || 'Suggestion description'}
                       </p>
                     </div>
                   ))}
@@ -247,44 +247,44 @@ export default function ChatbotSettingsPage() {
           </TabsTrigger>
           <TabsTrigger value="appearance">
             <Palette className="h-4 w-4 mr-2" />
-            Görünüm
+            Appearance
           </TabsTrigger>
           <TabsTrigger value="suggestions">
             <MessageSquare className="h-4 w-4 mr-2" />
-            Öneriler
+            Suggestions
           </TabsTrigger>
         </TabsList>
 
         <TabsContent value="general" className="space-y-4">
           <Card>
             <CardHeader>
-              <CardTitle>Temel Ayarlar</CardTitle>
+              <CardTitle>Basic Settings</CardTitle>
               <CardDescription>
-                Chatbot başlığı ve mesajlarını özelleştirin
+                Customize the chatbot title and messages
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div>
-                <Label htmlFor="title">Chatbot Başlığı</Label>
+                <Label htmlFor="title">Chatbot Title</Label>
                 <Input
                   id="title"
                   value={settings.title}
                   onChange={(e) => setSettings({ ...settings, title: e.target.value })}
-                  placeholder="Örn: Hukuki Asistan"
+                  placeholder="e.g. Legal Assistant"
                   className="mt-1"
                 />
                 <p className="text-xs text-gray-500 mt-1">
-                  Chat penceresinde görünecek başlık
+                  Title shown in the chat window
                 </p>
               </div>
 
               <div>
-                <Label htmlFor="welcomeMessage">Karşılama Mesajı</Label>
+                <Label htmlFor="welcomeMessage">Welcome Message</Label>
                 <Textarea
                   id="welcomeMessage"
                   value={settings.welcomeMessage}
                   onChange={(e) => setSettings({ ...settings, welcomeMessage: e.target.value })}
-                  placeholder="Kullanıcıları karşılayacak mesaj..."
+                  placeholder="Message to welcome users..."
                   className="mt-1"
                   rows={3}
                 />
@@ -299,7 +299,7 @@ export default function ChatbotSettingsPage() {
                   id="placeholder"
                   value={settings.placeholder}
                   onChange={(e) => setSettings({ ...settings, placeholder: e.target.value })}
-                  placeholder="Örn: Sorunuzu yazın..."
+                  placeholder="e.g. Type your question..."
                   className="mt-1"
                 />
                 <p className="text-xs text-gray-500 mt-1">
@@ -313,14 +313,14 @@ export default function ChatbotSettingsPage() {
         <TabsContent value="appearance" className="space-y-4">
           <Card>
             <CardHeader>
-              <CardTitle>Görünüm Ayarları</CardTitle>
+              <CardTitle>Appearance Settings</CardTitle>
               <CardDescription>
-                Chatbot'un görsel özelliklerini düzenleyin
+                Customize the chatbot's visual properties
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div>
-                <Label htmlFor="primaryColor">Ana Renk</Label>
+                <Label htmlFor="primaryColor">Primary Color</Label>
                 <div className="flex gap-2 mt-1">
                   <Input
                     id="primaryColor"
@@ -394,7 +394,7 @@ export default function ChatbotSettingsPage() {
         <TabsContent value="suggestions" className="space-y-4">
           <Card>
             <CardHeader>
-              <CardTitle>Öneri Kartları</CardTitle>
+              <CardTitle>Suggestion Cards</CardTitle>
               <CardDescription>
                 {t('prompts.suggestions.description')}
               </CardDescription>
@@ -403,7 +403,7 @@ export default function ChatbotSettingsPage() {
               {suggestions.map((suggestion, index) => (
                 <div key={index} className="p-4 border rounded-lg space-y-3">
                   <div className="flex justify-between items-start">
-                    <span className="text-sm font-medium">Öneri {index + 1}</span>
+                    <span className="text-sm font-medium">Suggestion {index + 1}</span>
                     <Button
                       variant="ghost"
                       size="sm"
@@ -416,7 +416,7 @@ export default function ChatbotSettingsPage() {
                     <Textarea
                       value={suggestion.title}
                       onChange={(e) => updateSuggestion(index, 'title', e.target.value)}
-                      placeholder={t('prompts.suggestions.suggestionPlaceholder', 'Öneri sorusunu yazın...')}
+                      placeholder={t('prompts.suggestions.suggestionPlaceholder', 'Write a suggested question...')}
                       rows={2}
                       className="resize-none"
                     />

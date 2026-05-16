@@ -34,7 +34,6 @@ function getPythonServiceConfig() {
 function getServicesList() {
   const pythonConfig = getPythonServiceConfig();
   const backendPort = parseInt(process.env.PORT || '8084');
-  const n8nUrl = process.env.N8N_URL || 'http://localhost:5678';
 
   return [
     {
@@ -120,16 +119,6 @@ function getServicesList() {
       host: process.env.REDIS_HOST || 'localhost',
       version: '7.0+',
       icon: 'Server'
-    },
-    {
-      name: 'n8n',
-      displayName: 'n8n Workflow',
-      description: 'Automation & workflow orchestration',
-      status: 'stopped',
-      port: 5678,
-      url: n8nUrl,
-      version: 'n8n 1.0+',
-      icon: 'Zap'
     }
   ];
 }
@@ -192,10 +181,6 @@ router.get('/status', async (req: Request, res: Response) => {
       redis: {
         status: 'running', // Assume running if backend is up
         port: parseInt(process.env.REDIS_PORT || '6379')
-      },
-      n8n: {
-        status: 'stopped', // Will need health check
-        port: 5678
       }
     };
 

@@ -165,7 +165,7 @@ export default function SemanticSearchPage() {
                         <div className="space-y-1 flex-1">
                           <CardTitle className="text-lg flex items-center gap-2">
                             <FileText className="h-4 w-4 text-muted-foreground" />
-                            {result.metadata?.title || `Sonuç ${index + 1}`}
+                            {result.metadata?.title || `Result ${index + 1}`}
                           </CardTitle>
                           <div className="flex items-center gap-3 text-sm text-muted-foreground">
                             {result.metadata?.source && (

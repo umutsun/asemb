@@ -22,19 +22,19 @@ export function LoadingScreen({ message = 'Loading...', error }: LoadingScreenPr
               </svg>
             </div>
           </div>
-          <h2 className="text-xl font-semibold text-gray-900 mb-2">Bağlantı Hatası</h2>
+          <h2 className="text-xl font-semibold text-gray-900 mb-2">Connection Error</h2>
           <p className="text-gray-600 mb-6">{error}</p>
           <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
             <p className="text-sm text-blue-800">
-              <strong>Not:</strong> Uygulama veritabanı bağlantısı gerektirir.
-              Lütfen veritabanı yapılandırmanızı kontrol edin.
+              <strong>Note:</strong> The application requires a database connection.
+              Please check your database configuration.
             </p>
           </div>
           <button
             onClick={() => window.location.reload()}
             className="mt-6 w-full bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 transition-colors"
           >
-            Yeniden Dene
+            Retry
           </button>
         </div>
       </div>
@@ -66,25 +66,25 @@ export function LoadingScreen({ message = 'Loading...', error }: LoadingScreenPr
         <h2 className="text-2xl font-bold text-gray-900 mb-3 bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
           Luwi Semantic Bridge
         </h2>
-        <p className="text-gray-600 mb-6 font-medium">{message || 'Sistem başlatılıyor...'}</p>
+        <p className="text-gray-600 mb-6 font-medium">{message || 'System initializing...'}</p>
         <div className="space-y-3 text-sm">
           <div className="flex items-center justify-center gap-2 text-gray-500">
             <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
-            <p>Backend bağlantısı kuruluyor...</p>
+            <p>Connecting to backend...</p>
           </div>
           <div className="flex items-center justify-center gap-2 text-gray-500">
             <div className="w-2 h-2 bg-purple-500 rounded-full animate-pulse delay-75"></div>
-            <p>Veritabanı bağlantısı kontrol ediliyor...</p>
+            <p>Checking database connection...</p>
           </div>
           <div className="flex items-center justify-center gap-2 text-gray-500">
             <div className="w-2 h-2 bg-pink-500 rounded-full animate-pulse delay-150"></div>
-            <p>Uygulama ayarları yükleniyor...</p>
+            <p>Loading application settings...</p>
           </div>
         </div>
         {isBackendConnectionError && (
           <div className="mt-6 bg-amber-50 border border-amber-200 rounded-lg p-4">
             <p className="text-sm text-amber-800">
-              <strong>⏳ Bekliyor:</strong> Backend servisi başlatılıyor. Otomatik olarak bağlanılacak...
+              <strong>⏳ Waiting:</strong> Backend service is starting. Will connect automatically...
             </p>
           </div>
         )}

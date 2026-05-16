@@ -1678,7 +1678,7 @@ function LLMSettings() {
                         if (validatedProviders.length === 0) {
                           return (
                             <SelectItem value="_no_providers" disabled>
-                              Önce API key doğrulayın
+                              Validate API key first
                             </SelectItem>
                           );
                         }
@@ -1850,20 +1850,20 @@ function LLMSettings() {
                             cacheEnabled: tempConfig?.ocrSettings?.cacheEnabled !== false
                           });
                           toast({
-                            title: "Başarılı",
-                            description: "OCR provider güncellendi",
+                            title: "Success",
+                            description: "OCR provider updated",
                           });
                         } catch (error) {
                           toast({
                             title: "Hata",
-                            description: "OCR provider güncellenemedi",
+                            description: "Could not update OCR provider",
                             variant: "destructive",
                           });
                         }
                       }}
                     >
                       <SelectTrigger>
-                        <SelectValue placeholder="OCR provider seçin" />
+                        <SelectValue placeholder="Select OCR provider" />
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="gemini-vision">
@@ -1936,26 +1936,26 @@ function LLMSettings() {
                             'ragSettings.rerankProvider': value === 'none' ? 'jina' : value
                           });
                           toast({
-                            title: "Başarılı",
-                            description: "Rerank provider güncellendi",
+                            title: "Success",
+                            description: "Rerank provider updated",
                           });
                         } catch (error) {
                           toast({
                             title: "Hata",
-                            description: "Rerank provider güncellenemedi",
+                            description: "Could not update rerank provider",
                             variant: "destructive",
                           });
                         }
                       }}
                     >
                       <SelectTrigger>
-                        <SelectValue placeholder="Rerank provider seçin" />
+                        <SelectValue placeholder="Select rerank provider" />
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="none">
                           <div className="flex flex-col">
-                            <span className="font-medium">Kapalı</span>
-                            <span className="text-xs text-gray-500">Reranking kullanılmayacak</span>
+                            <span className="font-medium">Off</span>
+                            <span className="text-xs text-gray-500">Reranking will not be used</span>
                           </div>
                         </SelectItem>
                         <SelectItem value="jina" disabled={!isProviderValidated('jina')}>
@@ -1964,7 +1964,7 @@ function LLMSettings() {
                             {isProviderValidated('jina') ? (
                               <span className="text-xs text-green-600">jina-reranker-v2-base-multilingual</span>
                             ) : (
-                              <span className="text-xs text-red-500">API key doğrulanmamış</span>
+                              <span className="text-xs text-red-500">API key not validated</span>
                             )}
                           </div>
                         </SelectItem>
@@ -1982,7 +1982,7 @@ function LLMSettings() {
                     </Badge>
                   </Label>
                   <p className="text-xs text-muted-foreground mt-1 mb-2">
-                    Dokümanların vektör embedding için nasıl parçalanacağını belirler
+                    Defines how documents are split into chunks for vector embedding
                   </p>
                   <div className="mt-2">
                     <Select
@@ -2003,20 +2003,20 @@ function LLMSettings() {
                             'ragSettings.rerankProvider': tempConfig?.rerankProvider === 'none' ? 'jina' : tempConfig?.rerankProvider
                           });
                           toast({
-                            title: "Başarılı",
-                            description: "Chunking stratejisi güncellendi",
+                            title: "Success",
+                            description: "Chunking strategy updated",
                           });
                         } catch (error) {
                           toast({
                             title: "Hata",
-                            description: "Strateji güncellenemedi",
+                            description: "Could not update strategy",
                             variant: "destructive",
                           });
                         }
                       }}
                     >
                       <SelectTrigger>
-                        <SelectValue placeholder="Strateji seçin" />
+                        <SelectValue placeholder="Select strategy" />
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="recursive">
@@ -2025,25 +2025,25 @@ function LLMSettings() {
                               <span className="font-medium">Recursive Character</span>
                               <span className="text-[10px] bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 px-1.5 py-0.5 rounded">Standart</span>
                             </div>
-                            <span className="text-xs text-gray-500">Çok seviyeli ayırıcılarla akıllı bölme • 1000 char / 200 overlap</span>
+                            <span className="text-xs text-gray-500">Smart splitting with multi-level delimiters • 1000 char / 200 overlap</span>
                           </div>
                         </SelectItem>
                         <SelectItem value="sentence">
                           <div className="flex flex-col">
                             <div className="flex items-center gap-2">
                               <span className="font-medium">Sentence-Based</span>
-                              <span className="text-[10px] bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300 px-1.5 py-0.5 rounded">Yapı Koruma</span>
+                              <span className="text-[10px] bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300 px-1.5 py-0.5 rounded">Structure Preserving</span>
                             </div>
-                            <span className="text-xs text-gray-500">Cümle sınırlarını koruyarak böler • 1000 char / 200 overlap</span>
+                            <span className="text-xs text-gray-500">Splits while preserving sentence boundaries • 1000 char / 200 overlap</span>
                           </div>
                         </SelectItem>
                         <SelectItem value="paragraph">
                           <div className="flex flex-col">
                             <div className="flex items-center gap-2">
                               <span className="font-medium">Paragraph-Based</span>
-                              <span className="text-[10px] bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300 px-1.5 py-0.5 rounded">Yapı Koruma</span>
+                              <span className="text-[10px] bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300 px-1.5 py-0.5 rounded">Structure Preserving</span>
                             </div>
-                            <span className="text-xs text-gray-500">Paragraf sınırlarını koruyarak böler • 1500 char / 300 overlap</span>
+                            <span className="text-xs text-gray-500">Splits while preserving paragraph boundaries • 1500 char / 300 overlap</span>
                           </div>
                         </SelectItem>
                         <SelectItem value="semantic">
@@ -2052,7 +2052,7 @@ function LLMSettings() {
                               <span className="font-medium">Semantic Sections</span>
                               <span className="text-[10px] bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300 px-1.5 py-0.5 rounded">Semantik</span>
                             </div>
-                            <span className="text-xs text-gray-500">Başlık/bölüm yapısına göre anlamlı parçalama • 1200 char / 200 overlap</span>
+                            <span className="text-xs text-gray-500">Meaningful splits based on heading/section structure • 1200 char / 200 overlap</span>
                           </div>
                         </SelectItem>
                         <SelectItem value="fixed">
@@ -2061,7 +2061,7 @@ function LLMSettings() {
                               <span className="font-medium">Fixed Size</span>
                               <span className="text-[10px] bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300 px-1.5 py-0.5 rounded">Basit</span>
                             </div>
-                            <span className="text-xs text-gray-500">Sabit karakter uzunluğunda böler • 1000 char / 100 overlap</span>
+                            <span className="text-xs text-gray-500">Fixed-length character chunks • 1000 char / 100 overlap</span>
                           </div>
                         </SelectItem>
                         <SelectItem value="semantic-haiku" disabled={!isProviderValidated('anthropic')}>
@@ -2071,7 +2071,7 @@ function LLMSettings() {
                               <span className="text-[10px] bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300 px-1.5 py-0.5 rounded">AI-Powered</span>
                             </div>
                             {isProviderValidated('anthropic') ? (
-                              <span className="text-xs text-emerald-600">LLM ile anlamlı sınır tespiti • Yüksek doğruluk</span>
+                              <span className="text-xs text-emerald-600">LLM-based meaningful boundary detection • High accuracy</span>
                             ) : (
                               <span className="text-xs text-red-500">Anthropic API key gerekli</span>
                             )}
@@ -2084,12 +2084,12 @@ function LLMSettings() {
                   {/* Active Strategy Info Card */}
                   {(() => {
                     const strategyInfo: Record<string, { icon: string; desc: string; chunkSize: string; overlap: string; boundary: string; costLevel: string }> = {
-                      'recursive': { icon: '🔄', desc: 'Paragraf → Satır → Cümle → Kelime sırasıyla ayırır. En dengeli strateji.', chunkSize: '1000', overlap: '200', boundary: 'Akıllı (Smart)', costLevel: 'Ücretsiz' },
-                      'sentence': { icon: '📝', desc: 'Cümle sonlarını (.!?) algılayarak doğal dil yapısını korur.', chunkSize: '1000', overlap: '200', boundary: 'Cümle Sınırı', costLevel: 'Ücretsiz' },
-                      'paragraph': { icon: '📄', desc: 'Paragraf boşluklarından bölerek bağlam bütünlüğünü korur. Uzun dokümanlar için ideal.', chunkSize: '1500', overlap: '300', boundary: 'Paragraf Sınırı', costLevel: 'Ücretsiz' },
-                      'semantic': { icon: '🧠', desc: 'Başlık ve bölüm yapısını analiz ederek semantik birimlere ayırır.', chunkSize: '1200', overlap: '200', boundary: 'Başlık/Bölüm', costLevel: 'Ücretsiz' },
-                      'fixed': { icon: '📏', desc: 'Sabit karakter uzunluğunda böler. Hızlı ama bağlam kaybı olabilir.', chunkSize: '1000', overlap: '100', boundary: 'Yok', costLevel: 'Ücretsiz' },
-                      'semantic-haiku': { icon: '✨', desc: 'Claude-3-Haiku modeli ile anlam sınırlarını tespit eder. En yüksek doğruluk.', chunkSize: 'Dinamik', overlap: 'Dinamik', boundary: 'AI Tespiti', costLevel: 'API maliyet' }
+                      'recursive': { icon: '🔄', desc: 'Splits in order: Paragraph → Line → Sentence → Word. The most balanced strategy.', chunkSize: '1000', overlap: '200', boundary: 'Smart', costLevel: 'Free' },
+                      'sentence': { icon: '📝', desc: 'Detects sentence endings (.!?) and preserves natural language structure.', chunkSize: '1000', overlap: '200', boundary: 'Sentence Boundary', costLevel: 'Free' },
+                      'paragraph': { icon: '📄', desc: 'Splits at paragraph breaks to preserve context. Ideal for long documents.', chunkSize: '1500', overlap: '300', boundary: 'Paragraph Boundary', costLevel: 'Free' },
+                      'semantic': { icon: '🧠', desc: 'Splits into semantic units by analyzing heading and section structure.', chunkSize: '1200', overlap: '200', boundary: 'Heading/Section', costLevel: 'Free' },
+                      'fixed': { icon: '📏', desc: 'Splits into fixed-length character chunks. Fast but may lose context.', chunkSize: '1000', overlap: '100', boundary: 'None', costLevel: 'Free' },
+                      'semantic-haiku': { icon: '✨', desc: 'Uses Claude-3-Haiku to detect semantic boundaries. Highest accuracy.', chunkSize: 'Dynamic', overlap: 'Dynamic', boundary: 'AI Detection', costLevel: 'API cost' }
                     };
                     const active = strategyInfo[tempConfig?.chunkingStrategy || 'semantic'];
                     if (!active) return null;
@@ -2109,12 +2109,12 @@ function LLMSettings() {
                                 <span className="text-[10px] font-medium">{active.overlap} char</span>
                               </div>
                               <div className="flex items-center gap-1">
-                                <span className="text-[10px] text-muted-foreground">Sınır:</span>
+                                <span className="text-[10px] text-muted-foreground">Boundary:</span>
                                 <span className="text-[10px] font-medium">{active.boundary}</span>
                               </div>
                               <div className="flex items-center gap-1">
-                                <span className="text-[10px] text-muted-foreground">Maliyet:</span>
-                                <span className={`text-[10px] font-medium ${active.costLevel === 'Ücretsiz' ? 'text-green-600' : 'text-amber-600'}`}>{active.costLevel}</span>
+                                <span className="text-[10px] text-muted-foreground">Cost:</span>
+                                <span className={`text-[10px] font-medium ${active.costLevel === 'Free' ? 'text-green-600' : 'text-amber-600'}`}>{active.costLevel}</span>
                               </div>
                             </div>
                           </div>
@@ -2680,13 +2680,13 @@ function PatternEditForm({
 
         <div className="grid grid-cols-[1fr_2fr_auto] gap-2">
           <Input
-            placeholder="fiyat,konum"
+            placeholder="price,location"
             value={newCombo.with}
             onChange={(e) => setNewCombo({ ...newCombo, with: e.target.value })}
             className="text-sm"
           />
           <Input
-            placeholder="{topic} için fiyat ve konum bilgisi nedir?"
+            placeholder="What is the price and location info for {topic}?"
             value={newCombo.question}
             onChange={(e) => setNewCombo({ ...newCombo, question: e.target.value })}
             className="text-sm"
@@ -3043,7 +3043,7 @@ function RAGSettings() {
               <div className="space-y-4">
                 <div>
                   <Label>{t('settings.rag.similarityThreshold')}: {(tempRAGConfig?.ragSettings?.similarityThreshold ?? DEFAULT_RAG_SETTINGS.similarityThreshold).toFixed(2)} (Default: 0.01)</Label>
-                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{t('settings.rag.similarityHelp')} - Düşük değer = daha fazla sonuç</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{t('settings.rag.similarityHelp')} - Lower value = more results</p>
                   <Slider
                     value={[tempRAGConfig?.ragSettings?.similarityThreshold ?? DEFAULT_RAG_SETTINGS.similarityThreshold]}
                     max={0.5}
@@ -3128,9 +3128,9 @@ function RAGSettings() {
                 {/* Streaming Mode Toggle */}
                 <div className="flex items-center justify-between py-2">
                   <div className="flex-1">
-                    <Label>Streaming Modu</Label>
+                    <Label>Streaming Mode</Label>
                     <p className="text-xs text-muted-foreground mt-1">
-                      Yanıtları kelime kelime göster. Kapalıyken tek seferde yüklenir.
+                      Show responses word-by-word. When off, load all at once.
                     </p>
                   </div>
                   <Switch
@@ -3200,7 +3200,7 @@ function RAGSettings() {
                   <div className="flex-1">
                     <Label>BM25 Full-Text Search</Label>
                     <p className="text-xs text-muted-foreground mt-1">
-                      PostgreSQL tsvector ile Türkçe tam metin araması. Kesin kelime eşleşmeleri için vektör aramayı tamamlar.
+                      Full-text search using PostgreSQL tsvector. Complements vector search with exact keyword matches.
                     </p>
                   </div>
                   <Switch
@@ -3213,9 +3213,9 @@ function RAGSettings() {
                 {(tempRAGConfig?.ragSettings?.enableBM25Search ?? ragConfig?.ragSettings?.enableBM25Search ?? true) && (
                   <div className="space-y-2 pl-4 border-l-2 border-indigo-200 dark:border-indigo-800">
                     <div className="flex items-center justify-between">
-                      <Label className="text-sm">BM25 Ağırlığı (RRF)</Label>
+                      <Label className="text-sm">BM25 Weight (RRF)</Label>
                       <span className="text-sm font-mono text-muted-foreground">
-                        {((tempRAGConfig?.ragSettings?.bm25Weight ?? ragConfig?.ragSettings?.bm25Weight ?? 0.3) * 100).toFixed(0)}% BM25 / {((1 - (tempRAGConfig?.ragSettings?.bm25Weight ?? ragConfig?.ragSettings?.bm25Weight ?? 0.3)) * 100).toFixed(0)}% Vektör
+                        {((tempRAGConfig?.ragSettings?.bm25Weight ?? ragConfig?.ragSettings?.bm25Weight ?? 0.3) * 100).toFixed(0)}% BM25 / {((1 - (tempRAGConfig?.ragSettings?.bm25Weight ?? ragConfig?.ragSettings?.bm25Weight ?? 0.3)) * 100).toFixed(0)}% Vector
                       </span>
                     </div>
                     <input
@@ -3228,7 +3228,7 @@ function RAGSettings() {
                       className="w-full h-2 bg-gray-200 dark:bg-gray-700 rounded-lg appearance-none cursor-pointer accent-indigo-500"
                     />
                     <p className="text-xs text-muted-foreground">
-                      Düşük = semantik ağırlıklı, Yüksek = anahtar kelime ağırlıklı
+                      Low = semantic-weighted, High = keyword-weighted
                     </p>
                   </div>
                 )}
@@ -3236,9 +3236,9 @@ function RAGSettings() {
                 {/* Source Question Generation Toggle */}
                 <div className="flex items-center justify-between">
                   <div className="flex-1">
-                    <Label>Kaynak Tıklama Sorusu</Label>
+                    <Label>Source Click Question</Label>
                     <p className="text-xs text-muted-foreground mt-1">
-                      Alıntı/kaynak tıklandığında otomatik soru üret
+                      Generate an automatic question when a citation/source is clicked
                     </p>
                   </div>
                   <Switch
@@ -3259,7 +3259,7 @@ function RAGSettings() {
                     <Badge variant="outline" className="text-xs">Beta</Badge>
                   </h3>
                   <p className="text-xs text-muted-foreground mt-1">
-                    Cross-encoder tabanlı yeniden sıralama ile daha iyi sonuçlar
+                    Better results with cross-encoder based reranking
                   </p>
                 </div>
               </div>
@@ -3268,9 +3268,9 @@ function RAGSettings() {
                 {/* Enable Reranking */}
                 <div className="flex items-center justify-between p-3 border rounded-lg bg-muted/30">
                   <div className="flex-1">
-                    <Label>Reranking Aktif</Label>
+                    <Label>Reranking Enabled</Label>
                     <p className="text-xs text-muted-foreground mt-1">
-                      Jina Reranker v2 ile sonuçları yeniden sırala (multilingual)
+                      Reorder results with Jina Reranker v2 (multilingual)
                     </p>
                   </div>
                   <Switch
@@ -3286,7 +3286,7 @@ function RAGSettings() {
                       <div>
                         <Label className="text-sm font-medium">Rerank Top N</Label>
                         <p className="text-xs text-muted-foreground mt-0.5">
-                          Reranking sonrası döndürülecek sonuç sayısı
+                          Number of results to return after reranking
                         </p>
                       </div>
                       <Badge variant="default">
@@ -3309,9 +3309,9 @@ function RAGSettings() {
                   <div className="space-y-2 p-3 border rounded-lg bg-muted/30">
                     <div className="flex items-center justify-between">
                       <div>
-                        <Label className="text-sm font-medium">Minimum Rerank Skoru</Label>
+                        <Label className="text-sm font-medium">Minimum Rerank Score</Label>
                         <p className="text-xs text-muted-foreground mt-0.5">
-                          Bu skorun altındaki sonuçlar filtrelenir (0.0-1.0)
+                          Results below this score are filtered (0.0-1.0)
                         </p>
                       </div>
                       <Badge variant="default">
@@ -3518,7 +3518,7 @@ function RAGSettings() {
                     id="welcomeMessage"
                     value={tempChatbotConfig?.chatbot?.welcomeMessage || chatbotConfig?.chatbot?.welcomeMessage || ''}
                     onChange={(e) => updateChatbotSetting('welcomeMessage', e.target.value)}
-                    placeholder="Merhaba! Size nasıl yardımcı olabilirim?"
+                    placeholder="Hello! How can I help you?"
                     rows={3}
                   />
                   <p className="text-xs text-muted-foreground">
@@ -3532,7 +3532,7 @@ function RAGSettings() {
                     id="placeholder"
                     value={tempChatbotConfig?.chatbot?.placeholder || chatbotConfig?.chatbot?.placeholder || ''}
                     onChange={(e) => updateChatbotSetting('placeholder', e.target.value)}
-                    placeholder="Sorunuzu yazın..."
+                    placeholder="Type your question..."
                   />
                   <p className="text-xs text-muted-foreground">
                     Placeholder text in the chat input field
@@ -3593,7 +3593,7 @@ function RAGSettings() {
                   <Textarea
                     value={tempChatbotConfig?.chatbot?.customSuggestions || ''}
                     onChange={(e) => updateChatbotSetting('customSuggestions', e.target.value)}
-                    placeholder="Enter custom suggestions, one per line...&#10;Example: Fiyat aralığı nedir?&#10;Example: Hangi bölgelerde hizmet veriyorsunuz?"
+                    placeholder="Enter custom suggestions, one per line...&#10;Example: What is the price range?&#10;Example: Which regions do you serve?"
                     rows={4}
                   />
                   <p className="text-xs text-muted-foreground">
@@ -4610,10 +4610,10 @@ function SecuritySettings() {
 
               {/* Proxy Settings */}
               <div className="border-t pt-4 space-y-4">
-                <Label className="text-base font-semibold">Proxy Ayarları</Label>
+                <Label className="text-base font-semibold">Proxy Settings</Label>
 
                 <div>
-                  <Label>Proxy Server (opsiyonel)</Label>
+                  <Label>Proxy Server (optional)</Label>
                   <Input
                     placeholder="http://proxy.example.com:8080"
                     value={tempConfig?.crawler?.proxyUrl ?? securityConfig?.crawler?.proxyUrl ?? ''}
@@ -4626,13 +4626,13 @@ function SecuritySettings() {
                     })}
                   />
                   <p className="text-xs text-muted-foreground mt-1">
-                    Format: http://host:port veya https://host:port
+                    Format: http://host:port or https://host:port
                   </p>
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <Label>Proxy Username (opsiyonel)</Label>
+                    <Label>Proxy Username (optional)</Label>
                     <Input
                       placeholder="username"
                       value={tempConfig?.crawler?.proxyUsername ?? securityConfig?.crawler?.proxyUsername ?? ''}
@@ -4646,7 +4646,7 @@ function SecuritySettings() {
                     />
                   </div>
                   <div>
-                    <Label>Proxy Password (opsiyonel)</Label>
+                    <Label>Proxy Password (optional)</Label>
                     <Input
                       type="password"
                       placeholder="password"
@@ -4664,8 +4664,8 @@ function SecuritySettings() {
 
                 <div className="bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800 rounded p-3">
                   <p className="text-xs text-blue-800 dark:text-blue-200">
-                    💡 <strong>Not:</strong> Proxy ayarları crawler'lar tarafından kullanılır.
-                    Boş bırakırsanız direkt bağlantı kullanılır.
+                    💡 <strong>Note:</strong> Proxy settings are used by crawlers.
+                    If left empty, a direct connection is used.
                   </p>
                 </div>
               </div>

@@ -102,9 +102,9 @@ const SemanticSearchResult: React.FC<SemanticSearchResultProps> = ({
 
     // Add intent-specific keywords
     if (context.intent === 'procedural') {
-      baseKeywords.push('Prosedür');
+      baseKeywords.push('Procedure');
     } else if (context.intent === 'analytical') {
-      baseKeywords.push('Analiz');
+      baseKeywords.push('Analysis');
     }
 
     // Add theme if not general
@@ -165,7 +165,7 @@ const SemanticSearchResult: React.FC<SemanticSearchResultProps> = ({
               e.stopPropagation();
               setShowQuestions(!showQuestions);
             }}
-            title="Soru seçeneklerini göster"
+            title="Show question options"
           >
             <MessageSquare className="w-4 h-4" />
           </Button>
@@ -220,7 +220,7 @@ const SemanticSearchResult: React.FC<SemanticSearchResultProps> = ({
           <div className="flex items-center gap-2 mb-2">
             <Lightbulb className="w-4 h-4 text-yellow-500" />
             <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
-              Bu içerikle ilgili sorular:
+              Related questions:
             </span>
           </div>
           <div className="space-y-2">
@@ -248,7 +248,7 @@ const SemanticSearchResult: React.FC<SemanticSearchResultProps> = ({
         <div className="flex items-center gap-3 text-xs text-gray-500">
           <div className="flex items-center gap-1">
             <Brain className="w-3 h-3" />
-            <span>Anlamsal Arama</span>
+            <span>Semantic Search</span>
           </div>
                   </div>
 
@@ -263,14 +263,14 @@ const SemanticSearchResult: React.FC<SemanticSearchResultProps> = ({
           }}
         >
           <Search className="w-3 h-3 mr-1" />
-          Tümünü Araştır
+          Search All
         </Button>
       </div>
 
       {/* Selected Question Indicator */}
       {selectedQuestion && (
         <div className="absolute top-2 right-2 bg-blue-500 text-white text-xs px-2 py-1 rounded-full">
-          ✓ Seçildi
+          ✓ Selected
         </div>
       )}
     </Card>

@@ -2617,12 +2617,12 @@ ${selectedArray.map(f => `  ${f.replace(/\./g, '_')} = EXCLUDED.${f.replace(/\./
                   <FileText className="w-8 h-8 text-orange-500" />
                 </div>
                 <div className="text-center space-y-2">
-                  <p className="text-base font-semibold text-foreground">İçerik Çıkarılamadı</p>
+                  <p className="text-base font-semibold text-foreground">Could Not Extract Content</p>
                   <p className="text-sm text-muted-foreground max-w-xs">
-                    Bu PDF'den otomatik metin çıkarılamadı. Taranmış görüntü veya karmaşık yapı içeriyor olabilir.
+                    Could not automatically extract text from this PDF. It may contain scanned images or a complex layout.
                   </p>
                   <p className="text-xs text-orange-600 dark:text-orange-400 font-medium mt-2">
-                    → "Analyze" butonuna tıklayarak Gemini Vision OCR ile yeniden deneyin
+                    → Click the "Analyze" button to retry with Gemini Vision OCR
                   </p>
                 </div>
               </div>

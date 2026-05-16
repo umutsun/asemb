@@ -219,7 +219,7 @@ export default function MigrationToolsPage() {
   const startMigration = async () => {
     setIsLoading(true);
     setMessage(null);
-    setProgress({ current: 0, total: 0, percentage: 0, status: 'Başlatılıyor...' });
+    setProgress({ current: 0, total: 0, percentage: 0, status: 'Starting...' });
 
     try {
       let endpoint = '';
@@ -236,7 +236,7 @@ export default function MigrationToolsPage() {
           
         case 'file':
           if (!sourceConfig.file) {
-            throw new Error('Lütfen bir dosya seçin');
+            throw new Error('Please select a file');
           }
           endpoint = `${API_URL}/api/v2/migration/file`;
           const formData = new FormData();
@@ -249,7 +249,7 @@ export default function MigrationToolsPage() {
           
         case 'url':
           if (!sourceConfig.url) {
-            throw new Error('Lütfen bir URL girin');
+            throw new Error('Please enter a URL');
           }
           endpoint = `${API_URL}/api/v2/migration/scrape`;
           body = {
@@ -283,20 +283,20 @@ export default function MigrationToolsPage() {
             if (progressData.status === 'completed') {
               setMessage({ 
                 type: 'success', 
-                text: `Migration tamamlandı! ${progressData.tokenUsage ? 
-                  `Kullanılan Token: ${progressData.tokenUsage.total_tokens.toLocaleString()}, 
-                   Maliyet: $${progressData.tokenUsage.estimated_cost.toFixed(4)}` : ''}` 
+                text: `Migration complete! ${progressData.tokenUsage ?
+                  `Tokens used: ${progressData.tokenUsage.total_tokens.toLocaleString()},
+                   Cost: $${progressData.tokenUsage.estimated_cost.toFixed(4)}` : ''}`
               });
               loadStats();
             } else {
-              setMessage({ type: 'error', text: 'Migration başarısız oldu' });
+              setMessage({ type: 'error', text: 'Migration failed' });
             }
           }
         }
       }, 1000);
 
     } catch (error: any) {
-      setMessage({ type: 'error', text: error.message || 'Migration başlatılamadı' });
+      setMessage({ type: 'error', text: error.message || 'Could not start migration' });
       setIsLoading(false);
     }
   };
@@ -304,7 +304,7 @@ export default function MigrationToolsPage() {
   const generateEmbeddings = async () => {
     setIsLoading(true);
     setMessage(null);
-    setProgress({ current: 0, total: stats?.pendingRecords || 0, percentage: 0, status: 'Embedding oluşturuluyor...' });
+    setProgress({ current: 0, total: stats?.pendingRecords || 0, percentage: 0, status: 'Generating embeddings...' });
 
     try {
       const response = await fetch(`${API_URL}/api/v2/migration/generate`, {
@@ -342,10 +342,10 @@ export default function MigrationToolsPage() {
         }
       }
 
-      setMessage({ type: 'success', text: 'Tüm embedding\'ler oluşturuldu!' });
+      setMessage({ type: 'success', text: 'All embeddings generated!' });
       loadStats();
     } catch (error) {
-      setMessage({ type: 'error', text: 'Embedding oluşturma başarısız' });
+      setMessage({ type: 'error', text: 'Embedding generation failed' });
     } finally {
       setIsLoading(false);
     }
@@ -355,7 +355,7 @@ export default function MigrationToolsPage() {
     const file = event.target.files?.[0];
     if (file) {
       setSourceConfig(prev => ({ ...prev, file }));
-      setMessage({ type: 'info', text: `Dosya seçildi: ${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)` });
+      setMessage({ type: 'info', text: `File selected: ${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)` });
     }
   };
 
@@ -375,18 +375,18 @@ export default function MigrationToolsPage() {
         })
       });
 
-      if (!response.ok) throw new Error('Chunking başlatılamadı');
+      if (!response.ok) throw new Error('Could not start chunking');
 
       const data = await response.json();
       if (data.success) {
-        setMessage({ type: 'success', text: dryRun ? 'Simülasyon başlatıldı...' : 'Kanun chunking başlatıldı...' });
+        setMessage({ type: 'success', text: dryRun ? 'Dry run started...' : 'Law chunking started...' });
         // Start polling for status
         pollChunkingStatus();
       } else {
-        throw new Error(data.error || 'Chunking başarısız');
+        throw new Error(data.error || 'Chunking failed');
       }
     } catch (error: any) {
-      setMessage({ type: 'error', text: error.message || 'Chunking başlatılamadı' });
+      setMessage({ type: 'error', text: error.message || 'Could not start chunking' });
       setChunkingLoading(false);
     }
   };
@@ -404,7 +404,7 @@ export default function MigrationToolsPage() {
           } else {
             setChunkingLoading(false);
             if (data.chunks_created > 0) {
-              setMessage({ type: 'success', text: `Chunking tamamlandı! ${data.chunks_created} madde oluşturuldu.` });
+              setMessage({ type: 'success', text: `Chunking complete! ${data.chunks_created} articles created.` });
             }
           }
         }
@@ -424,7 +424,7 @@ export default function MigrationToolsPage() {
         body: JSON.stringify({ action: 'stop' })
       });
       if (response.ok) {
-        setMessage({ type: 'info', text: 'Chunking durduruluyor...' });
+        setMessage({ type: 'info', text: 'Stopping chunking...' });
       }
     } catch (error) {
       console.error('Stop error:', error);
@@ -445,7 +445,7 @@ export default function MigrationToolsPage() {
         throw new Error('Failed to load health report');
       }
     } catch (error: any) {
-      setMessage({ type: 'error', text: `Sağlık raporu yüklenemedi: ${error.message}` });
+      setMessage({ type: 'error', text: `Could not load health report: ${error.message}` });
     } finally {
       setHealthLoading(false);
     }
@@ -465,8 +465,8 @@ export default function MigrationToolsPage() {
         setMessage({
           type: 'success',
           text: dryRun
-            ? `${tableName} için simülasyon tamamlandı (değişiklik yapılmadı)`
-            : `${tableName} için temizlik tamamlandı!`
+            ? `Dry run complete for ${tableName} (no changes made)`
+            : `Cleanup complete for ${tableName}!`
         });
         // Reload health report after fix
         if (!dryRun) {
@@ -476,7 +476,7 @@ export default function MigrationToolsPage() {
         throw new Error('Quick fix failed');
       }
     } catch (error: any) {
-      setMessage({ type: 'error', text: `Düzeltme başarısız: ${error.message}` });
+      setMessage({ type: 'error', text: `Fix failed: ${error.message}` });
     } finally {
       setFixLoading(null);
     }
@@ -501,15 +501,15 @@ export default function MigrationToolsPage() {
         setMessage({
           type: 'success',
           text: dryRun
-            ? `${data.fixed_count} kayıt düzeltilecek (simülasyon)`
-            : `${data.fixed_count} kayıt düzeltildi!`
+            ? `${data.fixed_count} records will be fixed (dry run)`
+            : `${data.fixed_count} records fixed!`
         });
         if (!dryRun) await loadHealthReport();
       } else {
         throw new Error('Metadata fix failed');
       }
     } catch (error: any) {
-      setMessage({ type: 'error', text: `Metadata düzeltme başarısız: ${error.message}` });
+      setMessage({ type: 'error', text: `Metadata fix failed: ${error.message}` });
     } finally {
       setFixLoading(null);
     }
@@ -533,15 +533,15 @@ export default function MigrationToolsPage() {
         setMessage({
           type: 'success',
           text: dryRun
-            ? `${data.orphans_found} orphan kayıt bulundu (simülasyon)`
-            : `${data.deleted_count} orphan kayıt silindi!`
+            ? `${data.orphans_found} orphan records found (dry run)`
+            : `${data.deleted_count} orphan records deleted!`
         });
         if (!dryRun) await loadHealthReport();
       } else {
         throw new Error('Orphan delete failed');
       }
     } catch (error: any) {
-      setMessage({ type: 'error', text: `Orphan silme başarısız: ${error.message}` });
+      setMessage({ type: 'error', text: `Orphan delete failed: ${error.message}` });
     } finally {
       setFixLoading(null);
     }
@@ -565,15 +565,15 @@ export default function MigrationToolsPage() {
         setMessage({
           type: 'success',
           text: dryRun
-            ? `${data.duplicates_found} duplicate kayıt bulundu (simülasyon)`
-            : `${data.deleted_count} duplicate kayıt silindi!`
+            ? `${data.duplicates_found} duplicate records found (dry run)`
+            : `${data.deleted_count} duplicate records deleted!`
         });
         if (!dryRun) await loadHealthReport();
       } else {
         throw new Error('Duplicate delete failed');
       }
     } catch (error: any) {
-      setMessage({ type: 'error', text: `Duplicate silme başarısız: ${error.message}` });
+      setMessage({ type: 'error', text: `Duplicate delete failed: ${error.message}` });
     } finally {
       setFixLoading(null);
     }
@@ -606,13 +606,13 @@ export default function MigrationToolsPage() {
       const res = await fetch(`${API_URL}/api/doc-optimization/analyze/start`, { method: 'POST' });
       if (res.ok) {
         setDocOptPolling(true);
-        setMessage({ type: 'info', text: 'Doküman analizi başlatıldı...' });
+        setMessage({ type: 'info', text: 'Document analysis started...' });
       } else {
         const data = await res.json();
-        setMessage({ type: 'error', text: data.detail || 'Analiz başlatılamadı' });
+        setMessage({ type: 'error', text: data.detail || 'Could not start analysis' });
       }
     } catch (e: any) {
-      setMessage({ type: 'error', text: `Bağlantı hatası: ${e.message}` });
+      setMessage({ type: 'error', text: `Connection error: ${e.message}` });
     }
   };
 
@@ -625,13 +625,13 @@ export default function MigrationToolsPage() {
       });
       if (res.ok) {
         setDocOptPolling(true);
-        setMessage({ type: 'info', text: `OCR düzeltme başlatıldı${useLlm ? ' (LLM destekli)' : ''}...` });
+        setMessage({ type: 'info', text: `OCR fix started${useLlm ? ' (LLM-assisted)' : ''}...` });
       } else {
         const data = await res.json();
-        setMessage({ type: 'error', text: data.detail || 'Optimizasyon başlatılamadı' });
+        setMessage({ type: 'error', text: data.detail || 'Could not start optimization' });
       }
     } catch (e: any) {
-      setMessage({ type: 'error', text: `Bağlantı hatası: ${e.message}` });
+      setMessage({ type: 'error', text: `Connection error: ${e.message}` });
     }
   };
 
@@ -666,10 +666,10 @@ export default function MigrationToolsPage() {
       <div className="mb-8">
         <h1 className="text-xl font-semibold flex items-center gap-2">
           <Database className="h-8 w-8" />
-          Migration & Embedding Merkezi
+          Migration & Embedding Center
         </h1>
         <p className="text-sm text-muted-foreground mt-1">
-          Veritabanı, doküman ve web içeriklerini embed edin
+          Embed database, document, and web content
         </p>
       </div>
 
@@ -693,7 +693,7 @@ export default function MigrationToolsPage() {
         <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-6">
           <Card>
             <CardHeader className="pb-3">
-              <CardTitle className="text-sm font-medium">Toplam Kayıt</CardTitle>
+              <CardTitle className="text-sm font-medium">Total Records</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">{stats.totalRecords.toLocaleString()}</div>
@@ -702,7 +702,7 @@ export default function MigrationToolsPage() {
           
           <Card>
             <CardHeader className="pb-3">
-              <CardTitle className="text-sm font-medium">Embedding\'li</CardTitle>
+              <CardTitle className="text-sm font-medium">Embedded</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold text-green-600">
@@ -717,7 +717,7 @@ export default function MigrationToolsPage() {
           
           <Card>
             <CardHeader className="pb-3">
-              <CardTitle className="text-sm font-medium">Bekleyen</CardTitle>
+              <CardTitle className="text-sm font-medium">Pending</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold text-orange-600">
@@ -730,7 +730,7 @@ export default function MigrationToolsPage() {
             <CardHeader className="pb-3">
               <CardTitle className="text-sm font-medium flex items-center gap-1">
                 <Hash className="h-3 w-3" />
-                Token Kullanım
+                Token Usage
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -739,7 +739,7 @@ export default function MigrationToolsPage() {
               </div>
               {stats.tokenUsage?.savedTokens && (
                 <div className="text-xs text-green-600">
-                  {stats.tokenUsage.savedTokens.toLocaleString()} tasarruf
+                  {stats.tokenUsage.savedTokens.toLocaleString()} saved
                 </div>
               )}
             </CardContent>
@@ -749,7 +749,7 @@ export default function MigrationToolsPage() {
             <CardHeader className="pb-3">
               <CardTitle className="text-sm font-medium flex items-center gap-1">
                 <DollarSign className="h-3 w-3" />
-                Maliyet
+                Cost
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -758,7 +758,7 @@ export default function MigrationToolsPage() {
               </div>
               {stats.tokenUsage?.savedCost && (
                 <div className="text-xs text-green-600">
-                  ${stats.tokenUsage.savedCost.toFixed(4)} tasarruf
+                  ${stats.tokenUsage.savedCost.toFixed(4)} saved
                 </div>
               )}
             </CardContent>
@@ -793,12 +793,12 @@ export default function MigrationToolsPage() {
               <div className="grid grid-cols-2 gap-4 text-xs text-muted-foreground content-center">
                 {progress.currentTable && (
                   <div>
-                    <span className="font-medium">Tablo:</span> {progress.currentTable}
+                    <span className="font-medium">Table:</span> {progress.currentTable}
                   </div>
                 )}
                 {progress.currentRecord && (
                   <div className="truncate">
-                    <span className="font-medium">Kayıt:</span> {progress.currentRecord}
+                    <span className="font-medium">Record:</span> {progress.currentRecord}
                   </div>
                 )}
                 {progress.tokenUsage && (
@@ -807,7 +807,7 @@ export default function MigrationToolsPage() {
                       <span className="font-medium">Token:</span> {progress.tokenUsage.total_tokens.toLocaleString()}
                     </div>
                     <div>
-                      <span className="font-medium">Maliyet:</span> ${progress.tokenUsage.estimated_cost.toFixed(4)}
+                      <span className="font-medium">Cost:</span> ${progress.tokenUsage.estimated_cost.toFixed(4)}
                     </div>
                   </>
                 )}
@@ -815,7 +815,7 @@ export default function MigrationToolsPage() {
             </div>
               <div className="flex items-center gap-2 text-xs text-muted-foreground">
                 <Clock className="h-3 w-3" />
-                <span>Tahmini süre: {Math.ceil((progress.total - progress.current) / 10)} saniye</span>
+                <span>Estimated time: {Math.ceil((progress.total - progress.current) / 10)} seconds</span>
               </div>
           </CardContent>
         </Card>
@@ -825,11 +825,11 @@ export default function MigrationToolsPage() {
         <TabsList className="grid w-full grid-cols-6">
           <TabsTrigger value="database">
             <Database className="h-4 w-4 mr-2" />
-            Veritabanı
+            Database
           </TabsTrigger>
           <TabsTrigger value="documents">
             <FileUp className="h-4 w-4 mr-2" />
-            Dokümanlar
+            Documents
           </TabsTrigger>
           <TabsTrigger value="webscrape">
             <Globe className="h-4 w-4 mr-2" />
@@ -841,11 +841,11 @@ export default function MigrationToolsPage() {
           </TabsTrigger>
           <TabsTrigger value="health">
             <HeartPulse className="h-4 w-4 mr-2" />
-            Veri Sağlığı
+            Data Health
           </TabsTrigger>
           <TabsTrigger value="doc-optimization">
             <Scissors className="h-4 w-4 mr-2" />
-            OCR Düzeltme
+            OCR Fix
           </TabsTrigger>
         </TabsList>
 
@@ -853,15 +853,15 @@ export default function MigrationToolsPage() {
         <TabsContent value="database" className="space-y-4">
           <Card>
             <CardHeader>
-              <CardTitle>Veritabanı Migration</CardTitle>
+              <CardTitle>Database Migration</CardTitle>
               <CardDescription>
-                Mevcut veritabanı tablolarından veri aktarımı ve embedding
+                Data transfer and embedding from existing database tables
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <Label>Kaynak Veritabanı</Label>
+                  <Label>Source Database</Label>
                   <Select 
                     value={sourceConfig.database}
                     onValueChange={(value) => setSourceConfig(prev => ({ ...prev, database: value }))}
@@ -871,13 +871,13 @@ export default function MigrationToolsPage() {
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="lsemb">LSEMB DB</SelectItem>
-                      <SelectItem value="custom">Özel Veritabanı</SelectItem>
+                      <SelectItem value="custom">Custom Database</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
                 
                 <div>
-                  <Label>Tablo</Label>
+                  <Label>Table</Label>
                   <Select 
                     value={sourceConfig.table}
                     onValueChange={(value) => setSourceConfig(prev => ({ ...prev, table: value }))}
@@ -886,11 +886,11 @@ export default function MigrationToolsPage() {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="all">Tüm Tablolar</SelectItem>
-                      <SelectItem value="SORUCEVAP">Soru-Cevap</SelectItem>
-                      <SelectItem value="OZELGELER">Özelgeler</SelectItem>
-                      <SelectItem value="MAKALELER">Makaleler</SelectItem>
-                      <SelectItem value="DANISTAYKARARLARI">Danıştay Kararları</SelectItem>
+                      <SelectItem value="all">All Tables</SelectItem>
+                      <SelectItem value="SORUCEVAP">Q&A</SelectItem>
+                      <SelectItem value="OZELGELER">Tax Rulings</SelectItem>
+                      <SelectItem value="MAKALELER">Articles</SelectItem>
+                      <SelectItem value="DANISTAYKARARLARI">Council of State Decisions</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -898,7 +898,7 @@ export default function MigrationToolsPage() {
 
               <div className="grid grid-cols-3 gap-4">
                 <div>
-                  <Label>Batch Boyutu</Label>
+                  <Label>Batch Size</Label>
                   <Input
                     type="number"
                     value={migrationConfig.batchSize}
@@ -909,7 +909,7 @@ export default function MigrationToolsPage() {
                   />
                 </div>
                 <div>
-                  <Label>Chunk Boyutu</Label>
+                  <Label>Chunk Size</Label>
                   <Input
                     type="number"
                     value={migrationConfig.chunkSize}
@@ -943,7 +943,7 @@ export default function MigrationToolsPage() {
                     }))}
                     className="mr-2"
                   />
-                  Token Optimizasyonu
+                  Token Optimization
                 </label>
                 <label className="flex items-center">
                   <input
@@ -955,7 +955,7 @@ export default function MigrationToolsPage() {
                     }))}
                     className="mr-2"
                   />
-                  Cache Kullan
+                  Use Cache
                 </label>
               </div>
 
@@ -971,12 +971,12 @@ export default function MigrationToolsPage() {
                 {isLoading ? (
                   <>
                     <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-                    Migration Devam Ediyor...
+                    Migration in progress...
                   </>
                 ) : (
                   <>
                     <Upload className="h-4 w-4 mr-2" />
-                    Migration Başlat
+                    Start Migration
                   </>
                 )}
               </Button>
@@ -987,7 +987,7 @@ export default function MigrationToolsPage() {
           {stats && stats.tables.length > 0 && (
             <Card>
               <CardHeader>
-                <CardTitle>Tablo Durumları</CardTitle>
+                <CardTitle>Table Status</CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="space-y-2">
@@ -996,7 +996,7 @@ export default function MigrationToolsPage() {
                       <span className="font-medium">{table.name}</span>
                       <div className="flex items-center gap-2">
                         <Badge variant="outline">
-                          {table.count} kayıt
+                          {table.count} records
                         </Badge>
                         <Badge variant={table.embedded === table.count ? "success" : "secondary"}>
                           {table.embedded} embedded
@@ -1018,9 +1018,9 @@ export default function MigrationToolsPage() {
         <TabsContent value="documents" className="space-y-4">
           <Card>
             <CardHeader>
-              <CardTitle>Doküman Yükleme</CardTitle>
+              <CardTitle>Document Upload</CardTitle>
               <CardDescription>
-                PDF, Word, Excel veya metin dosyalarını yükleyin ve embed edin
+                Upload and embed PDF, Word, Excel or text files
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -1030,7 +1030,7 @@ export default function MigrationToolsPage() {
               >
                 <FileUp className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
                 <p className="text-sm text-muted-foreground mb-2">
-                  Dosya seçmek için tıklayın veya sürükleyin
+                  Click to select a file or drag and drop
                 </p>
                 <p className="text-xs text-muted-foreground">
                   PDF, DOCX, XLSX, TXT, CSV (Max 50MB)
@@ -1079,12 +1079,12 @@ export default function MigrationToolsPage() {
                 {isLoading ? (
                   <>
                     <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-                    Doküman İşleniyor...
+                    Processing document...
                   </>
                 ) : (
                   <>
                     <Upload className="h-4 w-4 mr-2" />
-                    Dokümanı Embed Et
+                    Embed Document
                   </>
                 )}
               </Button>
@@ -1098,7 +1098,7 @@ export default function MigrationToolsPage() {
             <CardHeader>
               <CardTitle>Web Scraping</CardTitle>
               <CardDescription>
-                Web sitelerinden içerik çekin ve embed edin
+                Scrape and embed content from websites
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -1113,19 +1113,19 @@ export default function MigrationToolsPage() {
               </div>
 
               <div>
-                <Label>CSS Selector (Opsiyonel)</Label>
+                <Label>CSS Selector (Optional)</Label>
                 <Input
                   placeholder=".content, article, main"
                   value={sourceConfig.selector}
                   onChange={(e) => setSourceConfig(prev => ({ ...prev, selector: e.target.value }))}
                 />
                 <p className="text-xs text-muted-foreground mt-1">
-                  İçeriği filtrelemek için CSS selector kullanın
+                  Use a CSS selector to filter content
                 </p>
               </div>
 
               <div>
-                <Label>Maksimum Sayfa Sayısı</Label>
+                <Label>Maximum Number of Pages</Label>
                 <Input
                   type="number"
                   value={sourceConfig.maxPages}
@@ -1148,12 +1148,12 @@ export default function MigrationToolsPage() {
                 {isLoading ? (
                   <>
                     <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-                    Web İçeriği Çekiliyor...
+                    Scraping web content...
                   </>
                 ) : (
                   <>
                     <Globe className="h-4 w-4 mr-2" />
-                    Scraping Başlat
+                    Start Scraping
                   </>
                 )}
               </Button>
@@ -1165,9 +1165,9 @@ export default function MigrationToolsPage() {
         <TabsContent value="embeddings" className="space-y-4">
           <Card>
             <CardHeader>
-              <CardTitle>Embedding Oluşturma</CardTitle>
+              <CardTitle>Embedding Generation</CardTitle>
               <CardDescription>
-                Bekleyen kayıtlar için vektör embedding oluşturun
+                Generate vector embeddings for pending records
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -1176,8 +1176,8 @@ export default function MigrationToolsPage() {
                   <Alert>
                     <AlertCircle className="h-4 w-4" />
                     <AlertDescription>
-                      <strong>{stats.pendingRecords.toLocaleString()}</strong> kayıt embedding bekliyor.
-                      Tahmini maliyet: <strong>${((stats.pendingRecords * 500) / 1000 * 0.0001).toFixed(2)}</strong>
+                      <strong>{stats.pendingRecords.toLocaleString()}</strong> records pending embedding.
+                      Estimated cost: <strong>${((stats.pendingRecords * 500) / 1000 * 0.0001).toFixed(2)}</strong>
                     </AlertDescription>
                   </Alert>
 
@@ -1185,20 +1185,20 @@ export default function MigrationToolsPage() {
                     <div className="p-4 border rounded-lg">
                       <div className="flex items-center gap-2 mb-2">
                         <Hash className="h-4 w-4 text-blue-500" />
-                        <span className="text-sm font-medium">Token Optimizasyonu</span>
+                        <span className="text-sm font-medium">Token Optimization</span>
                       </div>
                       <p className="text-xs text-muted-foreground">
-                        Gereksiz kelimeleri temizler, %30\'a kadar tasarruf sağlar
+                        Removes unnecessary words, saves up to 30%
                       </p>
                     </div>
                     
                     <div className="p-4 border rounded-lg">
                       <div className="flex items-center gap-2 mb-2">
                         <Zap className="h-4 w-4 text-green-500" />
-                        <span className="text-sm font-medium">Cache Sistemi</span>
+                        <span className="text-sm font-medium">Cache System</span>
                       </div>
                       <p className="text-xs text-muted-foreground">
-                        Aynı içerikler için API çağrısı yapmaz
+                        Avoids API calls for identical content
                       </p>
                     </div>
                   </div>
@@ -1212,12 +1212,12 @@ export default function MigrationToolsPage() {
                     {isLoading ? (
                       <>
                         <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-                        Embedding Oluşturuluyor...
+                        Generating embeddings...
                       </>
                     ) : (
                       <>
                         <Sparkles className="h-4 w-4 mr-2" />
-                        {stats.pendingRecords} Kayıt için Embedding Oluştur
+                        Generate Embeddings for {stats.pendingRecords} Records
                       </>
                     )}
                   </Button>
@@ -1226,7 +1226,7 @@ export default function MigrationToolsPage() {
                 <Alert>
                   <CheckCircle className="h-4 w-4 text-green-500" />
                   <AlertDescription>
-                    Tüm kayıtlar embed edilmiş durumda!
+                    All records have been embedded!
                   </AlertDescription>
                 </Alert>
               )}
@@ -1238,18 +1238,18 @@ export default function MigrationToolsPage() {
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Scissors className="h-5 w-5" />
-                Kanun Madde Chunking
+                Law Article Chunking
               </CardTitle>
               <CardDescription>
-                Kanun metinlerini maddelere ayırarak semantic search kalitesini artırın
+                Improve semantic search quality by splitting law texts into articles
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <Alert>
                 <AlertCircle className="h-4 w-4" />
                 <AlertDescription>
-                  Kanun metinleri "Madde 1", "Madde 2", vb. şeklinde bölünerek her madde ayrı bir kayıt olarak embed edilir.
-                  Bu sayede "VUK 114" gibi sorgulamalar daha doğru sonuç verir.
+                  Law texts are split as "Article 1", "Article 2", etc. and each article is embedded as a separate record.
+                  This gives more accurate results for queries like "VUK 114".
                 </AlertDescription>
               </Alert>
 
@@ -1257,16 +1257,16 @@ export default function MigrationToolsPage() {
               {chunkingStatus?.running && (
                 <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
                   <div className="flex items-center justify-between mb-2">
-                    <span className="text-sm font-medium">İşleniyor...</span>
+                    <span className="text-sm font-medium">Processing...</span>
                     <span className="text-sm text-muted-foreground">
                       %{chunkingStatus.progress.toFixed(1)}
                     </span>
                   </div>
                   <Progress value={chunkingStatus.progress} className="mb-2" />
                   <div className="grid grid-cols-3 gap-4 text-xs text-muted-foreground">
-                    <div>İşlenen: {chunkingStatus.processed}/{chunkingStatus.total}</div>
-                    <div>Oluşturulan: {chunkingStatus.chunks_created}</div>
-                    <div className="truncate">Son: {chunkingStatus.last_law}</div>
+                    <div>Processed: {chunkingStatus.processed}/{chunkingStatus.total}</div>
+                    <div>Created: {chunkingStatus.chunks_created}</div>
+                    <div className="truncate">Last: {chunkingStatus.last_law}</div>
                   </div>
                 </div>
               )}
@@ -1276,7 +1276,7 @@ export default function MigrationToolsPage() {
                 <Alert className="border-green-200 bg-green-50">
                   <CheckCircle className="h-4 w-4 text-green-600" />
                   <AlertDescription className="text-green-800">
-                    Chunking tamamlandı! {chunkingStatus.chunks_created} madde oluşturuldu.
+                    Chunking complete! {chunkingStatus.chunks_created} articles created.
                   </AlertDescription>
                 </Alert>
               )}
@@ -1290,12 +1290,12 @@ export default function MigrationToolsPage() {
                   {chunkingLoading ? (
                     <>
                       <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-                      Chunking Devam Ediyor...
+                      Chunking in progress...
                     </>
                   ) : (
                     <>
                       <Scissors className="h-4 w-4 mr-2" />
-                      Kanunları Maddelere Böl
+                      Split Laws into Articles
                     </>
                   )}
                 </Button>
@@ -1304,14 +1304,14 @@ export default function MigrationToolsPage() {
                   onClick={() => startLawChunking(true)}
                   disabled={chunkingLoading}
                 >
-                  Simülasyon
+                  Dry Run
                 </Button>
                 {chunkingStatus?.running && (
                   <Button
                     variant="destructive"
                     onClick={stopChunking}
                   >
-                    Durdur
+                    Stop
                   </Button>
                 )}
               </div>
@@ -1322,25 +1322,25 @@ export default function MigrationToolsPage() {
           {stats?.tokenUsage && (
             <Card>
               <CardHeader>
-                <CardTitle>Token İstatistikleri</CardTitle>
+                <CardTitle>Token Statistics</CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                   <div>
-                    <p className="text-sm text-muted-foreground">Toplam Token</p>
+                    <p className="text-sm text-muted-foreground">Total Tokens</p>
                     <p className="text-2xl font-bold">
                       {stats.tokenUsage.total_tokens.toLocaleString()}
                     </p>
                   </div>
                   <div>
-                    <p className="text-sm text-muted-foreground">Toplam Maliyet</p>
+                    <p className="text-sm text-muted-foreground">Total Cost</p>
                     <p className="text-2xl font-bold">
                       ${stats.tokenUsage.estimated_cost.toFixed(2)}
                     </p>
                   </div>
                   {stats.tokenUsage.savedTokens && (
                     <div>
-                      <p className="text-sm text-muted-foreground">Tasarruf (Token)</p>
+                      <p className="text-sm text-muted-foreground">Tokens Saved</p>
                       <p className="text-2xl font-bold text-green-600">
                         {stats.tokenUsage.savedTokens.toLocaleString()}
                       </p>
@@ -1369,10 +1369,10 @@ export default function MigrationToolsPage() {
                 <div>
                   <CardTitle className="flex items-center gap-2">
                     <HeartPulse className="h-5 w-5" />
-                    Veri Sağlığı Raporu
+                    Data Health Report
                   </CardTitle>
                   <CardDescription>
-                    Embedding verilerinin sağlık durumu ve temizlik araçları
+                    Embedding data health status and cleanup tools
                   </CardDescription>
                 </div>
                 <Button
@@ -1411,7 +1411,7 @@ export default function MigrationToolsPage() {
                         <p className="text-lg font-bold">{healthReport.summary.total_embeddings.toLocaleString()}</p>
                       </div>
                       <div className="text-center p-3 bg-green-50 rounded-lg">
-                        <p className="text-xs text-green-600">Sağlıklı</p>
+                        <p className="text-xs text-green-600">Healthy</p>
                         <p className="text-lg font-bold text-green-700">{healthReport.summary.healthy_count.toLocaleString()}</p>
                       </div>
                       <div className="text-center p-3 bg-orange-50 rounded-lg">
@@ -1422,7 +1422,7 @@ export default function MigrationToolsPage() {
                       </div>
                       <div className="text-center p-3 bg-yellow-50 rounded-lg">
                         <p className="text-xs text-yellow-600 flex items-center justify-center gap-1">
-                          <AlertTriangle className="h-3 w-3" /> Eksik Meta
+                          <AlertTriangle className="h-3 w-3" /> Missing Meta
                         </p>
                         <p className="text-lg font-bold text-yellow-700">{healthReport.summary.missing_metadata_count.toLocaleString()}</p>
                       </div>
@@ -1438,7 +1438,7 @@ export default function MigrationToolsPage() {
                   {/* Recommendations */}
                   {healthReport.recommendations.length > 0 && (
                     <div className="space-y-2">
-                      <h4 className="text-sm font-medium">Öneriler</h4>
+                      <h4 className="text-sm font-medium">Recommendations</h4>
                       <div className="space-y-1">
                         {healthReport.recommendations.map((rec, idx) => (
                           <p key={idx} className="text-sm text-muted-foreground">
@@ -1453,7 +1453,7 @@ export default function MigrationToolsPage() {
                 <Alert>
                   <AlertCircle className="h-4 w-4" />
                   <AlertDescription>
-                    Sağlık raporu yüklemek için yukarıdaki butona tıklayın.
+                    Click the button above to load the health report.
                   </AlertDescription>
                 </Alert>
               )}
@@ -1465,10 +1465,10 @@ export default function MigrationToolsPage() {
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Wrench className="h-5 w-5" />
-                Hızlı Düzeltme
+                Quick Fix
               </CardTitle>
               <CardDescription>
-                Tablo bazlı veri temizleme ve düzeltme işlemleri
+                Table-based data cleanup and fixing operations
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -1477,9 +1477,9 @@ export default function MigrationToolsPage() {
                 <div className="flex items-center gap-2">
                   <AlertTriangle className="h-4 w-4 text-amber-600" />
                   <div>
-                    <p className="text-sm font-medium text-amber-800">Simülasyon Modu</p>
+                    <p className="text-sm font-medium text-amber-800">Dry Run Mode</p>
                     <p className="text-xs text-amber-600">
-                      Açık: Değişiklik yapmaz, sadece raporlar | Kapalı: Gerçek silme/düzeltme yapar
+                      On: Reports only, makes no changes | Off: Performs real delete/fix operations
                     </p>
                   </div>
                 </div>
@@ -1491,7 +1491,7 @@ export default function MigrationToolsPage() {
                     className="w-5 h-5"
                   />
                   <span className="text-sm font-medium text-amber-800">
-                    {dryRun ? 'Simülasyon' : 'GERÇEK İŞLEM'}
+                    {dryRun ? 'Dry Run' : 'LIVE OPERATION'}
                   </span>
                 </label>
               </div>
@@ -1499,7 +1499,7 @@ export default function MigrationToolsPage() {
               {/* Table Selection */}
               {healthReport && Object.keys(healthReport.tables).length > 0 && (
                 <div className="space-y-3">
-                  <Label>Tablo Seçin</Label>
+                  <Label>Select Table</Label>
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                     {Object.entries(healthReport.tables).map(([tableName, tableStats]) => (
                       <div
@@ -1520,9 +1520,9 @@ export default function MigrationToolsPage() {
                           </Badge>
                         </div>
                         <div className="grid grid-cols-4 gap-1 text-xs text-muted-foreground">
-                          <div title="Toplam">{tableStats.total_embeddings}</div>
+                          <div title="Total">{tableStats.total_embeddings}</div>
                           <div className="text-orange-600" title="Orphan">{tableStats.orphan_count}</div>
-                          <div className="text-yellow-600" title="Eksik Meta">{tableStats.missing_metadata_count}</div>
+                          <div className="text-yellow-600" title="Missing Meta">{tableStats.missing_metadata_count}</div>
                           <div className="text-purple-600" title="Duplicate">{tableStats.duplicate_count}</div>
                         </div>
                         <Progress
@@ -1539,7 +1539,7 @@ export default function MigrationToolsPage() {
               {selectedHealthTable && selectedHealthTable !== 'all' && (
                 <div className="space-y-3 pt-4 border-t">
                   <h4 className="text-sm font-medium">
-                    İşlemler: <span className="text-primary">{selectedHealthTable}</span>
+                    Actions: <span className="text-primary">{selectedHealthTable}</span>
                   </h4>
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                     <Button
@@ -1552,7 +1552,7 @@ export default function MigrationToolsPage() {
                       ) : (
                         <Wrench className="h-4 w-4" />
                       )}
-                      Hızlı Düzelt
+                      Quick Fix
                     </Button>
 
                     <Button
@@ -1566,7 +1566,7 @@ export default function MigrationToolsPage() {
                       ) : (
                         <FileText className="h-4 w-4" />
                       )}
-                      Metadata Düzelt
+                      Fix Metadata
                     </Button>
 
                     <Button
@@ -1580,7 +1580,7 @@ export default function MigrationToolsPage() {
                       ) : (
                         <Ghost className="h-4 w-4" />
                       )}
-                      Orphan Sil
+                      Delete Orphans
                     </Button>
 
                     <Button
@@ -1594,7 +1594,7 @@ export default function MigrationToolsPage() {
                       ) : (
                         <Copy className="h-4 w-4" />
                       )}
-                      Duplicate Sil
+                      Delete Duplicates
                     </Button>
                   </div>
                 </div>
@@ -1604,15 +1604,15 @@ export default function MigrationToolsPage() {
               {fixResult && (
                 <div className="mt-4 p-4 bg-gray-50 rounded-lg">
                   <h4 className="text-sm font-medium mb-2">
-                    İşlem Sonucu {fixResult.dry_run && <Badge variant="secondary">Simülasyon</Badge>}
+                    Operation Result {fixResult.dry_run && <Badge variant="secondary">Dry Run</Badge>}
                   </h4>
                   <div className="grid grid-cols-3 gap-4 text-sm">
                     {fixResult.orphans && (
                       <div>
                         <p className="text-muted-foreground">Orphan</p>
                         <p className="font-medium">
-                          {fixResult.orphans.orphans_found} bulundu
-                          {!fixResult.dry_run && ` → ${fixResult.orphans.deleted_count} silindi`}
+                          {fixResult.orphans.orphans_found} found
+                          {!fixResult.dry_run && ` → ${fixResult.orphans.deleted_count} deleted`}
                         </p>
                       </div>
                     )}
@@ -1620,8 +1620,8 @@ export default function MigrationToolsPage() {
                       <div>
                         <p className="text-muted-foreground">Duplicate</p>
                         <p className="font-medium">
-                          {fixResult.duplicates.duplicates_found} bulundu
-                          {!fixResult.dry_run && ` → ${fixResult.duplicates.deleted_count} silindi`}
+                          {fixResult.duplicates.duplicates_found} found
+                          {!fixResult.dry_run && ` → ${fixResult.duplicates.deleted_count} deleted`}
                         </p>
                       </div>
                     )}
@@ -1630,7 +1630,7 @@ export default function MigrationToolsPage() {
                         <p className="text-muted-foreground">Metadata</p>
                         <p className="font-medium">
                           {fixResult.metadata.fixed_count} / {fixResult.metadata.total_records}
-                          {!fixResult.dry_run && ' düzeltildi'}
+                          {!fixResult.dry_run && ' fixed'}
                         </p>
                       </div>
                     )}
@@ -1649,25 +1649,25 @@ export default function MigrationToolsPage() {
                 <div>
                   <CardTitle className="flex items-center gap-2">
                     <Scissors className="h-5 w-5" />
-                    Doküman OCR Düzeltme
+                    Document OCR Fix
                   </CardTitle>
                   <CardDescription>
-                    document_embeddings tablosundaki OCR sorunlarını analiz et ve düzelt
+                    Analyze and fix OCR issues in the document_embeddings table
                   </CardDescription>
                 </div>
                 {!docOptStatus?.is_running && (
                   <div className="flex gap-2">
                     <Button onClick={docOptStartAnalyze} variant="outline" size="sm">
                       <Activity className="h-4 w-4 mr-1" />
-                      Analiz Et
+                      Analyze
                     </Button>
                     <Button onClick={() => docOptStartOptimize(false)} size="sm">
                       <Wrench className="h-4 w-4 mr-1" />
-                      Düzelt (Regex)
+                      Fix (Regex)
                     </Button>
                     <Button onClick={() => docOptStartOptimize(true)} size="sm" variant="secondary">
                       <Brain className="h-4 w-4 mr-1" />
-                      Düzelt (LLM)
+                      Fix (LLM)
                     </Button>
                   </div>
                 )}
@@ -1692,11 +1692,11 @@ export default function MigrationToolsPage() {
                       <span className="text-sm font-medium">{docOptStatus.message}</span>
                       <div className="flex gap-2">
                         {docOptStatus.is_paused ? (
-                          <Button size="sm" variant="outline" onClick={() => docOptControl('resume')}>Devam Et</Button>
+                          <Button size="sm" variant="outline" onClick={() => docOptControl('resume')}>Resume</Button>
                         ) : (
-                          <Button size="sm" variant="outline" onClick={() => docOptControl('pause')}>Duraklat</Button>
+                          <Button size="sm" variant="outline" onClick={() => docOptControl('pause')}>Pause</Button>
                         )}
-                        <Button size="sm" variant="destructive" onClick={() => docOptControl('stop')}>Durdur</Button>
+                        <Button size="sm" variant="destructive" onClick={() => docOptControl('stop')}>Stop</Button>
                       </div>
                     </div>
                     <div className="grid grid-cols-4 gap-3 text-xs text-center">
@@ -1713,7 +1713,7 @@ export default function MigrationToolsPage() {
                         <p className="font-bold text-orange-700">{docOptStatus.llm_fixes.toLocaleString()}</p>
                       </div>
                       <div className="p-2 bg-gray-50 rounded">
-                        <p className="text-muted-foreground">Süre</p>
+                        <p className="text-muted-foreground">Duration</p>
                         <p className="font-bold">{Math.round(docOptStatus.elapsed_seconds)}s</p>
                       </div>
                     </div>
@@ -1750,27 +1750,27 @@ export default function MigrationToolsPage() {
                   <div className="flex-1 space-y-3">
                     <div className="grid grid-cols-3 gap-3 text-center">
                       <div className="p-2 bg-gray-50 rounded-lg">
-                        <p className="text-xs text-muted-foreground">Toplam</p>
+                        <p className="text-xs text-muted-foreground">Total</p>
                         <p className="text-lg font-bold">{docOptStatus.analysis.total_records.toLocaleString()}</p>
                       </div>
                       <div className="p-2 bg-red-50 rounded-lg">
-                        <p className="text-xs text-red-600">Sorunlu</p>
+                        <p className="text-xs text-red-600">Issues</p>
                         <p className="text-lg font-bold text-red-700">{docOptStatus.analysis.affected_records.toLocaleString()}</p>
                       </div>
                       <div className="p-2 bg-green-50 rounded-lg">
-                        <p className="text-xs text-green-600">Temiz</p>
+                        <p className="text-xs text-green-600">Clean</p>
                         <p className="text-lg font-bold text-green-700">{docOptStatus.analysis.clean_records.toLocaleString()}</p>
                       </div>
                     </div>
                     <div className="flex flex-wrap gap-2 text-xs">
                       {docOptStatus.analysis.issues.spaced_letters > 0 && (
-                        <Badge variant="outline">Boşluklu Harf: {docOptStatus.analysis.issues.spaced_letters}</Badge>
+                        <Badge variant="outline">Spaced Letters: {docOptStatus.analysis.issues.spaced_letters}</Badge>
                       )}
                       {docOptStatus.analysis.issues.word_breaks > 0 && (
-                        <Badge variant="outline">Kelime Kırılma: {docOptStatus.analysis.issues.word_breaks}</Badge>
+                        <Badge variant="outline">Word Breaks: {docOptStatus.analysis.issues.word_breaks}</Badge>
                       )}
                       {docOptStatus.analysis.issues.concatenated > 0 && (
-                        <Badge variant="outline">Birleşik Metin: {docOptStatus.analysis.issues.concatenated}</Badge>
+                        <Badge variant="outline">Concatenated Text: {docOptStatus.analysis.issues.concatenated}</Badge>
                       )}
                       {docOptStatus.analysis.issues.html > 0 && (
                         <Badge variant="outline">HTML: {docOptStatus.analysis.issues.html}</Badge>
@@ -1798,7 +1798,7 @@ export default function MigrationToolsPage() {
               {!docOptStatus?.is_running && !docOptStatus?.analysis && docOptStatus?.phase !== 'completed' && docOptStatus?.phase !== 'error' && (
                 <div className="text-center py-6 text-muted-foreground">
                   <Scissors className="h-10 w-10 mx-auto mb-2 opacity-20" />
-                  <p className="text-sm">OCR sorunlarını tespit etmek için &quot;Analiz Et&quot; butonuna tıklayın.</p>
+                  <p className="text-sm">Click &quot;Analyze&quot; to detect OCR issues.</p>
                 </div>
               )}
             </CardContent>

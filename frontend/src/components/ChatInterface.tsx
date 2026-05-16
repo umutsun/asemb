@@ -810,8 +810,8 @@ export default function ChatInterface() {
         // Handle subscription limit error specifically
         if (response.status === 429 && errorData.code === 'QUERY_LIMIT_EXCEEDED') {
           const subscriptionMessage = user?.role === 'admin'
-            ? 'Admin kullanıcılarsınız sınırsız erişiminiz olmalıdır. Ancak teknik bir sorun oluştuğunu görüyoruz.'
-            : 'Üzgünüm, aylık soru limitinizi doldurdunuz. devam etmek için lütfen abonelik paketinizi yükseltin veya bir yönetici ile iletişime geçin.';
+            ? 'As an admin user you should have unlimited access, but a technical issue is preventing this.'
+            : 'Sorry, you have reached your monthly question limit. Please upgrade your subscription plan or contact an administrator to continue.';
 
           setMessages(prev => prev.map(msg =>
             msg.id === messageId
@@ -933,7 +933,7 @@ export default function ChatInterface() {
           msg.id === messageId
             ? {
                 ...msg,
-                content: data.message?.content || data.response || data.message || 'Üzgünüm, bir hata oluştu.',
+                content: data.message?.content || data.response || data.message || 'Sorry, an error occurred.',
                 isStreaming: false,
                 sources: data.sources,
                 relatedTopics: data.relatedTopics,
@@ -951,18 +951,18 @@ export default function ChatInterface() {
       // Check if it's a subscription error that wasn't handled above
       const errorMessage = error instanceof Error ? error.message : '';
 
-      let userFriendlyMessage = 'Üzgünüm, şu anda yanıt veremiyorum. Lütfen daha sonra tekrar deneyin.';
+      let userFriendlyMessage = 'Sorry, I cannot respond right now. Please try again later.';
 
       // More specific check for 429 status - only match HTTP status format, not arbitrary '429' in text
       const is429Error = errorMessage.includes(': 429') || errorMessage.includes('status 429') || errorMessage.includes('QUERY_LIMIT_EXCEEDED');
       if (is429Error) {
         userFriendlyMessage = user?.role === 'admin'
-          ? 'Admin kullanıcılarsınız sınırsız erişiminiz olmalıdır. Ancak teknik bir sorun oluştuğunu görüyoruz. Lütfen sistem yöneticisi ile iletişime geçin.'
-          : 'Üzgünüm, aylık soru limitinizi doldurdunuz. devam etmek için lütfen abonelik paketinizi yükseltin veya bir yönetici ile iletişime geçin.';
+          ? 'As an admin user you should have unlimited access, but a technical issue is preventing this. Please contact the system administrator.'
+          : 'Sorry, you have reached your monthly question limit. Please upgrade your subscription plan or contact an administrator to continue.';
       } else if (errorMessage.includes('401') || errorMessage.includes('TOKEN')) {
-        userFriendlyMessage = 'Oturumunuzun süresi dolmuş. Lütfen tekrar giriş yapın.';
+        userFriendlyMessage = 'Your session has expired. Please sign in again.';
       } else if (errorMessage.includes('403') || errorMessage.includes('SUBSCRIPTION')) {
-        userFriendlyMessage = 'Bu özelliği kullanmak için aktif bir abonelik gereklidir. Lütfen abonelik paketinizi yükseltin.';
+        userFriendlyMessage = 'An active subscription is required to use this feature. Please upgrade your subscription plan.';
       }
 
       setMessages(prev => prev.map(msg =>
@@ -1126,20 +1126,20 @@ export default function ChatInterface() {
                       <div className="absolute right-0 top-full mt-1 w-48 bg-popover border rounded-md shadow-lg z-50">
                         <div className="p-2">
                           <div className="px-2 py-1.5 text-sm font-medium border-b">
-                            <div>{user?.name || 'Kullanıcı'}</div>
+                            <div>{user?.name || 'User'}</div>
                             <div className="text-xs text-muted-foreground truncate">{user?.email}</div>
                           </div>
                           <Link href="/profile">
                             <Button variant="ghost" className="w-full justify-start text-sm h-8 px-2">
                               <UserCircle className="w-4 h-4 mr-2" />
-                              Profil
+                              Profile
                             </Button>
                           </Link>
                           {(user?.role === 'admin' || user?.role === 'manager') && (
                             <Link href="/dashboard/messages">
                               <Button variant="ghost" className="w-full justify-start text-sm h-8 px-2">
                                 <MessageSquare className="w-4 h-4 mr-2" />
-                                Mesaj Analizleri
+                                Message Analytics
                               </Button>
                             </Link>
                           )}
@@ -1152,7 +1152,7 @@ export default function ChatInterface() {
                             }}
                           >
                             <LogOut className="w-4 h-4 mr-2" />
-                            Çıkış Yap
+                            Logout
                           </Button>
                         </div>
                       </div>
@@ -1168,7 +1168,7 @@ export default function ChatInterface() {
                       variant="ghost"
                       size="sm"
                       className="p-2"
-                      title={user?.name || 'Kullanıcı'}
+                      title={user?.name || 'User'}
                     >
                       <UserCircle className="w-5 h-5" />
                     </Button>
@@ -1203,7 +1203,7 @@ export default function ChatInterface() {
                   <div className="flex-1">
                     <div className="rounded-lg p-4 bg-card border">
                       <div className="prose prose-sm max-w-none dark:prose-invert">
-                        {chatbotSettings.welcomeMessage || 'Merhaba! Size nasıl yardımcı olabilirim?'}
+                        {chatbotSettings.welcomeMessage || 'Hello! How can I help you?'}
                       </div>
                     </div>
                   </div>
@@ -1366,7 +1366,7 @@ export default function ChatInterface() {
                                                 e.stopPropagation();
                                                 handleSourceClick(source);
                                               }}
-                                              title="Bu konuyla ilgili detaylı araştırma yap"
+                                              title="Research this topic in detail"
                                             >
                                               <div className="flex items-start gap-2 sm:gap-3">
                                                 <div className="flex-1 min-w-0 overflow-hidden">
@@ -1403,13 +1403,13 @@ export default function ChatInterface() {
 
                                                         if (!/[.!?]$/.test(excerpt)) {
                                                           if (excerpt.includes('şart') || excerpt.includes('gerekir')) {
-                                                            excerpt += ' ve bu durumda ilgili mevzuat hükümleri uygulanır.';
+                                                            excerpt += ' In this case, the relevant legislative provisions apply.';
                                                           } else if (excerpt.includes('yıl') || excerpt.includes('süre')) {
-                                                            excerpt += ' Bu süre hesaplanırken belirli şartlar göz önünde bulundurulur.';
+                                                            excerpt += ' Specific conditions are taken into account when calculating this period.';
                                                           } else if (excerpt.includes('vergi') || excerpt.includes('ödeme')) {
-                                                            excerpt += ' Bu konuda ilgili kanun hükümleri referans alınır.';
+                                                            excerpt += ' The relevant statutory provisions are referenced here.';
                                                           } else {
-                                                            excerpt += ' Konuyla ilgili detaylı bilgilere kaynaklardan ulaşılabilir.';
+                                                            excerpt += ' Detailed information on this topic can be found in the sources.';
                                                           }
                                                         }
 
@@ -1481,7 +1481,7 @@ export default function ChatInterface() {
                                               }}
                                             >
                                               <ChevronDown className="w-4 h-4 mr-2" />
-                                              Daha fazla göster ({sortedSources.length - visibleCount} konu daha)
+                                              Show more ({sortedSources.length - visibleCount} more topics)
                                             </Button>
                                           )}
                                         </div>
@@ -1616,10 +1616,10 @@ export default function ChatInterface() {
 
             <div className="flex items-center justify-between mt-1.5 sm:mt-2">
               <p className="text-[10px] sm:text-xs text-muted-foreground hidden sm:block">
-                Enter ile gönder, Shift+Enter ile yeni satır
+                Press Enter to send, Shift+Enter for new line
               </p>
               <div className="flex items-center gap-2 text-[10px] sm:text-xs text-muted-foreground ml-auto">
-                <span>{messages.length - 1} mesaj</span>
+                <span>{messages.length - 1} messages</span>
               </div>
             </div>
           </div>

@@ -250,19 +250,19 @@ export default function AnalyticsDashboard() {
       {/* Header */}
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-xl font-semibold">Semantik Analiz & Görselleştirme</h1>
+          <h1 className="text-xl font-semibold">Semantic Analysis & Visualization</h1>
           <p className="text-muted-foreground mt-1">
-            Verilerinizin derinlemesine analizini ve ilişki haritasını keşfedin
+            Explore in-depth analysis and relationship maps of your data
           </p>
         </div>
         <div className="flex gap-2">
           <Button variant="outline" onClick={fetchAnalytics}>
             <RefreshCw className="h-4 w-4 mr-2" />
-            Yenile
+            Refresh
           </Button>
           <Button variant="outline">
             <Download className="h-4 w-4 mr-2" />
-            Rapor İndir
+            Download Report
           </Button>
         </div>
       </div>
@@ -272,7 +272,7 @@ export default function AnalyticsDashboard() {
         <Card className="bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-900 dark:to-blue-800">
           <CardHeader className="pb-3">
             <div className="flex justify-between items-center">
-              <CardTitle className="text-sm">Toplam Node</CardTitle>
+              <CardTitle className="text-sm">Total Nodes</CardTitle>
               <Network className="h-5 w-5 text-blue-600" />
             </div>
           </CardHeader>
@@ -280,7 +280,7 @@ export default function AnalyticsDashboard() {
             <div className="text-2xl font-bold">{analyticsData?.stats.totalNodes || 0}</div>
             <div className="flex items-center gap-2 mt-2">
               <Badge variant="outline" className="text-xs">
-                {analyticsData?.stats.communities || 0} Topluluk
+                {analyticsData?.stats.communities || 0} Communities
               </Badge>
               <TrendingUp className="h-3 w-3 text-green-500" />
             </div>
@@ -290,7 +290,7 @@ export default function AnalyticsDashboard() {
         <Card className="bg-gradient-to-br from-green-50 to-green-100 dark:from-green-900 dark:to-green-800">
           <CardHeader className="pb-3">
             <div className="flex justify-between items-center">
-              <CardTitle className="text-sm">İlişki Sayısı</CardTitle>
+              <CardTitle className="text-sm">Relationships</CardTitle>
               <Link className="h-5 w-5 text-green-600" />
             </div>
           </CardHeader>
@@ -298,7 +298,7 @@ export default function AnalyticsDashboard() {
             <div className="text-2xl font-bold">{analyticsData?.stats.totalEdges || 0}</div>
             <Progress value={(analyticsData?.stats.density || 0) * 100} className="mt-2" />
             <p className="text-xs text-muted-foreground mt-1">
-              Yoğunluk: {((analyticsData?.stats.density || 0) * 100).toFixed(1)}%
+              Density: {((analyticsData?.stats.density || 0) * 100).toFixed(1)}%
             </p>
           </CardContent>
         </Card>
@@ -306,7 +306,7 @@ export default function AnalyticsDashboard() {
         <Card className="bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-900 dark:to-purple-800">
           <CardHeader className="pb-3">
             <div className="flex justify-between items-center">
-              <CardTitle className="text-sm">Semantik Yoğunluk</CardTitle>
+              <CardTitle className="text-sm">Semantic Density</CardTitle>
               <Brain className="h-5 w-5 text-purple-600" />
             </div>
           </CardHeader>
@@ -316,7 +316,7 @@ export default function AnalyticsDashboard() {
             </div>
             <div className="flex items-center gap-1 mt-2">
               <Sparkles className="h-3 w-3 text-yellow-500" />
-              <span className="text-xs">Yüksek Kalite</span>
+              <span className="text-xs">High Quality</span>
             </div>
           </CardContent>
         </Card>
@@ -324,7 +324,7 @@ export default function AnalyticsDashboard() {
         <Card className="bg-gradient-to-br from-orange-50 to-orange-100 dark:from-orange-900 dark:to-orange-800">
           <CardHeader className="pb-3">
             <div className="flex justify-between items-center">
-              <CardTitle className="text-sm">Bilgi Kapsama</CardTitle>
+              <CardTitle className="text-sm">Knowledge Coverage</CardTitle>
               <Database className="h-5 w-5 text-orange-600" />
             </div>
           </CardHeader>
@@ -339,7 +339,7 @@ export default function AnalyticsDashboard() {
         <Card className="bg-gradient-to-br from-pink-50 to-pink-100 dark:from-pink-900 dark:to-pink-800">
           <CardHeader className="pb-3">
             <div className="flex justify-between items-center">
-              <CardTitle className="text-sm">Merkezi Düğümler</CardTitle>
+              <CardTitle className="text-sm">Central Nodes</CardTitle>
               <GitBranch className="h-5 w-5 text-pink-600" />
             </div>
           </CardHeader>
@@ -355,11 +355,11 @@ export default function AnalyticsDashboard() {
       {/* Main Content Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
         <TabsList className="grid w-full grid-cols-5">
-          <TabsTrigger value="overview">Genel Bakış</TabsTrigger>
-          <TabsTrigger value="knowledge-graph">Bilgi Grafiği</TabsTrigger>
-          <TabsTrigger value="entities">Varlık Analizi</TabsTrigger>
-          <TabsTrigger value="concepts">Konsept Haritası</TabsTrigger>
-          <TabsTrigger value="insights">Öngörüler</TabsTrigger>
+          <TabsTrigger value="overview">Overview</TabsTrigger>
+          <TabsTrigger value="knowledge-graph">Knowledge Graph</TabsTrigger>
+          <TabsTrigger value="entities">Entity Analysis</TabsTrigger>
+          <TabsTrigger value="concepts">Concept Map</TabsTrigger>
+          <TabsTrigger value="insights">Insights</TabsTrigger>
         </TabsList>
 
         {/* Overview Tab */}
@@ -368,9 +368,9 @@ export default function AnalyticsDashboard() {
             {/* Semantic Analysis Radar */}
             <Card>
               <CardHeader>
-                <CardTitle>Semantik Analiz Profili</CardTitle>
+                <CardTitle>Semantic Analysis Profile</CardTitle>
                 <CardDescription>
-                  Veri kümesinin çok boyutlu analizi
+                  Multi-dimensional analysis of the dataset
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -380,7 +380,7 @@ export default function AnalyticsDashboard() {
                     <PolarAngleAxis dataKey="subject" />
                     <PolarRadiusAxis angle={90} domain={[0, 100]} />
                     <Radar
-                      name="Performans"
+                      name="Performance"
                       dataKey="A"
                       stroke="#3b82f6"
                       fill="#3b82f6"
@@ -395,9 +395,9 @@ export default function AnalyticsDashboard() {
             {/* Concept Frequency */}
             <Card>
               <CardHeader>
-                <CardTitle>Konsept Frekansları</CardTitle>
+                <CardTitle>Concept Frequencies</CardTitle>
                 <CardDescription>
-                  En sık kullanılan konseptler ve bağlantıları
+                  Most frequent concepts and their connections
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -408,8 +408,8 @@ export default function AnalyticsDashboard() {
                     <YAxis />
                     <Tooltip />
                     <Legend />
-                    <Bar dataKey="frequency" fill="#3b82f6" name="Frekans" />
-                    <Bar dataKey="connections" fill="#10b981" name="Bağlantılar" />
+                    <Bar dataKey="frequency" fill="#3b82f6" name="Frequency" />
+                    <Bar dataKey="connections" fill="#10b981" name="Connections" />
                   </BarChart>
                 </ResponsiveContainer>
               </CardContent>
@@ -420,8 +420,8 @@ export default function AnalyticsDashboard() {
             {/* Document Clusters */}
             <Card>
               <CardHeader>
-                <CardTitle>Doküman Kümeleri</CardTitle>
-                <CardDescription>Tematik gruplama</CardDescription>
+                <CardTitle>Document Clusters</CardTitle>
+                <CardDescription>Thematic grouping</CardDescription>
               </CardHeader>
               <CardContent>
                 <ResponsiveContainer width="100%" height={250}>
@@ -449,8 +449,8 @@ export default function AnalyticsDashboard() {
             {/* Entity Importance */}
             <Card>
               <CardHeader>
-                <CardTitle>Varlık Önemi</CardTitle>
-                <CardDescription>En kritik varlıklar</CardDescription>
+                <CardTitle>Entity Importance</CardTitle>
+                <CardDescription>Most critical entities</CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="space-y-3">
@@ -475,8 +475,8 @@ export default function AnalyticsDashboard() {
             {/* Network Stats */}
             <Card>
               <CardHeader>
-                <CardTitle>Ağ İstatistikleri</CardTitle>
-                <CardDescription>Graf metrikleri</CardDescription>
+                <CardTitle>Network Statistics</CardTitle>
+                <CardDescription>Graph metrics</CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="space-y-3">
@@ -501,9 +501,9 @@ export default function AnalyticsDashboard() {
             <CardHeader>
               <div className="flex justify-between items-center">
                 <div>
-                  <CardTitle>İnteraktif Bilgi Grafiği</CardTitle>
+                  <CardTitle>Interactive Knowledge Graph</CardTitle>
                   <CardDescription>
-                    Veri noktaları arasındaki ilişkileri keşfedin
+                    Explore relationships between data points
                   </CardDescription>
                 </div>
                 <div className="flex gap-2">
@@ -519,7 +519,7 @@ export default function AnalyticsDashboard() {
                     variant={selectedView === '2d' ? 'default' : 'outline'}
                     onClick={() => setSelectedView('2d')}
                   >
-                    2D Graf
+                    2D Graph
                   </Button>
                   <Button
                     size="sm"
@@ -561,9 +561,9 @@ export default function AnalyticsDashboard() {
                   <div className="text-center space-y-4">
                     <Network className="h-16 w-16 mx-auto text-primary opacity-50" />
                     <div>
-                      <h3 className="font-medium text-slate-900 dark:text-cyan-100">Bilgi Grafiği Boş</h3>
+                      <h3 className="font-medium text-slate-900 dark:text-cyan-100">Knowledge Graph Is Empty</h3>
                       <p className="text-sm text-muted-foreground mt-2">
-                        Henüz eşlenmiş bir veri bulunamadı.
+                        No mapped data found yet.
                       </p>
                     </div>
                   </div>
@@ -578,9 +578,9 @@ export default function AnalyticsDashboard() {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             <Card>
               <CardHeader>
-                <CardTitle>Varlık İlişki Matrisi</CardTitle>
+                <CardTitle>Entity Relationship Matrix</CardTitle>
                 <CardDescription>
-                  Varlıklar arası bağlantı yoğunluğu
+                  Connection density between entities
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -599,7 +599,7 @@ export default function AnalyticsDashboard() {
                   {analyticsData?.stats.centralNodes?.slice(0, 3).map((node, idx) => (
                     <div key={idx} className="flex items-center justify-between p-2 bg-gray-50 dark:bg-gray-800 rounded">
                       <span className="text-sm font-medium">{node}</span>
-                      <Badge variant="outline">Merkezi Düğüm</Badge>
+                      <Badge variant="outline">Central Node</Badge>
                     </div>
                   ))}
                 </div>
@@ -608,29 +608,29 @@ export default function AnalyticsDashboard() {
 
             <Card>
               <CardHeader>
-                <CardTitle>Varlık Zaman Çizelgesi</CardTitle>
+                <CardTitle>Entity Timeline</CardTitle>
                 <CardDescription>
-                  Zaman içindeki varlık aktivitesi
+                  Entity activity over time
                 </CardDescription>
               </CardHeader>
               <CardContent>
                 <ResponsiveContainer width="100%" height={250}>
                   <LineChart data={[
-                    { time: 'Pzt', entities: 12, mentions: 45 },
-                    { time: 'Sal', entities: 15, mentions: 52 },
-                    { time: 'Çar', entities: 18, mentions: 61 },
-                    { time: 'Per', entities: 14, mentions: 48 },
-                    { time: 'Cum', entities: 22, mentions: 73 },
-                    { time: 'Cmt', entities: 19, mentions: 65 },
-                    { time: 'Paz', entities: 16, mentions: 58 }
+                    { time: 'Mon', entities: 12, mentions: 45 },
+                    { time: 'Tue', entities: 15, mentions: 52 },
+                    { time: 'Wed', entities: 18, mentions: 61 },
+                    { time: 'Thu', entities: 14, mentions: 48 },
+                    { time: 'Fri', entities: 22, mentions: 73 },
+                    { time: 'Sat', entities: 19, mentions: 65 },
+                    { time: 'Sun', entities: 16, mentions: 58 }
                   ]}>
                     <CartesianGrid strokeDasharray="3 3" />
                     <XAxis dataKey="time" />
                     <YAxis />
                     <Tooltip />
                     <Legend />
-                    <Line type="monotone" dataKey="entities" stroke="#3b82f6" name="Varlıklar" />
-                    <Line type="monotone" dataKey="mentions" stroke="#10b981" name="Bahsetmeler" />
+                    <Line type="monotone" dataKey="entities" stroke="#3b82f6" name="Entities" />
+                    <Line type="monotone" dataKey="mentions" stroke="#10b981" name="Mentions" />
                   </LineChart>
                 </ResponsiveContainer>
               </CardContent>
@@ -642,9 +642,9 @@ export default function AnalyticsDashboard() {
         <TabsContent value="concepts" className="space-y-4">
           <Card>
             <CardHeader>
-              <CardTitle>Konsept Hiyerarşisi</CardTitle>
+              <CardTitle>Concept Hierarchy</CardTitle>
               <CardDescription>
-                Kavramsal ilişkiler ve bağımlılıklar
+                Conceptual relationships and dependencies
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -659,11 +659,11 @@ export default function AnalyticsDashboard() {
                             {concept.concept}
                           </h4>
                           <div className="flex gap-4 mt-2 text-sm text-muted-foreground">
-                            <span>Frekans: {concept.frequency}</span>
-                            <span>Bağlantılar: {concept.connections}</span>
+                            <span>Frequency: {concept.frequency}</span>
+                            <span>Connections: {concept.connections}</span>
                           </div>
                         </div>
-                        <Badge variant="outline">Seviye {idx + 1}</Badge>
+                        <Badge variant="outline">Level {idx + 1}</Badge>
                       </div>
                       <Progress value={(concept.frequency / 200) * 100} className="h-2" />
                     </div>
@@ -681,22 +681,22 @@ export default function AnalyticsDashboard() {
               <CardHeader>
                 <CardTitle className="text-lg flex items-center gap-2">
                   <Info className="h-5 w-5" />
-                  Anahtar Bulgular
+                  Key Findings
                 </CardTitle>
               </CardHeader>
               <CardContent>
                 <ul className="space-y-2 text-sm">
                   <li className="flex items-start gap-2">
                     <div className="w-1.5 h-1.5 bg-blue-500 rounded-full mt-1.5" />
-                    <span>Veri setinde {analyticsData?.stats.communities || 0} farklı tematik topluluk tespit edildi</span>
+                    <span>{analyticsData?.stats.communities || 0} distinct thematic communities detected in the dataset</span>
                   </li>
                   <li className="flex items-start gap-2">
                     <div className="w-1.5 h-1.5 bg-blue-500 rounded-full mt-1.5" />
-                    <span>En yoğun ilişki ağı "Machine Learning" konsepti etrafında</span>
+                    <span>The densest relationship network is around the "Machine Learning" concept</span>
                   </li>
                   <li className="flex items-start gap-2">
                     <div className="w-1.5 h-1.5 bg-blue-500 rounded-full mt-1.5" />
-                    <span>Ortalama bağlantı derecesi {analyticsData?.stats.avgDegree?.toFixed(1) || 0} ile optimal seviyede</span>
+                    <span>Average degree {analyticsData?.stats.avgDegree?.toFixed(1) || 0} is at an optimal level</span>
                   </li>
                 </ul>
               </CardContent>
@@ -706,22 +706,22 @@ export default function AnalyticsDashboard() {
               <CardHeader>
                 <CardTitle className="text-lg flex items-center gap-2">
                   <TrendingUp className="h-5 w-5" />
-                  Öneriler
+                  Recommendations
                 </CardTitle>
               </CardHeader>
               <CardContent>
                 <ul className="space-y-2 text-sm">
                   <li className="flex items-start gap-2">
                     <div className="w-1.5 h-1.5 bg-green-500 rounded-full mt-1.5" />
-                    <span>Düşük bağlantılı dokümanları güçlendirin</span>
+                    <span>Strengthen documents with few connections</span>
                   </li>
                   <li className="flex items-start gap-2">
                     <div className="w-1.5 h-1.5 bg-green-500 rounded-full mt-1.5" />
-                    <span>Merkezi düğümlere daha fazla içerik ekleyin</span>
+                    <span>Add more content to central nodes</span>
                   </li>
                   <li className="flex items-start gap-2">
                     <div className="w-1.5 h-1.5 bg-green-500 rounded-full mt-1.5" />
-                    <span>İzole kümeler arasında köprüler oluşturun</span>
+                    <span>Build bridges between isolated clusters</span>
                   </li>
                 </ul>
               </CardContent>
@@ -731,22 +731,22 @@ export default function AnalyticsDashboard() {
               <CardHeader>
                 <CardTitle className="text-lg flex items-center gap-2">
                   <Sparkles className="h-5 w-5" />
-                  Fırsatlar
+                  Opportunities
                 </CardTitle>
               </CardHeader>
               <CardContent>
                 <ul className="space-y-2 text-sm">
                   <li className="flex items-start gap-2">
                     <div className="w-1.5 h-1.5 bg-purple-500 rounded-full mt-1.5" />
-                    <span>%{((1 - (analyticsData?.insights.knowledgeCoverage || 0)) * 100).toFixed(0)} bilgi boşluğu doldurulabilir</span>
+                    <span>{((1 - (analyticsData?.insights.knowledgeCoverage || 0)) * 100).toFixed(0)}% knowledge gap can be filled</span>
                   </li>
                   <li className="flex items-start gap-2">
                     <div className="w-1.5 h-1.5 bg-purple-500 rounded-full mt-1.5" />
-                    <span>Yeni konsept bağlantıları keşfedilebilir</span>
+                    <span>New concept connections can be discovered</span>
                   </li>
                   <li className="flex items-start gap-2">
                     <div className="w-1.5 h-1.5 bg-purple-500 rounded-full mt-1.5" />
-                    <span>Otomatik içerik önerileri üretilebilir</span>
+                    <span>Automatic content suggestions can be generated</span>
                   </li>
                 </ul>
               </CardContent>

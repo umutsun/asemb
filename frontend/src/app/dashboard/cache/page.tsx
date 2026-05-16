@@ -146,7 +146,7 @@ export default function RedisCachePage() {
         <div>
           <h1 className="text-xl font-semibold">Redis Cache</h1>
           <p className="text-sm text-muted-foreground mt-1">
-            Cache yönetimi ve performans metrikleri
+            Cache management and performance metrics
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -154,23 +154,23 @@ export default function RedisCachePage() {
             {stats.connected ? (
               <>
                 <CheckCircle className="h-3 w-3" />
-                Bağlı
+                Connected
               </>
             ) : (
               <>
                 <AlertCircle className="h-3 w-3" />
-                Bağlı Değil
+                Disconnected
               </>
             )}
           </Badge>
           <ConfirmTooltip
             onConfirm={handleFlushCache}
-            message="Tüm cache temizlensin mi?"
+            message="Clear entire cache?"
             side="bottom"
           >
             <Button variant="destructive" size="sm">
               <Trash2 className="mr-2 h-4 w-4" />
-              Cache Temizle
+              Clear Cache
             </Button>
           </ConfirmTooltip>
         </div>
@@ -181,7 +181,7 @@ export default function RedisCachePage() {
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">
-              Bellek Kullanımı
+              Memory Usage
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -197,7 +197,7 @@ export default function RedisCachePage() {
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">
-              Toplam Key
+              Total Keys
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -231,7 +231,7 @@ export default function RedisCachePage() {
               {formatUptime(stats.uptime)}
             </div>
             <p className="text-xs text-muted-foreground mt-1">
-              {stats.commands} komut
+              {stats.commands} commands
             </p>
           </CardContent>
         </Card>
@@ -242,20 +242,20 @@ export default function RedisCachePage() {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <BarChart3 className="h-5 w-5" />
-            Performans Metrikleri
+            Performance Metrics
           </CardTitle>
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-3 gap-4">
             <div className="space-y-2">
-              <p className="text-sm text-muted-foreground">Hit/Miss Oranı</p>
+              <p className="text-sm text-muted-foreground">Hit/Miss Ratio</p>
               <div className="flex items-center gap-2">
                 <Progress value={hitRate} className="flex-1" />
                 <span className="text-sm font-medium">{hitRate.toFixed(0)}%</span>
               </div>
             </div>
             <div className="space-y-2">
-              <p className="text-sm text-muted-foreground">Bellek Kullanımı</p>
+              <p className="text-sm text-muted-foreground">Memory Usage</p>
               <div className="flex items-center gap-2">
                 <Progress 
                   value={(stats.memory.used / stats.memory.total) * 100} 
@@ -267,7 +267,7 @@ export default function RedisCachePage() {
               </div>
             </div>
             <div className="space-y-2">
-              <p className="text-sm text-muted-foreground">Key Doluluk</p>
+              <p className="text-sm text-muted-foreground">Key Fullness</p>
               <div className="flex items-center gap-2">
                 <Progress 
                   value={Math.min((stats.keys.total / 10000) * 100, 100)} 
@@ -291,7 +291,7 @@ export default function RedisCachePage() {
               <div className="relative">
                 <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
                 <Input
-                  placeholder="Key ara..."
+                  placeholder="Search keys..."
                   value={searchPattern}
                   onChange={(e) => setSearchPattern(e.target.value)}
                   className="pl-8 w-[200px]"
@@ -306,7 +306,7 @@ export default function RedisCachePage() {
         <CardContent>
           <Tabs defaultValue="all" className="w-full">
             <TabsList>
-              <TabsTrigger value="all">Tümü ({keys.length})</TabsTrigger>
+              <TabsTrigger value="all">All ({keys.length})</TabsTrigger>
               <TabsTrigger value="embeddings">Embeddings</TabsTrigger>
               <TabsTrigger value="search">Search Results</TabsTrigger>
               <TabsTrigger value="scraper">Scraper Cache</TabsTrigger>
@@ -316,7 +316,7 @@ export default function RedisCachePage() {
               <div className="space-y-2">
                 {filteredKeys.length === 0 ? (
                   <div className="text-center py-8 text-muted-foreground">
-                    Cache boş
+                    Cache is empty
                   </div>
                 ) : (
                   filteredKeys.map((cacheKey) => (
@@ -359,19 +359,19 @@ export default function RedisCachePage() {
             
             <TabsContent value="embeddings">
               <div className="text-center py-8 text-muted-foreground">
-                Embedding cache keys görüntüleniyor...
+                Displaying embedding cache keys...
               </div>
             </TabsContent>
             
             <TabsContent value="search">
               <div className="text-center py-8 text-muted-foreground">
-                Search result cache keys görüntüleniyor...
+                Displaying search result cache keys...
               </div>
             </TabsContent>
             
             <TabsContent value="scraper">
               <div className="text-center py-8 text-muted-foreground">
-                Scraper cache keys görüntüleniyor...
+                Displaying scraper cache keys...
               </div>
             </TabsContent>
           </Tabs>

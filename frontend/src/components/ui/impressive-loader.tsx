@@ -24,12 +24,12 @@ const ImpressiveLoader: React.FC<ImpressiveLoaderProps> = ({
   onComplete
 }) => {
   const [steps, setSteps] = useState<LoadingStep[]>([
-    { id: '1', label: 'Sunucu bağlantısı kuruluyor', status: 'pending' },
-    { id: '2', label: 'Veritabanı kontrol ediliyor', status: 'pending' },
-    { id: '3', label: 'Önbellek sistemleri başlatılıyor', status: 'pending' },
-    { id: '4', label: 'AI modelleri yükleniyor', status: 'pending' },
-    { id: '5', label: 'Arayüz bileşenleri hazırlanıyor', status: 'pending' },
-    { id: '6', label: 'Oturum yönetimi yapılandırılıyor', status: 'pending' }
+    { id: '1', label: 'Establishing server connection', status: 'pending' },
+    { id: '2', label: 'Checking database', status: 'pending' },
+    { id: '3', label: 'Starting cache systems', status: 'pending' },
+    { id: '4', label: 'Loading AI models', status: 'pending' },
+    { id: '5', label: 'Preparing UI components', status: 'pending' },
+    { id: '6', label: 'Configuring session management', status: 'pending' }
   ]);
 
   const [currentLog, setCurrentLog] = useState<string>('');
@@ -58,12 +58,12 @@ const ImpressiveLoader: React.FC<ImpressiveLoaderProps> = ({
         setProgress(((i + 1) / steps.length) * 100);
 
         // Add random details
-        if (i === 0) setCurrentLog('Sunucu yanıt süresi: 23ms');
-        if (i === 1) setCurrentLog('3 tablo doğrulandı');
-        if (i === 2) setCurrentLog('Redis bağlantısı kuruldu');
-        if (i === 3) setCurrentLog('Gemini 1.5 aktif');
-        if (i === 4) setCurrentLog('247 bileşen hazır');
-        if (i === 5) setCurrentLog('JWT token oluşturuldu');
+        if (i === 0) setCurrentLog('Server response time: 23ms');
+        if (i === 1) setCurrentLog('3 tables validated');
+        if (i === 2) setCurrentLog('Redis connection established');
+        if (i === 3) setCurrentLog('Gemini 1.5 active');
+        if (i === 4) setCurrentLog('247 components ready');
+        if (i === 5) setCurrentLog('JWT token generated');
 
         await new Promise(resolve => setTimeout(resolve, stepDelay / 2));
 
@@ -175,12 +175,12 @@ const ImpressiveLoader: React.FC<ImpressiveLoaderProps> = ({
           <h1 className="text-4xl md:text-5xl font-bold text-gray-900 dark:text-white mb-4">
             {showFinal ? title : (
               <span className="bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-                Sistem Başlatılıyor
+                System Starting
               </span>
             )}
           </h1>
           <p className="text-lg text-gray-600 dark:text-gray-400">
-            {showFinal ? description : 'Lütfen bekleyin...'}
+            {showFinal ? description : 'Please wait...'}
           </p>
         </motion.div>
 
@@ -251,7 +251,7 @@ const ImpressiveLoader: React.FC<ImpressiveLoaderProps> = ({
               <div className="flex items-center space-x-2 mb-2">
                 <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
                 <span className="text-xs text-gray-500 dark:text-gray-400 font-mono uppercase tracking-wider">
-                  Canlı Sistem Durumu
+                  Live System Status
                 </span>
               </div>
               {currentLog && (
@@ -279,7 +279,7 @@ const ImpressiveLoader: React.FC<ImpressiveLoaderProps> = ({
               <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
                 <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
               </svg>
-              <span>Sistem Hazır</span>
+              <span>System Ready</span>
             </div>
           </motion.div>
         )}

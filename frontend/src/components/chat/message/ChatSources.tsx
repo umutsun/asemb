@@ -74,7 +74,7 @@ export const ChatSources: React.FC<ChatSourcesProps> = ({
               e.stopPropagation();
               onSourceClick(source);
             }}
-            title={t('chat.source.detailedResearch', 'Bu konuyla ilgili detaylı araştırma yap')}
+            title={t('chat.source.detailedResearch', 'Research this topic in detail')}
           >
             <div className="flex items-start gap-2 sm:gap-3">
               {/* Source number - smaller on mobile (score used for sorting, not displayed) */}
@@ -91,7 +91,7 @@ export const ChatSources: React.FC<ChatSourcesProps> = ({
                     {stripHtml(source.title)}
                     {(source._synthetic || (source.metadata as Record<string, unknown>)?.synthetic) && (
                       <span className="ml-2 text-[10px] px-1.5 py-0.5 rounded bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 font-medium">
-                        REFERANS
+                        REFERENCE
                       </span>
                     )}
                   </h4>
@@ -152,7 +152,7 @@ export const ChatSources: React.FC<ChatSourcesProps> = ({
             }}
           >
             <ChevronDown className="w-4 h-4 mr-2" />
-            {t('chat.source.showMore', 'Daha fazla göster')}
+            {t('chat.source.showMore', 'Show more')}
           </Button>
         )}
       </div>

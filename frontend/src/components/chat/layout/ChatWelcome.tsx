@@ -55,7 +55,7 @@ export const ChatWelcome: React.FC<ChatWelcomeProps> = ({
           <div className="flex-1">
             <div className="rounded-lg p-4 bg-card border">
               <div className="prose prose-sm max-w-none dark:prose-invert">
-                {chatbotSettings.welcomeMessage || t('chatInterface.welcomeMessage', 'Merhaba! Size nasıl yardımcı olabilirim?')}
+                {chatbotSettings.welcomeMessage || t('chatInterface.welcomeMessage', 'Hello! How can I help you?')}
               </div>
             </div>
           </div>

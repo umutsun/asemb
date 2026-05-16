@@ -65,31 +65,31 @@ interface CrawlerOption {
   category: string;
 }
 
-// GİB kategorileri ve Mevzuat türleri - gerçek crawler scriptlerine uygun
+// GIB categories and Legislation types - matched to real crawler scripts
 const AVAILABLE_CRAWLERS: CrawlerOption[] = [
-  // GİB Crawlers
-  { id: 'gib_sirkuler', label: 'GİB Sirküler', description: 'Sirküler listesi', script: 'vergilex_gib_crawler.py', category: 'GİB' },
-  { id: 'gib_kanunlar', label: 'GİB Kanunlar', description: 'Vergi kanunları', script: 'vergilex_gib_crawler.py', category: 'GİB' },
-  { id: 'gib_gerekceler', label: 'GİB Gerekçeler', description: 'Kanun gerekçeleri', script: 'vergilex_gib_crawler.py', category: 'GİB' },
-  { id: 'gib_tebligler', label: 'GİB Tebliğler', description: 'Vergi tebliğleri', script: 'vergilex_gib_crawler.py', category: 'GİB' },
-  { id: 'gib_yonetmelikler', label: 'GİB Yönetmelikler', description: 'Yönetmelikler', script: 'vergilex_gib_crawler.py', category: 'GİB' },
-  { id: 'gib_ic_genelgeler', label: 'GİB İç Genelgeler', description: 'İç genelgeler', script: 'vergilex_gib_crawler.py', category: 'GİB' },
-  { id: 'gib_genel_yazilar', label: 'GİB Genel Yazılar', description: 'Genel yazılar', script: 'vergilex_gib_crawler.py', category: 'GİB' },
-  { id: 'gib_ozelgeler', label: 'GİB Özelgeler', description: 'Özelgeler', script: 'vergilex_gib_crawler.py', category: 'GİB' },
-  { id: 'gib_cbk', label: 'GİB CBK', description: 'Cumhurbaşkanlığı kararları', script: 'vergilex_gib_crawler.py', category: 'GİB' },
-  { id: 'gib_bkk', label: 'GİB BKK', description: 'Bakanlar kurulu kararları', script: 'vergilex_gib_crawler.py', category: 'GİB' },
-  // Mevzuat Crawlers
-  { id: 'mevzuat_kanun', label: 'Mevzuat Kanunlar', description: 'mevzuat.gov.tr kanunları', script: 'vergilex_mevzuat_crawler.py', category: 'Mevzuat' },
-  { id: 'mevzuat_tuzuk', label: 'Mevzuat Tüzükler', description: 'mevzuat.gov.tr tüzükleri', script: 'vergilex_mevzuat_crawler.py', category: 'Mevzuat' },
-  { id: 'mevzuat_yonetmelik', label: 'Mevzuat Yönetmelikler', description: 'mevzuat.gov.tr yönetmelikleri', script: 'vergilex_mevzuat_crawler.py', category: 'Mevzuat' },
-  { id: 'mevzuat_khk', label: 'Mevzuat KHK', description: 'Kanun hükmünde kararnameler', script: 'vergilex_mevzuat_crawler.py', category: 'Mevzuat' },
-  { id: 'mevzuat_cbk', label: 'Mevzuat CBK', description: 'Cumhurbaşkanlığı kararnameleri', script: 'vergilex_mevzuat_crawler.py', category: 'Mevzuat' },
-  { id: 'mevzuat_teblig', label: 'Mevzuat Tebliğler', description: 'mevzuat.gov.tr tebliğleri', script: 'vergilex_mevzuat_crawler.py', category: 'Mevzuat' },
+  // GIB Crawlers
+  { id: 'gib_sirkuler', label: 'GIB Circulars', description: 'Circular list', script: 'vergilex_gib_crawler.py', category: 'GIB' },
+  { id: 'gib_kanunlar', label: 'GIB Laws', description: 'Tax laws', script: 'vergilex_gib_crawler.py', category: 'GIB' },
+  { id: 'gib_gerekceler', label: 'GIB Justifications', description: 'Law justifications', script: 'vergilex_gib_crawler.py', category: 'GIB' },
+  { id: 'gib_tebligler', label: 'GIB Notices', description: 'Tax notices', script: 'vergilex_gib_crawler.py', category: 'GIB' },
+  { id: 'gib_yonetmelikler', label: 'GIB Regulations', description: 'Regulations', script: 'vergilex_gib_crawler.py', category: 'GIB' },
+  { id: 'gib_ic_genelgeler', label: 'GIB Internal Circulars', description: 'Internal circulars', script: 'vergilex_gib_crawler.py', category: 'GIB' },
+  { id: 'gib_genel_yazilar', label: 'GIB General Letters', description: 'General letters', script: 'vergilex_gib_crawler.py', category: 'GIB' },
+  { id: 'gib_ozelgeler', label: 'GIB Tax Rulings', description: 'Tax rulings', script: 'vergilex_gib_crawler.py', category: 'GIB' },
+  { id: 'gib_cbk', label: 'GIB CBK', description: 'Presidential decisions', script: 'vergilex_gib_crawler.py', category: 'GIB' },
+  { id: 'gib_bkk', label: 'GIB BKK', description: 'Council of Ministers decisions', script: 'vergilex_gib_crawler.py', category: 'GIB' },
+  // Legislation Crawlers
+  { id: 'mevzuat_kanun', label: 'Legislation Laws', description: 'mevzuat.gov.tr laws', script: 'vergilex_mevzuat_crawler.py', category: 'Legislation' },
+  { id: 'mevzuat_tuzuk', label: 'Legislation Statutes', description: 'mevzuat.gov.tr statutes', script: 'vergilex_mevzuat_crawler.py', category: 'Legislation' },
+  { id: 'mevzuat_yonetmelik', label: 'Legislation Regulations', description: 'mevzuat.gov.tr regulations', script: 'vergilex_mevzuat_crawler.py', category: 'Legislation' },
+  { id: 'mevzuat_khk', label: 'Legislation Decree-Laws', description: 'Decree-laws with the force of statute', script: 'vergilex_mevzuat_crawler.py', category: 'Legislation' },
+  { id: 'mevzuat_cbk', label: 'Legislation CBK', description: 'Presidential decrees', script: 'vergilex_mevzuat_crawler.py', category: 'Legislation' },
+  { id: 'mevzuat_teblig', label: 'Legislation Notices', description: 'mevzuat.gov.tr notices', script: 'vergilex_mevzuat_crawler.py', category: 'Legislation' },
 ];
 
 // Crawler ID → script args mapping
 const CRAWLER_ARGS: Record<string, string[]> = {
-  // GİB
+  // GIB
   'gib_sirkuler': ['sirkuler', '--update'],
   'gib_kanunlar': ['kanunlar', '--update'],
   'gib_gerekceler': ['gerekceler', '--update'],
@@ -122,8 +122,8 @@ const DEFAULT_FORM: JobFormData = {
   name: '',
   crawler: '',
   scheduleType: 'cron',
-  cronExpression: '0 3 * * 0', // Her Pazar saat 03:00
-  intervalHours: 168, // 1 hafta
+  cronExpression: '0 3 * * 0', // Every Sunday at 03:00
+  intervalHours: 168, // 1 week
   enabled: true
 };
 
@@ -218,11 +218,11 @@ export default function SchedulerSection() {
 
   const handleSave = async () => {
     if (!formData.name.trim()) {
-      toast.error('İş adı zorunludur');
+      toast.error('Job name is required');
       return;
     }
     if (!formData.crawler) {
-      toast.error('Crawler seçimi zorunludur');
+      toast.error('Crawler selection is required');
       return;
     }
 
@@ -262,22 +262,22 @@ export default function SchedulerSection() {
       }
 
       if (res.ok) {
-        toast.success(editingJob ? 'İş güncellendi' : 'İş oluşturuldu');
+        toast.success(editingJob ? 'Job updated' : 'Job created');
         setShowModal(false);
         fetchData();
       } else {
         const error = await res.json();
-        toast.error(error.message || 'İşlem başarısız');
+        toast.error(error.message || 'Operation failed');
       }
     } catch (error) {
-      toast.error('Bir hata oluştu');
+      toast.error('An error occurred');
     } finally {
       setSaving(false);
     }
   };
 
   const handleDeleteJob = async (jobId: string) => {
-    if (!confirm('Bu işi silmek istediğinize emin misiniz?')) return;
+    if (!confirm('Are you sure you want to delete this job?')) return;
 
     setActionLoading(jobId);
     try {
@@ -287,12 +287,12 @@ export default function SchedulerSection() {
 
       if (res.ok) {
         setJobs(prev => prev.filter(j => j.id !== jobId));
-        toast.success('İş silindi');
+        toast.success('Job deleted');
       } else {
-        toast.error('İş silinemedi');
+        toast.error('Failed to delete job');
       }
     } catch (error) {
-      toast.error('İş silinemedi');
+      toast.error('Failed to delete job');
     } finally {
       setActionLoading(null);
     }
@@ -308,12 +308,12 @@ export default function SchedulerSection() {
       if (res.ok) {
         const updatedJob = await res.json();
         setJobs(prev => prev.map(j => j.id === jobId ? updatedJob : j));
-        toast.success(updatedJob.enabled ? 'İş etkinleştirildi' : 'İş devre dışı bırakıldı');
+        toast.success(updatedJob.enabled ? 'Job enabled' : 'Job disabled');
       } else {
-        toast.error('İşlem başarısız');
+        toast.error('Operation failed');
       }
     } catch (error) {
-      toast.error('İşlem başarısız');
+      toast.error('Operation failed');
     } finally {
       setActionLoading(null);
     }
@@ -327,13 +327,13 @@ export default function SchedulerSection() {
       });
 
       if (res.ok) {
-        toast.success('İş başlatıldı');
+        toast.success('Job started');
         setTimeout(fetchData, 2000);
       } else {
-        toast.error('İş başlatılamadı');
+        toast.error('Failed to start job');
       }
     } catch (error) {
-      toast.error('İş başlatılamadı');
+      toast.error('Failed to start job');
     } finally {
       setActionLoading(null);
     }
@@ -342,20 +342,20 @@ export default function SchedulerSection() {
   const getStatusBadge = (status?: string) => {
     switch (status) {
       case 'completed':
-        return <Badge variant="outline" className="bg-green-500/10 text-green-600 border-green-500/30">Başarılı</Badge>;
+        return <Badge variant="outline" className="bg-green-500/10 text-green-600 border-green-500/30">Success</Badge>;
       case 'failed':
-        return <Badge variant="outline" className="bg-red-500/10 text-red-600 border-red-500/30">Hatalı</Badge>;
+        return <Badge variant="outline" className="bg-red-500/10 text-red-600 border-red-500/30">Failed</Badge>;
       case 'running':
-        return <Badge variant="outline" className="bg-blue-500/10 text-blue-600 border-blue-500/30">Çalışıyor</Badge>;
+        return <Badge variant="outline" className="bg-blue-500/10 text-blue-600 border-blue-500/30">Running</Badge>;
       default:
-        return <Badge variant="outline" className="bg-gray-500/10 text-gray-500 border-gray-500/30">Bekliyor</Badge>;
+        return <Badge variant="outline" className="bg-gray-500/10 text-gray-500 border-gray-500/30">Pending</Badge>;
     }
   };
 
   const formatDateTime = (dateStr?: string) => {
     if (!dateStr) return '-';
     try {
-      return new Date(dateStr).toLocaleString('tr-TR', {
+      return new Date(dateStr).toLocaleString('en-US', {
         day: '2-digit',
         month: '2-digit',
         year: 'numeric',
@@ -373,15 +373,15 @@ export default function SchedulerSection() {
       const parts = job.cron_expression.split(' ');
       if (parts.length >= 5) {
         const [min, hour, , , dayOfWeek] = parts;
-        if (dayOfWeek === '0') return `Her Pazar ${hour}:${min.padStart(2, '0')}`;
-        if (dayOfWeek === '*' && hour !== '*') return `Her gün ${hour}:${min.padStart(2, '0')}`;
+        if (dayOfWeek === '0') return `Every Sunday ${hour}:${min.padStart(2, '0')}`;
+        if (dayOfWeek === '*' && hour !== '*') return `Every day ${hour}:${min.padStart(2, '0')}`;
       }
       return job.cron_expression;
     }
     if (job.schedule_type === 'interval' && job.interval_seconds) {
       const hours = Math.round(job.interval_seconds / 3600);
-      if (hours >= 24) return `${Math.round(hours / 24)} günde bir`;
-      return `${hours} saatte bir`;
+      if (hours >= 24) return `Every ${Math.round(hours / 24)} days`;
+      return `Every ${hours} hours`;
     }
     return '-';
   };
@@ -401,28 +401,28 @@ export default function SchedulerSection() {
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <Card className="bg-card/50">
             <CardContent className="pt-4">
-              <div className="text-sm text-muted-foreground">Toplam İş</div>
+              <div className="text-sm text-muted-foreground">Total Jobs</div>
               <p className="text-2xl font-bold mt-1">{stats.total_jobs}</p>
             </CardContent>
           </Card>
 
           <Card className="bg-card/50">
             <CardContent className="pt-4">
-              <div className="text-sm text-muted-foreground">Aktif</div>
+              <div className="text-sm text-muted-foreground">Active</div>
               <p className="text-2xl font-bold mt-1 text-green-600">{stats.enabled_jobs}</p>
             </CardContent>
           </Card>
 
           <Card className="bg-card/50">
             <CardContent className="pt-4">
-              <div className="text-sm text-muted-foreground">Başarılı (24s)</div>
+              <div className="text-sm text-muted-foreground">Successful (24h)</div>
               <p className="text-2xl font-bold mt-1 text-green-600">{stats.successful_last_24h}</p>
             </CardContent>
           </Card>
 
           <Card className="bg-card/50">
             <CardContent className="pt-4">
-              <div className="text-sm text-muted-foreground">Hatalı (24s)</div>
+              <div className="text-sm text-muted-foreground">Failed (24h)</div>
               <p className="text-2xl font-bold mt-1 text-red-600">{stats.failed_last_24h}</p>
             </CardContent>
           </Card>
@@ -434,15 +434,15 @@ export default function SchedulerSection() {
         <CardHeader className="pb-3">
           <div className="flex items-center justify-between">
             <div>
-              <CardTitle className="text-lg">Zamanlanmış İşler</CardTitle>
+              <CardTitle className="text-lg">Scheduled Jobs</CardTitle>
               <CardDescription>
-                Crawler ve veri işleme görevleri
+                Crawler and data processing tasks
               </CardDescription>
             </div>
             <div className="flex items-center gap-2">
               <Button variant="outline" size="sm" onClick={openAddModal}>
                 <Plus className="h-4 w-4 mr-1" />
-                Yeni İş
+                New Job
               </Button>
               <Button variant="outline" size="sm" onClick={fetchData}>
                 <RefreshCw className="h-4 w-4" />
@@ -454,8 +454,8 @@ export default function SchedulerSection() {
           {jobs.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground">
               <Clock className="h-8 w-8 mx-auto mb-2 opacity-50" />
-              <p>Henüz zamanlanmış iş yok</p>
-              <p className="text-sm mt-1">Yeni İş butonuna tıklayarak crawler ekleyin</p>
+              <p>No scheduled jobs yet</p>
+              <p className="text-sm mt-1">Click New Job to add a crawler</p>
             </div>
           ) : (
             <div className="space-y-2">
@@ -470,14 +470,14 @@ export default function SchedulerSection() {
                       {getStatusBadge(job.last_run_status)}
                       {!job.enabled && (
                         <Badge variant="outline" className="bg-yellow-500/10 text-yellow-600 border-yellow-500/30">
-                          Devre Dışı
+                          Disabled
                         </Badge>
                       )}
                     </div>
                     <div className="flex items-center gap-4 text-xs text-muted-foreground">
                       <span>{formatSchedule(job)}</span>
-                      <span>Son: {formatDateTime(job.last_run_at)}</span>
-                      <span>{job.successful_runs}/{job.total_runs} başarılı</span>
+                      <span>Last: {formatDateTime(job.last_run_at)}</span>
+                      <span>{job.successful_runs}/{job.total_runs} successful</span>
                     </div>
                   </div>
 
@@ -487,7 +487,7 @@ export default function SchedulerSection() {
                       size="sm"
                       onClick={() => handleRunNow(job.id)}
                       disabled={actionLoading === job.id || !job.enabled}
-                      title="Şimdi Çalıştır"
+                      title="Run Now"
                     >
                       {actionLoading === job.id ? (
                         <Loader2 className="h-4 w-4 animate-spin" />
@@ -500,7 +500,7 @@ export default function SchedulerSection() {
                       variant="ghost"
                       size="sm"
                       onClick={() => openEditModal(job)}
-                      title="Düzenle"
+                      title="Edit"
                     >
                       <Pencil className="h-4 w-4" />
                     </Button>
@@ -517,7 +517,7 @@ export default function SchedulerSection() {
                       onClick={() => handleDeleteJob(job.id)}
                       disabled={actionLoading === job.id}
                       className="text-red-500 hover:text-red-600 hover:bg-red-500/10"
-                      title="Sil"
+                      title="Delete"
                     >
                       <Trash2 className="h-4 w-4" />
                     </Button>
@@ -534,20 +534,20 @@ export default function SchedulerSection() {
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>
-              {editingJob ? 'İşi Düzenle' : 'Yeni Crawler İşi'}
+              {editingJob ? 'Edit Job' : 'New Crawler Job'}
             </DialogTitle>
             <DialogDescription>
-              {editingJob ? 'İş ayarlarını güncelleyin' : 'Zamanlanmış crawler görevi oluşturun'}
+              {editingJob ? 'Update job settings' : 'Create a scheduled crawler task'}
             </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-4 py-4">
             {/* Job Name */}
             <div className="space-y-2">
-              <Label htmlFor="jobName">İş Adı</Label>
+              <Label htmlFor="jobName">Job Name</Label>
               <Input
                 id="jobName"
-                placeholder="Örn: GİB Sirküler Haftalık"
+                placeholder="e.g. GIB Circulars Weekly"
                 value={formData.name}
                 onChange={(e) => setFormData({ ...formData, name: e.target.value })}
               />
@@ -561,17 +561,17 @@ export default function SchedulerSection() {
                 onValueChange={(value) => setFormData({ ...formData, crawler: value })}
               >
                 <SelectTrigger>
-                  <SelectValue placeholder="Crawler seçin" />
+                  <SelectValue placeholder="Select crawler" />
                 </SelectTrigger>
                 <SelectContent>
-                  <div className="px-2 py-1 text-xs font-semibold text-muted-foreground">GİB</div>
-                  {AVAILABLE_CRAWLERS.filter(c => c.category === 'GİB').map((crawler) => (
+                  <div className="px-2 py-1 text-xs font-semibold text-muted-foreground">GIB</div>
+                  {AVAILABLE_CRAWLERS.filter(c => c.category === 'GIB').map((crawler) => (
                     <SelectItem key={crawler.id} value={crawler.id}>
                       {crawler.label}
                     </SelectItem>
                   ))}
-                  <div className="px-2 py-1 text-xs font-semibold text-muted-foreground mt-2">Mevzuat</div>
-                  {AVAILABLE_CRAWLERS.filter(c => c.category === 'Mevzuat').map((crawler) => (
+                  <div className="px-2 py-1 text-xs font-semibold text-muted-foreground mt-2">Legislation</div>
+                  {AVAILABLE_CRAWLERS.filter(c => c.category === 'Legislation').map((crawler) => (
                     <SelectItem key={crawler.id} value={crawler.id}>
                       {crawler.label}
                     </SelectItem>
@@ -582,7 +582,7 @@ export default function SchedulerSection() {
 
             {/* Schedule Type */}
             <div className="space-y-2">
-              <Label>Zamanlama</Label>
+              <Label>Schedule</Label>
               <Select
                 value={formData.scheduleType}
                 onValueChange={(value: 'cron' | 'interval') => setFormData({ ...formData, scheduleType: value })}
@@ -591,8 +591,8 @@ export default function SchedulerSection() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="cron">Cron (Belirli Zaman)</SelectItem>
-                  <SelectItem value="interval">Periyodik</SelectItem>
+                  <SelectItem value="cron">Cron (Specific Time)</SelectItem>
+                  <SelectItem value="interval">Periodic</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -600,7 +600,7 @@ export default function SchedulerSection() {
             {/* Cron / Interval Input */}
             {formData.scheduleType === 'cron' ? (
               <div className="space-y-2">
-                <Label htmlFor="cronExpr">Cron İfadesi</Label>
+                <Label htmlFor="cronExpr">Cron Expression</Label>
                 <Input
                   id="cronExpr"
                   placeholder="0 3 * * 0"
@@ -608,12 +608,12 @@ export default function SchedulerSection() {
                   onChange={(e) => setFormData({ ...formData, cronExpression: e.target.value })}
                 />
                 <p className="text-xs text-muted-foreground">
-                  Örnekler: 0 3 * * 0 (Her Pazar 03:00), 0 6 * * * (Her gün 06:00)
+                  Examples: 0 3 * * 0 (Every Sunday 03:00), 0 6 * * * (Every day 06:00)
                 </p>
               </div>
             ) : (
               <div className="space-y-2">
-                <Label htmlFor="intervalHours">Tekrar Aralığı (Saat)</Label>
+                <Label htmlFor="intervalHours">Repeat Interval (Hours)</Label>
                 <Input
                   id="intervalHours"
                   type="number"
@@ -622,14 +622,14 @@ export default function SchedulerSection() {
                   onChange={(e) => setFormData({ ...formData, intervalHours: parseInt(e.target.value) || 168 })}
                 />
                 <p className="text-xs text-muted-foreground">
-                  168 saat = 1 hafta
+                  168 hours = 1 week
                 </p>
               </div>
             )}
 
             {/* Enabled Toggle */}
             <div className="flex items-center justify-between">
-              <Label htmlFor="enabled">Aktif</Label>
+              <Label htmlFor="enabled">Active</Label>
               <Switch
                 id="enabled"
                 checked={formData.enabled}
@@ -641,16 +641,16 @@ export default function SchedulerSection() {
           {/* Actions */}
           <div className="flex justify-end gap-2">
             <Button variant="outline" onClick={() => setShowModal(false)}>
-              İptal
+              Cancel
             </Button>
             <Button onClick={handleSave} disabled={saving}>
               {saving ? (
                 <>
                   <Loader2 className="h-4 w-4 mr-1 animate-spin" />
-                  Kaydediliyor...
+                  Saving...
                 </>
               ) : (
-                editingJob ? 'Güncelle' : 'Oluştur'
+                editingJob ? 'Update' : 'Create'
               )}
             </Button>
           </div>

@@ -79,14 +79,14 @@ export default function InitializationScreen() {
             </motion.div>
             <h1 className="text-2xl font-bold mb-2">Luwi Semantic Bridge</h1>
             <p className="text-muted-foreground text-sm">
-              Sistem başlatılıyor, lütfen bekleyin...
+              System initializing, please wait...
             </p>
           </div>
 
           {/* Progress Bar */}
           <div className="mb-8">
             <div className="flex justify-between text-xs text-muted-foreground mb-2">
-              <span>Yükleniyor</span>
+              <span>Loading</span>
               <span>{progress}%</span>
             </div>
             <Progress value={progress} className="h-2" />
@@ -104,7 +104,7 @@ export default function InitializationScreen() {
                 <div className="flex items-center justify-center gap-2 mb-4">
                   <div className="w-3 h-3 rounded-full bg-green-500 animate-pulse" />
                   <span className="text-sm font-medium text-green-700 dark:text-green-400">
-                    Sistem hazır
+                    System ready
                   </span>
                 </div>
 
@@ -114,7 +114,7 @@ export default function InitializationScreen() {
                   className="w-full"
                   size="sm"
                 >
-                  <>Devam Et<ArrowRight className="w-4 h-4 ml-2" /></>
+                  <>Continue<ArrowRight className="w-4 h-4 ml-2" /></>
                 </Button>
               </motion.div>
             )}

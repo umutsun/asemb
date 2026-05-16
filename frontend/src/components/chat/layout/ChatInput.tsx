@@ -117,14 +117,14 @@ export const ChatInput: React.FC<ChatInputProps> = ({
 
     // Validate file type
     if (file.type !== 'application/pdf') {
-      alert(t('chatInput.pdfOnlyError', 'Sadece PDF dosyalari desteklenir'));
+      alert(t('chatInput.pdfOnlyError', 'Only PDF files are supported'));
       return;
     }
 
     // Validate file size
     const fileSizeMB = file.size / (1024 * 1024);
     if (fileSizeMB > pdfSettings.maxSizeMB) {
-      alert(t('chatInput.fileTooLarge', `Dosya boyutu ${pdfSettings.maxSizeMB} MB'i gecemez`));
+      alert(t('chatInput.fileTooLarge', `File size cannot exceed ${pdfSettings.maxSizeMB} MB`));
       return;
     }
 
@@ -197,7 +197,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
               value={inputText}
               onChange={(e) => setInputText(e.target.value)}
               onKeyDown={handleKeyPress}
-              placeholder={pdfFile ? t('chatInput.askAboutPdf', 'Bu PDF hakkinda sorunuzu yazin...') : placeholder}
+              placeholder={pdfFile ? t('chatInput.askAboutPdf', 'Ask a question about this PDF...') : placeholder}
               className="min-h-[60px] max-h-[120px] resize-none pr-20"
               disabled={isLoading || isRecording}
             />
@@ -210,7 +210,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                   onClick={handlePaperclipClick}
                   disabled={isLoading || !!pdfFile || isRecording}
                   className="p-1.5 text-gray-400 hover:text-blue-500 dark:text-gray-500 dark:hover:text-blue-400 transition-colors rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                  title={pdfFile ? t('chatInput.pdfAttached', 'PDF eklendi') : t('chatInput.attachPdf', 'PDF ekle')}
+                  title={pdfFile ? t('chatInput.pdfAttached', 'PDF attached') : t('chatInput.attachPdf', 'Attach PDF')}
                 >
                   <Paperclip className="w-4 h-4" />
                 </button>
@@ -230,10 +230,10 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                   }`}
                   title={
                     isRecording
-                      ? `${t('chatInput.stopRecording', 'Kaydi durdur')} (${recordingDuration}s)`
+                      ? `${t('chatInput.stopRecording', 'Stop recording')} (${recordingDuration}s)`
                       : isTranscribing
-                        ? t('chatInput.transcribing', 'Metne cevriliyor...')
-                        : t('chatInput.startRecording', 'Sesle mesaj gonder')
+                        ? t('chatInput.transcribing', 'Transcribing...')
+                        : t('chatInput.startRecording', 'Send voice message')
                   }
                 >
                   {isRecording ? (
@@ -264,10 +264,10 @@ export const ChatInput: React.FC<ChatInputProps> = ({
 
         <div className="flex items-center justify-between mt-2">
           <p className="text-xs text-muted-foreground">
-            {t('chat.input.help', 'Enter ile gönder, Shift+Enter ile yeni satır')}
+            {t('chat.input.help', 'Press Enter to send, Shift+Enter for new line')}
           </p>
           <div className="flex items-center gap-2 text-xs text-muted-foreground">
-            <span>{`${messagesCount} ${t('chat.messagesLabel', 'mesaj')}`}</span>
+            <span>{`${messagesCount} ${t('chat.messagesLabel', 'messages')}`}</span>
           </div>
         </div>
       </div>

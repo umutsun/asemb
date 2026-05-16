@@ -70,10 +70,10 @@ export default function SystemHealthCheck({
             <Database className="h-12 w-12" />
           </div>
           <h1 className="text-2xl font-bold text-gray-900 mb-2">
-            Sistem Bağlantı Hatası
+            System Connection Error
           </h1>
           <p className="text-gray-600 mb-6">
-            Luwi Semantic Bridge başlatılamıyor. Lütfen sistem bağlantılarını kontrol edin.
+            Luwi Semantic Bridge cannot start. Please check system connections.
           </p>
         </div>
 
@@ -85,14 +85,14 @@ export default function SystemHealthCheck({
             ) : (
               <Database className="h-4 w-4 text-red-600" />
             )}
-            <AlertTitle className="text-sm">ASemb Veritabanı</AlertTitle>
+            <AlertTitle className="text-sm">ASemb Database</AlertTitle>
           </div>
           <AlertDescription className="text-sm">
             {healthResult?.health.database.connected ? (
-              <span className="text-green-700">✅ Bağlandı</span>
+              <span className="text-green-700">✅ Connected</span>
             ) : (
               <div className="text-red-700">
-                <div>❌ Bağlanamadı</div>
+                <div>❌ Could not connect</div>
                 {healthResult?.health.database.error && (
                   <div className="text-xs mt-1">{healthResult.health.database.error}</div>
                 )}
@@ -110,14 +110,14 @@ export default function SystemHealthCheck({
               ) : (
                 <Settings className="h-4 w-4 text-red-600" />
               )}
-              <AlertTitle className="text-sm">Sistem Ayarları</AlertTitle>
+              <AlertTitle className="text-sm">System Settings</AlertTitle>
             </div>
             <AlertDescription className="text-sm">
               {healthResult?.health.settings.loaded ? (
-                <span className="text-green-700">✅ Yüklendi</span>
+                <span className="text-green-700">✅ Loaded</span>
               ) : (
                 <div className="text-red-700">
-                  <div>❌ Yüklenemedi</div>
+                  <div>❌ Could not load</div>
                   {healthResult?.health.settings.error && (
                     <div className="text-xs mt-1">{healthResult.health.settings.error}</div>
                   )}
@@ -140,10 +140,10 @@ export default function SystemHealthCheck({
             </div>
             <AlertDescription className="text-sm">
               {healthResult?.health.redis.connected ? (
-                <span className="text-green-700">✅ Bağlandı</span>
+                <span className="text-green-700">✅ Connected</span>
               ) : (
                 <div className="text-red-700">
-                  <div>❌ Bağlanamadı</div>
+                  <div>❌ Could not connect</div>
                   {healthResult?.health.redis.error && (
                     <div className="text-xs mt-1">{healthResult.health.redis.error}</div>
                   )}
@@ -156,7 +156,7 @@ export default function SystemHealthCheck({
         {/* Error Messages */}
         {healthResult?.errors && healthResult.errors.length > 0 && (
           <Alert className="border-orange-200 bg-orange-50">
-            <AlertTitle className="text-sm text-orange-800">Hata Detayları</AlertTitle>
+            <AlertTitle className="text-sm text-orange-800">Error Details</AlertTitle>
             <AlertDescription className="text-sm text-orange-700">
               <ul className="list-disc list-inside space-y-1">
                 {healthResult.errors.map((error, index) => (
@@ -176,21 +176,21 @@ export default function SystemHealthCheck({
           {isChecking ? (
             <>
               <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
-              Kontrol Ediliyor...
+              Checking...
             </>
           ) : (
             <>
               <RefreshCw className="mr-2 h-4 w-4" />
-              Tekrar Dene
+              Retry
             </>
           )}
         </Button>
 
         {/* Help Text */}
         <div className="text-center text-xs text-gray-500 space-y-1">
-          <p>• .env dosyasındaki veritabanı ayarlarını kontrol edin</p>
-          <p>• PostgreSQL ve Redis servislerinin çalıştığından emin olun</p>
-          <p>• Network bağlantılarınızı kontrol edin</p>
+          <p>• Check the database settings in your .env file</p>
+          <p>• Make sure PostgreSQL and Redis services are running</p>
+          <p>• Check your network connections</p>
         </div>
       </div>
     </div>

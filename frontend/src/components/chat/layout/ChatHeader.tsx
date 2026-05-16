@@ -91,7 +91,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
             size="sm"
             onClick={onClearChat}
             className="p-2"
-            title={t('chat.newChat', 'Yeni Sohbet')}
+            title={t('chat.newChat', 'New Chat')}
           >
             <Plus className="w-4 h-4" />
           </Button>
@@ -108,7 +108,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
                       variant="ghost"
                       size="sm"
                       className="p-2"
-                      title={t('common.settings', 'Ayarlar')}
+                      title={t('common.settings', 'Settings')}
                     >
                       <Settings className="w-4 h-4" />
                     </Button>
@@ -146,20 +146,20 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
                   <div className="absolute right-0 top-full mt-1 w-48 bg-popover border rounded-md shadow-lg z-50">
                     <div className="p-2">
                       <div className="px-2 py-1.5 text-sm font-medium border-b">
-                        <div>{user?.name || t('common.user', 'Kullanıcı')}</div>
+                        <div>{user?.name || t('common.user', 'User')}</div>
                         <div className="text-xs text-muted-foreground truncate">{user?.email}</div>
                       </div>
                       <Link href="/profile">
                         <Button variant="ghost" className="w-full justify-start text-sm h-8 px-2">
                           <UserCircle className="w-4 h-4 mr-2" />
-                          {t('common.profile', 'Profil')}
+                          {t('common.profile', 'Profile')}
                         </Button>
                       </Link>
                       {(user?.role === 'admin' || user?.role === 'manager') && (
                         <Link href="/dashboard/messages">
                           <Button variant="ghost" className="w-full justify-start text-sm h-8 px-2">
                             <MessageSquare className="w-4 h-4 mr-2" />
-                            {t('dashboard.messages.title', 'Mesaj Analizleri')}
+                            {t('dashboard.messages.title', 'Message Analytics')}
                           </Button>
                         </Link>
                       )}
@@ -172,7 +172,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
                         }}
                       >
                         <LogOut className="w-4 h-4 mr-2" />
-                        {t('common.logout', 'Çıkış Yap')}
+                        {t('common.logout', 'Logout')}
                       </Button>
                     </div>
                   </div>
@@ -187,7 +187,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
                   variant="ghost"
                   size="sm"
                   className="p-2"
-                  title={user?.name || t('common.user', 'Kullanıcı')}
+                  title={user?.name || t('common.user', 'User')}
                 >
                   <UserCircle className="w-5 h-5" />
                 </Button>
