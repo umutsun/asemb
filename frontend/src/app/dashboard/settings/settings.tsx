@@ -4927,6 +4927,7 @@ function AppSettings() {
                   <SelectItem value="ar"><div className="flex items-center gap-3"><span className="text-xl">🇸🇦</span><span>العربية</span></div></SelectItem>
                   <SelectItem value="ja"><div className="flex items-center gap-3"><span className="text-xl">🇯🇵</span><span>日本語</span></div></SelectItem>
                   <SelectItem value="ko"><div className="flex items-center gap-3"><span className="text-xl">🇰🇷</span><span>한국어</span></div></SelectItem>
+                  <SelectItem value="it"><div className="flex items-center gap-3"><span className="text-xl">🇮🇹</span><span>Italiano</span></div></SelectItem>
                 </SelectContent>
               </Select>
             </div>
