@@ -19,12 +19,14 @@ const execAsync = promisify(exec);
 let pythonProcess: ChildProcess | null = null;
 
 /**
- * Get Python service URL and port from env
+ * Get Python service URL and port from env.
+ * Default 8002 matches python-services/.env (PORT=8002) and
+ * python-integration.service.ts. Override via PYTHON_SERVICE_URL.
  */
 function getPythonServiceConfig() {
-  const url = process.env.PYTHON_SERVICE_URL || 'http://localhost:8001';
+  const url = process.env.PYTHON_SERVICE_URL || 'http://localhost:8002';
   const portMatch = url.match(/:(\d+)/);
-  const port = portMatch ? parseInt(portMatch[1]) : 8001;
+  const port = portMatch ? parseInt(portMatch[1]) : 8002;
   return { url, port };
 }
 
@@ -136,8 +138,8 @@ router.get('/services', (req: Request, res: Response) => {
  */
 router.get('/status', async (req: Request, res: Response) => {
   try {
-    // Get Python service port from env
-    const pythonPort = parseInt(process.env.PYTHON_SERVICE_PORT || '8001');
+    // Get Python service port from env (default 8002 aligns with python-services/.env)
+    const pythonPort = parseInt(process.env.PYTHON_SERVICE_PORT || '8002');
     const backendPort = parseInt(process.env.PORT || '8084');
 
     // Check Python service status
@@ -196,6 +198,20 @@ router.get('/status', async (req: Request, res: Response) => {
         };
       } catch (error) {
         logger.error('Error checking pgai worker status:', error);
+      }
+    }
+
+    // Fetch Python microservices inventory (Document Analyzer, OCR, Embedding,
+    // Whisper, Crawl4AI, Semantic Search, etc.) and surface it on the status
+    // response so the Services settings page can render per-microservice cards.
+    if (pythonAvailable) {
+      const microHealth = await pythonService.getMicroservicesHealth();
+      if (microHealth) {
+        status.python = {
+          ...status.python,
+          microservices: microHealth.microservices,
+          system: microHealth.system,
+        };
       }
     }
 

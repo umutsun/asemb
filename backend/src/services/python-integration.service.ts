@@ -214,6 +214,28 @@ export class PythonIntegrationService {
     return await this.checkHealth();
   }
 
+  /**
+   * Fetch the detailed microservices inventory from the Python service's
+   * /health/services endpoint. Returns `{ microservices: [...], system: {...} }`
+   * or `null` if the Python service is unreachable. Used by the Services
+   * settings page to render per-microservice status.
+   */
+  public async getMicroservicesHealth(): Promise<{ microservices: any[]; system: any } | null> {
+    try {
+      if (!await this.isPythonServiceAvailable()) {
+        return null;
+      }
+      const response = await this.axiosClient.get('/health/services', { timeout: 5000 });
+      return {
+        microservices: response.data?.microservices || [],
+        system: response.data?.system || null,
+      };
+    } catch (error: any) {
+      logger.warn('Failed to fetch Python microservices health:', error.message);
+      return null;
+    }
+  }
+
   // ============= Crawl4AI Methods =============
 
   public async crawlWithAI(url: string, options: CrawlOptions): Promise<CrawlResult> {

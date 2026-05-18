@@ -7,11 +7,14 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 
-// Server-side: Use localhost since Python service runs on same server
-// Production ports: GeoLex=8001, Bookie=8002, Vergilex=8003
+// Server-side: Use localhost since Python service runs on same server.
+// Default 8002 matches LSEMB's backend/python-services/.env (PORT=8002) and
+// backend/.env (PYTHON_SERVICE_URL=http://localhost:8002). For multi-instance
+// deployments (GeoLex / Bookie / Vergilex), set PYTHON_SERVICE_URL explicitly
+// in the frontend environment to override.
 const PYTHON_SERVICE_URL = process.env.PYTHON_SERVICE_URL ||
                            process.env.NEXT_PUBLIC_PYTHON_URL ||
-                           'http://localhost:8003';
+                           'http://localhost:8002';
 
 export async function GET(request: NextRequest) {
   try {
