@@ -16,6 +16,7 @@ import arTranslations from '../../public/locales/ar/translation.json';
 import jaTranslations from '../../public/locales/ja/translation.json';
 import koTranslations from '../../public/locales/ko/translation.json';
 import kmTranslations from '../../public/locales/km/translation.json';
+import itTranslations from '../../public/locales/it/translation.json';
 
 i18n
   .use(LanguageDetector)
@@ -61,6 +62,9 @@ i18n
       },
       km: {
         translation: kmTranslations
+      },
+      it: {
+        translation: itTranslations
       }
     },
     fallbackLng: 'en',

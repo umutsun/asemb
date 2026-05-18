@@ -82,7 +82,8 @@ export function useLanguage() {
       { code: 'ar', name: 'العربية', flag: '🇸🇦' },
       { code: 'ja', name: '日本語', flag: '🇯🇵' },
       { code: 'ko', name: '한국어', flag: '🇰🇷' },
-      { code: 'km', name: 'ខ្មែរ', flag: '🇰🇭' }
+      { code: 'km', name: 'ខ្មែរ', flag: '🇰🇭' },
+      { code: 'it', name: 'Italiano', flag: '🇮🇹' }
     ]
   };
 }
