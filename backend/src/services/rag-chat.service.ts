@@ -8027,11 +8027,14 @@ Please verify the article number or check official sources.`;
         }
       }
 
-      // Add assessment with citation references preserved
-      // v12.10 FIX: Always add assessment content even if assessmentSection not in schema
+      // Add assessment with citation references preserved.
+      // Label comes from schema (routingSchema.articleSections.assessment.backendLabel)
+      // when configured. If unset, emit the content with no header — the user wants
+      // the response to flow directly. Removing the hardcoded 'DEGERLENDIRME:' fallback
+      // also aligns with CLAUDE.md "no hardcoded format" rule.
       if (assessmentContent) {
-        const label = assessmentSection?.backendLabel || 'DEGERLENDIRME:';
-        formattedResponse += `${label}\n${assessmentContent}`;
+        const label = assessmentSection?.backendLabel;
+        formattedResponse += label ? `${label}\n${assessmentContent}` : assessmentContent;
       }
 
       console.log('[FORMAT] Parsed sections - Konu: ' + (konuContent ? 'found' : 'missing') +
