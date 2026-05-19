@@ -5813,12 +5813,13 @@ Yani beyanname ile ödeme arasında **2 günlük** bir fark vardır.`;
 
     // ═══ Remove unwanted LLM wrapper headers/labels (universal) ═══
     fixed = fixed.replace(/^\s*\*\*(?:CEVAP|ANSWER|RESPONSE|REPLY)\*\*\s*\n*/gi, '');
-    // Strip leading "DEĞERLENDİRME" / "DEGERLENDIRME" label in any form the LLM
-    // emits (plain, **bold**, **bold:**, ## heading) plus any trailing newlines.
-    // Single match at response start — keep aggressive: the prompt explicitly
-    // forbids this label, so anything that slipped through is unwanted.
+    // Strip "DEĞERLENDİRME" / "DEGERLENDIRME" label everywhere the LLM emits it
+    // (plain, **bold**, **bold:**, ## heading) — the system prompt forbids this
+    // label entirely, so any occurrence is unwanted. gm flags catch it at the
+    // start of any line, not just response start. Trailing whitespace/newline
+    // is consumed too so the body text flows directly.
     fixed = fixed.replace(
-      /^\s*(?:#{1,3}\s*)?\*{0,2}(?:DEGERLENDIRME|DEĞERLENDİRME)\*{0,2}\s*:?\s*\n+/i,
+      /^[ \t]*(?:#{1,3}[ \t]*)?\*{0,2}(?:DEGERLENDIRME|DEĞERLENDİRME)\*{0,2}[ \t]*:?[ \t]*\r?\n?/gim,
       ''
     );
 
