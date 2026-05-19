@@ -3822,10 +3822,8 @@ function RAGSettings() {
 function AdvancedSettings() {
   return (
     <div className="space-y-6">
-      {/* Security Settings */}
+      {/* Security Settings — API Tokens are rendered inline under JWT Secret */}
       <SecuritySettings />
-      {/* External bearer-key access (settings-generated API tokens) */}
-      <ApiTokensSection />
     </div>
   );
 }
@@ -4201,18 +4199,46 @@ function SecuritySettings() {
 
               <div>
                 <Label>JWT Secret</Label>
-                <Input
-                  type="password"
-                  value={(tempConfig?.security?.jwtSecret ?? securityConfig?.security?.jwtSecret) || ''}
-                  placeholder="Enter JWT secret"
-                  onChange={(e) => setTempConfig({
-                    ...tempConfig,
-                    security: {
-                      ...tempConfig.security,
-                      jwtSecret: e.target.value
-                    }
-                  })}
-                />
+                <div className="flex items-center gap-2">
+                  <Input
+                    type="password"
+                    value={(tempConfig?.security?.jwtSecret ?? securityConfig?.security?.jwtSecret) || ''}
+                    placeholder="Enter JWT secret"
+                    onChange={(e) => setTempConfig({
+                      ...tempConfig,
+                      security: {
+                        ...tempConfig.security,
+                        jwtSecret: e.target.value
+                      }
+                    })}
+                  />
+                  <Button
+                    type="button"
+                    size="icon"
+                    variant="outline"
+                    className="h-9 w-9 shrink-0"
+                    title="Generate a random 64-hex JWT secret"
+                    onClick={() => {
+                      const bytes = new Uint8Array(32);
+                      (window.crypto || (window as any).msCrypto).getRandomValues(bytes);
+                      const secret = Array.from(bytes).map(b => b.toString(16).padStart(2, '0')).join('');
+                      setTempConfig({
+                        ...tempConfig,
+                        security: { ...tempConfig.security, jwtSecret: secret }
+                      });
+                      toast({ title: 'JWT secret generated', description: 'Remember to Save.' });
+                    }}
+                  >
+                    <RefreshCw className="w-4 h-4" />
+                  </Button>
+                </div>
+                <p className="text-[11px] text-muted-foreground mt-1">
+                  Used to sign user JWTs. Rotating invalidates existing logins.
+                </p>
+              </div>
+
+              <div className="pt-2 border-t">
+                <ApiTokensSection />
               </div>
             </CardContent>
           </Card>

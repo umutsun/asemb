@@ -1,5 +1,4 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -71,7 +70,7 @@ export const ApiTokensSection: React.FC = () => {
   const handleCreate = async () => {
     const name = newName.trim();
     if (!name) {
-      toast({ variant: 'destructive', title: 'Name required', description: 'Give the token a descriptive name.' });
+      toast({ variant: 'destructive', title: 'Name required', description: 'Give the token a short label.' });
       return;
     }
     setCreating(true);
@@ -115,69 +114,71 @@ export const ApiTokensSection: React.FC = () => {
     }
   };
 
+  const activeTokens = tokens.filter((t) => !t.revoked_at);
+
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <KeyRound className="w-5 h-5" />
-          API Tokens
-        </CardTitle>
-        <CardDescription>
-          Long-lived bearer keys for external services to call the chat API. The plaintext token is shown only once on creation — copy it then.
-        </CardDescription>
-      </CardHeader>
+    <div className="space-y-2">
+      <div className="flex items-center gap-2">
+        <KeyRound className="w-3.5 h-3.5 text-muted-foreground" />
+        <Label className="text-xs font-medium">Chatbot Bearer Tokens</Label>
+        <span className="text-[11px] text-muted-foreground">
+          ({activeTokens.length} active)
+        </span>
+      </div>
+      <p className="text-[11px] text-muted-foreground -mt-1">
+        For external services calling <code className="font-mono">/api/v2/chat</code>.
+        Plaintext shown once — copy on creation.
+      </p>
 
-      <CardContent className="space-y-6">
-        <div className="flex items-end gap-3">
-          <div className="flex-1 space-y-1">
-            <Label htmlFor="api-token-name">New token name</Label>
-            <Input
-              id="api-token-name"
-              placeholder="e.g. luwi.dev widget"
-              value={newName}
-              onChange={(e) => setNewName(e.target.value)}
-              disabled={creating}
-            />
-          </div>
-          <Button onClick={handleCreate} disabled={creating}>
-            <Plus className="w-4 h-4 mr-1" />
-            {creating ? 'Generating…' : 'Generate'}
-          </Button>
-        </div>
+      <div className="flex items-center gap-2">
+        <Input
+          placeholder="Name (e.g. luwi.dev widget)"
+          value={newName}
+          onChange={(e) => setNewName(e.target.value)}
+          onKeyDown={(e) => e.key === 'Enter' && handleCreate()}
+          disabled={creating}
+          className="h-8 text-xs"
+        />
+        <Button
+          type="button"
+          size="icon"
+          variant="outline"
+          className="h-8 w-8 shrink-0"
+          onClick={handleCreate}
+          disabled={creating}
+          title="Generate API token"
+        >
+          <Plus className="w-4 h-4" />
+        </Button>
+      </div>
 
-        <div>
-          <div className="text-sm font-medium mb-2">Existing tokens</div>
-          {loading ? (
-            <div className="text-sm text-muted-foreground">Loading…</div>
-          ) : tokens.length === 0 ? (
-            <div className="text-sm text-muted-foreground">No tokens yet.</div>
-          ) : (
-            <div className="border rounded-md divide-y">
-              {tokens.map((t) => (
-                <div key={t.id} className="flex items-center justify-between px-3 py-2">
-                  <div className="min-w-0">
-                    <div className="font-medium truncate">
-                      {t.name}{' '}
-                      {t.revoked_at && (
-                        <span className="text-xs text-destructive ml-2">(revoked)</span>
-                      )}
-                    </div>
-                    <div className="text-xs text-muted-foreground">
-                      created {timeAgo(t.created_at)} · last used {timeAgo(t.last_used_at)} · scopes: {t.scopes.join(', ')}
-                    </div>
-                  </div>
-                  {!t.revoked_at && (
-                    <Button variant="ghost" size="sm" onClick={() => handleRevoke(t.id)}>
-                      <Trash2 className="w-4 h-4 mr-1" />
-                      Revoke
-                    </Button>
-                  )}
+      {loading ? (
+        <div className="text-[11px] text-muted-foreground">Loading…</div>
+      ) : activeTokens.length === 0 ? (
+        <div className="text-[11px] text-muted-foreground">No active tokens.</div>
+      ) : (
+        <ul className="text-xs border rounded-md divide-y bg-background/50">
+          {activeTokens.map((t) => (
+            <li key={t.id} className="flex items-center justify-between px-2 py-1.5">
+              <div className="min-w-0 flex-1">
+                <div className="font-medium truncate">{t.name}</div>
+                <div className="text-[11px] text-muted-foreground">
+                  last used {timeAgo(t.last_used_at)}
                 </div>
-              ))}
-            </div>
-          )}
-        </div>
-      </CardContent>
+              </div>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7 text-muted-foreground hover:text-destructive"
+                onClick={() => handleRevoke(t.id)}
+                title="Revoke"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+              </Button>
+            </li>
+          ))}
+        </ul>
+      )}
 
       <Dialog open={!!createdToken} onOpenChange={(open) => !open && setCreatedToken(null)}>
         <DialogContent>
@@ -186,27 +187,29 @@ export const ApiTokensSection: React.FC = () => {
           </DialogHeader>
           <Alert>
             <AlertDescription>
-              This is the only time the plaintext token is shown. Copy and store it somewhere safe — we only keep its hash.
+              Shown only once. Copy and store it now — we only keep its hash.
             </AlertDescription>
           </Alert>
           {createdToken && (
             <div className="space-y-3">
               <div className="text-sm text-muted-foreground">Name: {createdToken.name}</div>
               <div className="flex items-center gap-2">
-                <Input readOnly value={createdToken.token} className="font-mono text-xs" onFocus={(e) => e.currentTarget.select()} />
+                <Input
+                  readOnly
+                  value={createdToken.token}
+                  className="font-mono text-xs"
+                  onFocus={(e) => e.currentTarget.select()}
+                />
                 <Button onClick={copyPlaintext}>
                   <Copy className="w-4 h-4 mr-1" />
                   Copy
                 </Button>
               </div>
-              <div className="text-xs text-muted-foreground">
-                Use it as: <code className="font-mono">Authorization: Bearer {createdToken.token.slice(0, 16)}…</code>
-              </div>
             </div>
           )}
         </DialogContent>
       </Dialog>
-    </Card>
+    </div>
   );
 };
 
