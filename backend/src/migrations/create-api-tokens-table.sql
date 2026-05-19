@@ -1,7 +1,6 @@
 -- API Tokens for external bearer-key access to the chatbot.
 -- Plaintext token format: lsemb_<64 hex chars>. We store only the SHA-256 hash.
-
-CREATE EXTENSION IF NOT EXISTS pgcrypto;
+-- gen_random_uuid() is core in PostgreSQL 13+ — no extension required.
 
 CREATE TABLE IF NOT EXISTS api_tokens (
   id            uuid PRIMARY KEY DEFAULT gen_random_uuid(),
