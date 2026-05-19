@@ -2,10 +2,16 @@ import { Request, Response, NextFunction } from 'express';
 import { AuthService } from '../services/auth.service';
 import { SubscriptionService } from '../services/subscription.service';
 import { JwtPayload } from '../types/user.types';
+import {
+  API_TOKEN_PREFIX,
+  findActiveTokenByPlaintext,
+  touchLastUsed,
+} from '../services/api-token.service';
 
 export interface AuthenticatedRequest extends Request {
   user?: JwtPayload;
   subscription?: any;
+  apiToken?: { id: string; scopes: string[] };
 }
 
 export const authenticateToken = async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
@@ -24,6 +30,34 @@ export const authenticateToken = async (req: AuthenticatedRequest, res: Response
         error: 'Access token required',
         code: 'TOKEN_MISSING'
       });
+    }
+
+    // Long-lived API tokens (settings-generated) — check first, fall through on miss
+    if (token.startsWith(API_TOKEN_PREFIX)) {
+      const apiToken = await findActiveTokenByPlaintext(token);
+      if (!apiToken) {
+        return res.status(401).json({
+          error: 'Invalid or revoked API token',
+          code: 'API_TOKEN_INVALID',
+        });
+      }
+      if (!apiToken.scopes.includes('chat')) {
+        return res.status(403).json({
+          error: 'API token missing chat scope',
+          code: 'API_TOKEN_SCOPE',
+        });
+      }
+      touchLastUsed(apiToken.id);
+      req.apiToken = apiToken;
+      // userId is the raw token UUID so it's a valid UUID for any downstream
+      // column writes. role='api_token' is how callers tell it apart from a human.
+      req.user = {
+        userId: apiToken.id,
+        email: `api-token+${apiToken.id}@system.local`,
+        role: 'api_token',
+      };
+      console.log('[AUTH] ✓ API token verified:', apiToken.id);
+      return next();
     }
 
     console.log('[AUTH] Verifying token for:', req.path, 'Token prefix:', token.substring(0, 20) + '...');

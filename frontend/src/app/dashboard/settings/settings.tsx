@@ -76,6 +76,7 @@ import {
 import { API_CONFIG } from '../../../lib/config';
 import { chatTemplates } from '@/templates/registry';
 import debug from '../../../lib/debug';
+import ApiTokensSection from '../../../components/settings/ApiTokensSection';
 
 
 
@@ -3823,6 +3824,8 @@ function AdvancedSettings() {
     <div className="space-y-6">
       {/* Security Settings */}
       <SecuritySettings />
+      {/* External bearer-key access (settings-generated API tokens) */}
+      <ApiTokensSection />
     </div>
   );
 }

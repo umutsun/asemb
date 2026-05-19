@@ -34,7 +34,8 @@ export async function runAllMigrations(): Promise<void> {
 
   // Add migrations in order
   const migrations = [
-    'create-import-jobs-table.sql'
+    'create-import-jobs-table.sql',
+    'create-api-tokens-table.sql'
   ];
 
   for (const migration of migrations) {
