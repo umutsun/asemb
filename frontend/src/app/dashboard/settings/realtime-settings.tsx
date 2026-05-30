@@ -12,6 +12,16 @@ import { useToast } from '@/hooks/use-toast';
 import { apiConfig } from '@/config/api.config';
 import { Download, Upload, Copy, Check } from 'lucide-react';
 
+// Small read-only metric cell for the Redis Iris live-metrics panel.
+const Metric = ({ label, value, ok }: { label: string; value: string; ok?: boolean }) => (
+  <div className="flex flex-col">
+    <span className="text-xs text-muted-foreground">{label}</span>
+    <span className={ok === undefined ? '' : ok ? 'text-emerald-600 font-medium' : 'text-amber-600 font-medium'}>
+      {value}
+    </span>
+  </div>
+);
+
 const RealtimeSettings = () => {
   const [config, setConfig] = useState<any>({});
   const [loading, setLoading] = useState(false);
@@ -20,10 +30,20 @@ const RealtimeSettings = () => {
   const [copied, setCopied] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
+  const [irisStats, setIrisStats] = useState<any>(null);
+  const [freshness, setFreshness] = useState<any>(null);
 
   // Fetch initial config
   useEffect(() => {
     fetchConfig();
+  }, []);
+
+  // Redis Iris live metrics (semantic cache capability/hit-rate + freshness state).
+  // Best-effort: a failed fetch leaves the panel showing '—', never throws.
+  useEffect(() => {
+    fetchIrisMetrics();
+    const id = setInterval(fetchIrisMetrics, 20000);
+    return () => clearInterval(id);
   }, []);
 
   const fetchConfig = async () => {
@@ -35,6 +55,21 @@ const RealtimeSettings = () => {
       }
     } catch (error) {
       console.error('Failed to fetch config:', error);
+    }
+  };
+
+  // Pull honest capability + hit-rate from the Node health proxy (which calls the
+  // Python /llm-cache/stats probe) and the data-freshness monitor status.
+  const fetchIrisMetrics = async () => {
+    try {
+      const [cacheRes, freshRes] = await Promise.all([
+        fetch(apiConfig.getApiUrl('/health/semantic-cache/stats')),
+        fetch(apiConfig.getApiUrl('/health/data-freshness')),
+      ]);
+      if (cacheRes.ok) setIrisStats((await cacheRes.json())?.semanticCache ?? null);
+      if (freshRes.ok) setFreshness((await freshRes.json())?.dataFreshness ?? null);
+    } catch {
+      /* metrics are best-effort */
     }
   };
 
@@ -260,6 +295,73 @@ const RealtimeSettings = () => {
               onCheckedChange={(checked) => updateSetting('ragSettings.enableHybridSearch', checked)}
             />
             <Label>Enable Hybrid Search</Label>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Redis Iris — Realtime RAG (semantic cache + agent memory + freshness) */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            Redis Iris — Realtime RAG
+            <span className="text-xs bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded">OSS</span>
+          </CardTitle>
+          <CardDescription>
+            Semantic response cache, agent memory, and live corpus-freshness invalidation.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex items-center space-x-2">
+            <Switch
+              checked={config.ragSettings?.semanticCacheEnabled || false}
+              onCheckedChange={(checked) => updateSetting('ragSettings.semanticCacheEnabled', checked)}
+            />
+            <Label>Semantic Response Cache</Label>
+          </div>
+          <div className="flex items-center space-x-2">
+            <Switch
+              checked={config.ragSettings?.agentMemoryEnabled || false}
+              onCheckedChange={(checked) => updateSetting('ragSettings.agentMemoryEnabled', checked)}
+            />
+            <Label>Agent Memory</Label>
+          </div>
+          <div className="flex items-center space-x-2">
+            <Switch
+              checked={config.ragSettings?.autoFreshnessEnabled || false}
+              onCheckedChange={(checked) => updateSetting('ragSettings.autoFreshnessEnabled', checked)}
+            />
+            <Label>Auto Freshness (corpus change → cache invalidation)</Label>
+          </div>
+
+          {config.ragSettings?.autoFreshnessEnabled && (
+            <div className="space-y-2">
+              <Label>Freshness Poll: {config.ragSettings?.freshnessPollSeconds || 30}s</Label>
+              <Slider
+                value={[config.ragSettings?.freshnessPollSeconds || 30]}
+                onValueChange={(value) => updateSetting('ragSettings.freshnessPollSeconds', value[0])}
+                min={10}
+                max={300}
+                step={5}
+              />
+            </div>
+          )}
+
+          <div className="rounded-md border p-3 space-y-2">
+            <div className="flex items-center justify-between">
+              <Label className="text-sm font-semibold">Live Metrics</Label>
+              <Button variant="outline" size="sm" onClick={fetchIrisMetrics}>Refresh</Button>
+            </div>
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+              <Metric label="Search module" value={irisStats?.search_module ? 'loaded' : '—'} ok={!!irisStats?.search_module} />
+              <Metric label="Cache index" value={irisStats?.index_ready ? 'ready' : 'not created'} ok={!!irisStats?.index_ready} />
+              <Metric label="Entries" value={irisStats ? String(irisStats.totalEntries ?? 0) : '—'} />
+              <Metric label="Hit rate" value={irisStats ? `${Math.round((irisStats.hitRate || 0) * 100)}%` : '—'} />
+              <Metric label="Hits / Misses" value={irisStats ? `${irisStats.hits ?? 0} / ${irisStats.misses ?? 0}` : '—'} />
+              <Metric label="Saved (ms)" value={irisStats ? String(irisStats.savedMs ?? 0) : '—'} />
+              <Metric label="Freshness monitor" value={freshness?.enabled ? 'on' : 'off'} ok={!!freshness?.enabled} />
+              <Metric label="Corpus version" value={freshness?.corpusVersion ?? '—'} />
+              <Metric label="Last bump" value={freshness?.lastBumpAt ? new Date(freshness.lastBumpAt).toLocaleString() : '—'} />
+            </div>
           </div>
         </CardContent>
       </Card>
