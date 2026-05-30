@@ -8,10 +8,13 @@ python-multipart==0.0.6
 
 # Async Support
 aiohttp==3.10.5
-asyncio==3.4.3
+# asyncio==3.4.3  # REMOVED: stdlib on 3.10+; the PyPI backport (2015) shadows & breaks stdlib asyncio
 
-# Web Scraping - Crawl4AI
-crawl4ai==0.3.0
+# Web Scraping - Crawl4AI (OPTIONAL — import guarded in crawl4ai_service.py)
+# REMOVED from the default install: crawl4ai 0.3.0 pins lxml==5.3.0 + numpy==2.1.1 which conflict
+# with pandas/pgvector (numpy<2), and it is absent on the air-gapped GX10 appliance. Re-add in a
+# crawler-enabled build: crawl4ai==0.3.0 (and bump lxml/numpy accordingly).
+# crawl4ai==0.3.0
 
 # Database
 psycopg[binary,pool]==3.1.13
@@ -56,8 +59,10 @@ PyPDF2==3.0.1
 openai>=1.50.0
 anthropic>=0.35.0
 google-generativeai>=0.8.0
-langchain>=0.3.0
-langchain-openai>=0.2.0
+# REMOVED: langchain is not imported anywhere in the service; the loose pin resolved to
+# langchain 1.x which requires pydantic>=2.7.4, conflicting with pydantic==2.5.2 below.
+# langchain>=0.3.0
+# langchain-openai>=0.2.0
 
 # Speech-to-Text - OpenAI Whisper (DISABLED: Heavy dependencies)
 # openai-whisper==20231117
