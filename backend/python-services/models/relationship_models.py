@@ -9,8 +9,15 @@ from enum import Enum
 from datetime import datetime
 
 
+# ⚠️ WS4-B (ADR-0003): these enums are the LEGACY DEFAULT (tax-law) vocabulary.
+# Entity/relationship types are now schema-first — declared per-domain in
+# data-schemas.json llmConfig.entities/relationships and validated against the
+# active schema in relationship_extraction_service. The model fields below use
+# `str` (not these enums) so schema-first types like 'organization' / 'issued_by'
+# are accepted. These enums are retained only for documentation / the default
+# seed; do NOT constrain new validation to them.
 class RelationshipType(str, Enum):
-    """Types of relationships between chunks"""
+    """LEGACY default relationship types (tax-law). Schema-first replaces these."""
     REFERENCES = "references"       # Atif: chunk mentions another law/article
     AMENDS = "amends"               # Degistirme: law amendment relationship
     PARENT_OF = "parent_of"         # Hiyerarsi: kanun -> bolum -> madde -> fikra
@@ -20,7 +27,7 @@ class RelationshipType(str, Enum):
 
 
 class EntityType(str, Enum):
-    """Types of entities extracted from chunk content"""
+    """LEGACY default entity types (tax-law). Schema-first replaces these."""
     LAW_CODE = "law_code"           # VUK, GVK, KDVK, etc.
     ARTICLE_NUMBER = "article_number"  # 114, 40, 29/A, etc.
     INSTITUTION = "institution"     # Danistay, GIB, Maliye Bakanligi
@@ -44,8 +51,9 @@ class ExtractionStatus(str, Enum):
 # =============================================
 
 class EntityResult(BaseModel):
-    """Single extracted entity"""
-    entity_type: EntityType = Field(alias="type")
+    """Single extracted entity. WS4-B: entity_type is a free str validated against
+    the active schema (not the legacy EntityType enum)."""
+    entity_type: str = Field(alias="type")
     value: str = Field(..., description="Raw entity value from text")
     normalized: Optional[str] = Field(None, description="Normalized value (e.g., '%18' -> '0.18')")
     position_start: Optional[int] = Field(None, description="Character offset start in content")
@@ -64,6 +72,7 @@ class EntityDB(BaseModel):
     position_start: Optional[int] = None
     position_end: Optional[int] = None
     metadata: Dict[str, Any] = {}
+    schema_id: Optional[str] = None  # WS4-B: provenance — which schema's vocabulary produced this
     created_at: Optional[datetime] = None
 
 
@@ -72,10 +81,11 @@ class EntityDB(BaseModel):
 # =============================================
 
 class ReferenceResult(BaseModel):
-    """Single extracted cross-reference"""
-    target_law: Optional[str] = Field(None, description="Target law code: VUK, GVK, etc.")
-    target_article: Optional[str] = Field(None, description="Target article number: 114, 40, 29/A")
-    relationship_type: RelationshipType = Field(default=RelationshipType.REFERENCES, alias="type")
+    """Single extracted cross-reference. WS4-B: relationship_type is a free str
+    validated against the active schema (not the legacy RelationshipType enum)."""
+    target_law: Optional[str] = Field(None, description="Target entity/law code (domain-dependent)")
+    target_article: Optional[str] = Field(None, description="Target detail/article (domain-dependent)")
+    relationship_type: str = Field(default="references", alias="type")
     context: Optional[str] = Field(None, description="Surrounding text where reference was found")
     confidence: float = Field(default=0.8, ge=0.0, le=1.0)
 
@@ -94,6 +104,7 @@ class RelationshipDB(BaseModel):
     target_law_code: Optional[str] = None
     target_article_number: Optional[str] = None
     metadata: Dict[str, Any] = {}
+    schema_id: Optional[str] = None  # WS4-B: provenance — which schema's vocabulary produced this
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
 

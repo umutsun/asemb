@@ -413,6 +413,58 @@ export interface LLMConfig {
    * Multi-tenant: Each schema can have its own deadline rules
    */
   deadlineConfig?: DeadlineConfig;
+
+  /**
+   * WS4-B (ADR-0003): Knowledge-graph entity taxonomy for this schema.
+   * Drives schema-first relationship extraction — the Python extraction
+   * service generates its prompt and validates LLM output against these
+   * definitions instead of a hardcoded EntityType enum.
+   * Multi-tenant: each domain (tax law, procurement tenders, …) declares
+   * its own entity types here, per Hard Rule #1.
+   */
+  entities?: EntityDefinition[];
+
+  /**
+   * WS4-B (ADR-0003): Knowledge-graph relationship taxonomy for this schema.
+   * Same role as `entities` but for edges between entities/chunks.
+   * The extraction prompt and validation are generated from this list.
+   */
+  relationships?: RelationshipDefinition[];
+}
+
+/**
+ * WS4-B (ADR-0003): a single knowledge-graph entity type, declared per schema.
+ * Replaces the hardcoded Python `EntityType` enum — extraction prompt and
+ * validation are generated from these definitions.
+ */
+export interface EntityDefinition {
+  /** Stable machine type, snake_case. Stored in chunk_entities.entity_type. Example: "organization" */
+  type: string;
+  /** Human-readable label for UI/prompt. Example: "Organization / Institution" */
+  label: string;
+  /** Short description that goes into the extraction prompt to guide the LLM */
+  description: string;
+  /** Example surface forms to anchor the LLM. Example: ["Yeditepe Üniversitesi", "T.C. Sağlık Bakanlığı"] */
+  examples?: string[];
+}
+
+/**
+ * WS4-B (ADR-0003): a single knowledge-graph relationship (edge) type,
+ * declared per schema. Replaces the hardcoded Python `RelationshipType` enum.
+ */
+export interface RelationshipDefinition {
+  /** Stable machine type, snake_case. Stored in chunk_relationships.relationship_type. Example: "issued_by" */
+  type: string;
+  /** Human-readable label for UI/prompt. Example: "Issued by" */
+  label: string;
+  /** Short description that goes into the extraction prompt to guide the LLM */
+  description: string;
+  /** Entity types allowed as the edge source (optional validation hint). Example: ["tender_no"] */
+  validSourceTypes?: string[];
+  /** Entity types allowed as the edge target (optional validation hint). Example: ["organization"] */
+  validTargetTypes?: string[];
+  /** Example phrasings that signal this relationship. Example: ["tarafından düzenlenmiştir", "ihale makamı"] */
+  examples?: string[];
 }
 
 /**
@@ -591,7 +643,81 @@ export const DEFAULT_LLM_CONFIG: LLMConfig = {
   transformRules: 'Metin içindeki anahtar bilgileri çıkar.',
   questionGenerator: 'Bu belgenin içeriği hakkında kullanıcının ilgilenebileceği sorular öner.',
   searchContext: 'Genel doküman arama',
-  sanitizerConfig: DEFAULT_SANITIZER_CONFIG
+  sanitizerConfig: DEFAULT_SANITIZER_CONFIG,
+
+  // WS4-B (ADR-0003): default knowledge-graph vocabulary seeded for the
+  // Yeditepe procurement-tender domain (bookie dev corpus). The Python
+  // extraction service builds its prompt + validation from these instead of
+  // the hardcoded tax-law EntityType/RelationshipType enums. A customer with
+  // a different domain overrides these in their own schema's llmConfig.
+  entities: [
+    {
+      type: 'organization',
+      label: 'Kurum / Organizasyon',
+      description: 'Kamu kurumu, üniversite, hastane, şirket veya ihaleye taraf olan herhangi bir tüzel kişilik.',
+      examples: ['Yeditepe Üniversitesi', 'Yeditepe Üniversitesi Hastanesi', 'T.C. Sağlık Bakanlığı']
+    },
+    {
+      type: 'person',
+      label: 'Kişi',
+      description: 'İhale belgesinde adı geçen gerçek kişi (yetkili, imza sahibi, komisyon üyesi).',
+      examples: ['Dr. Ahmet Yılmaz', 'Komisyon Başkanı']
+    },
+    {
+      type: 'date',
+      label: 'Tarih',
+      description: 'İhale tarihi, son teklif tarihi, sözleşme tarihi veya belgedeki herhangi bir takvim tarihi.',
+      examples: ['15.03.2026', '15 Mart 2026', '2026-03-15']
+    },
+    {
+      type: 'amount',
+      label: 'Tutar',
+      description: 'Parasal tutar, yaklaşık maliyet, teklif bedeli, teminat tutarı (para birimiyle).',
+      examples: ['1.250.000,00 TL', '250.000 USD', '%3 geçici teminat']
+    },
+    {
+      type: 'product_service',
+      label: 'Mal / Hizmet',
+      description: 'İhale konusu mal, hizmet veya iş kalemi.',
+      examples: ['Tıbbi sarf malzemesi', 'Bilgisayar tomografi cihazı', 'Temizlik hizmeti alımı']
+    },
+    {
+      type: 'tender_no',
+      label: 'İhale Kayıt No',
+      description: 'İhale kayıt numarası (İKN) veya ihaleyi tanımlayan referans numarası.',
+      examples: ['2026/123456', 'İKN: 2026/987654']
+    }
+  ],
+  relationships: [
+    {
+      type: 'issued_by',
+      label: 'Düzenleyen',
+      description: 'Bir ihalenin/belgenin hangi kurum tarafından düzenlendiğini/yayımlandığını gösterir.',
+      validSourceTypes: ['tender_no', 'product_service'],
+      validTargetTypes: ['organization'],
+      examples: ['... tarafından düzenlenmiştir', 'ihale makamı', 'idaresi']
+    },
+    {
+      type: 'references',
+      label: 'Atıf',
+      description: 'Bir belgenin başka bir belgeye, ihaleye veya mevzuata atıfta bulunması.',
+      examples: ['... sayılı karara istinaden', 'ilgili şartnamede belirtildiği üzere']
+    },
+    {
+      type: 'supersedes',
+      label: 'Yürürlükten Kaldıran',
+      description: 'Bir belgenin/ihalenin öncekini iptal ettiğini, değiştirdiğini veya yerine geçtiğini gösterir.',
+      examples: ['... iptal edilmiştir', 'yeniden ihaleye çıkılmıştır', 'zeyilname ile değiştirilmiştir']
+    },
+    {
+      type: 'part_of',
+      label: 'Parçası',
+      description: 'Bir kalemin/belgenin daha büyük bir ihalenin veya iş grubunun parçası olduğunu gösterir.',
+      validSourceTypes: ['product_service', 'amount'],
+      validTargetTypes: ['tender_no'],
+      examples: ['... kapsamında', 'kısmi teklif', 'lot']
+    }
+  ]
 };
 
 // Varsayılan schema örnekleri

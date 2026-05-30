@@ -93,6 +93,11 @@ INSTITUTION_KEYWORDS = [
 # LLM EXTRACTION PROMPT
 # ═══════════════════════════════════════════════════════════════════════════
 
+# ⚠️ WS4-B (ADR-0003): DEPRECATED. The extraction system prompt is now generated
+# per-domain from the active schema by _build_extraction_prompt(). This hardcoded
+# tax-law prompt is kept only as a reference for the default-schema seed values in
+# DEFAULT_LLM_CONFIG (backend/src/types/data-schema.types.ts) and is no longer sent
+# to the LLM. Do not add new domain vocabulary here — add it to a schema's llmConfig.
 EXTRACTION_SYSTEM_PROMPT = """You are a legal document analyzer specializing in Turkish tax and legal texts.
 Extract structured entities and cross-references from the given text chunk.
 
@@ -135,7 +140,7 @@ Rules:
 - If no entities or references found, return empty arrays
 - Return ONLY the JSON object, no markdown formatting"""
 
-EXTRACTION_USER_PROMPT = """Analyze this Turkish legal/tax text chunk and extract entities and cross-references.
+EXTRACTION_USER_PROMPT = """Analyze this text chunk and extract entities and relationships per the system instructions.
 
 Source: {source_table} / {source_type}
 {metadata_context}
@@ -155,6 +160,9 @@ class RelationshipExtractionService:
         self._settings_cache: Optional[Dict[str, Any]] = None
         self._settings_cache_time: float = 0
         self._openai_client: Optional[openai.AsyncOpenAI] = None
+        # WS4-B: active schema vocabulary cache (entities/relationships), 60s TTL.
+        self._schema_cache: Optional[Dict[str, Any]] = None
+        self._schema_cache_time: float = 0
 
     # ─────────────────────────────────────────────────────────────────
     # Settings & Init
@@ -193,6 +201,147 @@ class RelationshipExtractionService:
         return self._openai_client
 
     # ─────────────────────────────────────────────────────────────────
+    # Schema-first vocabulary (WS4-B, ADR-0003)
+    # ─────────────────────────────────────────────────────────────────
+
+    async def _load_active_schema(self) -> Dict[str, Any]:
+        """
+        Resolve the active knowledge-graph vocabulary, schema-first (ADR-0003).
+
+        Source-of-truth order (Hard Rule #1 — config-driven, not hardcoded):
+          1. user_schemas.llm_config -> entities/relationships, for the row that
+             is_default (preferred) or is_active. This is the per-domain schema.
+          2. settings: relationships.defaultEntities / defaultRelationships —
+             seeded by Node from DEFAULT_LLM_CONFIG, so a fresh box with no
+             user_schemas row still gets the built-in default vocabulary.
+          3. Empty lists. We deliberately do NOT fall back to the old hardcoded
+             tax-law enum: schema-first means no domain vocabulary in code.
+
+        Returns: {"schema_id": Optional[str], "entities": [...], "relationships": [...]}
+        Cached for 60s alongside _settings_cache.
+        """
+        now = time.time()
+        if self._schema_cache and (now - self._schema_cache_time) < 60:
+            return self._schema_cache
+
+        schema_id: Optional[str] = None
+        entities: List[Dict[str, Any]] = []
+        relationships: List[Dict[str, Any]] = []
+
+        try:
+            pool = await get_db()
+            # 1. Per-domain schema from user_schemas (default first, then any active).
+            row = await pool.fetchrow("""
+                SELECT id, llm_config
+                FROM user_schemas
+                WHERE llm_config IS NOT NULL
+                ORDER BY is_default DESC, is_active DESC, updated_at DESC
+                LIMIT 1
+            """)
+            if row and row['llm_config']:
+                cfg = row['llm_config']
+                if isinstance(cfg, str):
+                    cfg = json.loads(cfg)
+                ents = cfg.get('entities') or []
+                rels = cfg.get('relationships') or []
+                if ents or rels:
+                    schema_id = str(row['id'])
+                    entities, relationships = ents, rels
+
+            # 2. settings-seeded default vocabulary (Node mirrors DEFAULT_LLM_CONFIG here).
+            if not entities and not relationships:
+                settings = await self._get_settings()
+                entities = self._coerce_json_list(settings.get('defaultEntities'))
+                relationships = self._coerce_json_list(settings.get('defaultRelationships'))
+        except Exception as e:
+            logger.error(f"[RelExtract] Failed to load active schema vocab: {e}")
+
+        result = {"schema_id": schema_id, "entities": entities, "relationships": relationships}
+        self._schema_cache = result
+        self._schema_cache_time = now
+        if not entities and not relationships:
+            logger.warning(
+                "[RelExtract] No schema-first vocabulary found (user_schemas + settings both empty). "
+                "Extraction prompt will have no entity/relationship types — seed a schema first."
+            )
+        return result
+
+    @staticmethod
+    def _coerce_json_list(raw: Any) -> List[Dict[str, Any]]:
+        """settings values may be JSON strings, lists, or None. Normalize to a list."""
+        if not raw:
+            return []
+        if isinstance(raw, list):
+            return raw
+        if isinstance(raw, str):
+            try:
+                parsed = json.loads(raw)
+                return parsed if isinstance(parsed, list) else []
+            except (json.JSONDecodeError, TypeError):
+                return []
+        return []
+
+    def _build_extraction_prompt(
+        self, entities: List[Dict[str, Any]], relationships: List[Dict[str, Any]]
+    ) -> str:
+        """
+        Generate the extraction system prompt from the active schema's vocabulary
+        (WS4-B). Replaces the hardcoded tax-law EXTRACTION_SYSTEM_PROMPT.
+
+        The prompt lists each entity/relationship type with its description and
+        examples, and constrains the LLM's "type" fields to exactly those types.
+        Domain-agnostic: a tax schema and a procurement schema each produce their
+        own prompt from their own llmConfig.
+        """
+        entity_types = [e.get("type") for e in entities if e.get("type")]
+        rel_types = [r.get("type") for r in relationships if r.get("type")]
+
+        def _fmt(defs: List[Dict[str, Any]]) -> str:
+            lines = []
+            for d in defs:
+                t = d.get("type")
+                if not t:
+                    continue
+                desc = d.get("description", "").strip()
+                ex = d.get("examples") or []
+                ex_str = f" Examples: {', '.join(str(x) for x in ex[:4])}." if ex else ""
+                lines.append(f'  - "{t}": {desc}{ex_str}')
+            return "\n".join(lines) if lines else "  (none defined)"
+
+        entity_block = _fmt(entities)
+        rel_block = _fmt(relationships)
+        entity_enum = ", ".join(entity_types) if entity_types else "(none)"
+        rel_enum = ", ".join(rel_types) if rel_types else "(none)"
+
+        return f"""You are a document analyzer that extracts a knowledge graph from text.
+Extract structured entities and relationships from the given text chunk.
+
+Return ONLY valid JSON with this exact structure:
+{{
+  "entities": [
+    {{"type": "<one of the entity types below>", "value": "surface text", "normalized": "canonical form"}}
+  ],
+  "references": [
+    {{"target_law": "optional target entity", "target_article": "optional target detail", "type": "<one of the relationship types below>", "context": "surrounding text", "confidence": 0.9}}
+  ]
+}}
+
+Entity types (use the "type" value exactly as written):
+{entity_block}
+
+Relationship types (use the "type" value exactly as written):
+{rel_block}
+
+Rules:
+- "type" for entities MUST be exactly one of: {entity_enum}
+- "type" for references MUST be exactly one of: {rel_enum}
+- Only emit a reference when the text clearly expresses that relationship.
+- Do NOT invent types outside the lists above; skip anything that does not fit.
+- confidence should be 0.7-1.0 for explicit relationships, 0.5-0.7 for implicit ones.
+- If no entities or references are found, return empty arrays.
+- Return ONLY the JSON object, no markdown formatting."""
+
+    # ─────────────────────────────────────────────────────────────────
     # Single Chunk Extraction
     # ─────────────────────────────────────────────────────────────────
 
@@ -213,6 +362,13 @@ class RelationshipExtractionService:
         settings = await self._get_settings()
         model = settings.get('extractionModel', DEFAULT_MODEL)
         confidence_threshold = float(settings.get('confidenceThreshold', DEFAULT_CONFIDENCE_THRESHOLD))
+
+        # WS4-B: resolve the active schema vocabulary (entities/relationships).
+        # Drives the LLM prompt, output validation, and schema_id provenance.
+        schema = await self._load_active_schema()
+        schema_id = schema["schema_id"]
+        valid_entity_types = {e.get("type") for e in schema["entities"] if e.get("type")}
+        valid_rel_types = {r.get("type") for r in schema["relationships"] if r.get("type")}
 
         # Fetch content from DB if not provided
         if not content:
@@ -238,7 +394,10 @@ class RelationshipExtractionService:
         # Try LLM extraction, fall back to regex
         fallback_used = False
         try:
-            extraction = await self._llm_extract(content, source_table, source_type, metadata, model)
+            extraction = await self._llm_extract(
+                content, source_table, source_type, metadata, model,
+                schema["entities"], schema["relationships"],
+            )
         except Exception as e:
             logger.warning(f"[RelExtract] LLM failed for chunk {chunk_id}, using regex fallback: {e}")
             extraction = self._regex_extract(content)
@@ -246,6 +405,16 @@ class RelationshipExtractionService:
 
         entities = extraction.get("entities", [])
         references = extraction.get("references", [])
+
+        # WS4-B: schema-based validation (replaces the hardcoded EntityType/
+        # RelationshipType enums). Drop anything whose type is not in the active
+        # schema. If the schema declares NO types (unseeded box), skip filtering
+        # so a regex fallback still stores something rather than silently dropping
+        # everything — but the prompt warning already flagged the unseeded state.
+        if valid_entity_types:
+            entities = [e for e in entities if e.get("type") in valid_entity_types]
+        if valid_rel_types:
+            references = [r for r in references if r.get("type", "references") in valid_rel_types]
 
         # Filter by confidence threshold
         references = [r for r in references if r.get("confidence", 0.8) >= confidence_threshold]
@@ -260,13 +429,14 @@ class RelationshipExtractionService:
             if not (r.get("target_law", "") == self_law and str(r.get("target_article", "")) == self_article and self_law)
         ]
 
-        # Store in DB
-        entities_stored = await self._store_entities(chunk_id, entities)
-        relationships_stored = await self._store_relationships(chunk_id, references)
+        # Store in DB (with schema_id provenance — WS4-B)
+        entities_stored = await self._store_entities(chunk_id, entities, schema_id)
+        relationships_stored = await self._store_relationships(chunk_id, references, schema_id)
 
         # ─────────────────────────────────────────────────────────────
         # NEO4J INTEGRATION: Push to Knowledge Graph (Isolated by workspace_id)
         # ─────────────────────────────────────────────────────────────
+        workspace_id = os.getenv("TENANT_ID", "default")  # was undefined here (bug) — Neo4j push silently failed
         try:
             # 1. Ensure Chunk exists in Neo4j
             await neo4j_service.upsert_chunk_node(workspace_id, chunk_id, content, metadata or {})
@@ -323,11 +493,17 @@ class RelationshipExtractionService:
         source_type: Optional[str],
         metadata: Optional[Dict[str, Any]],
         model: str,
+        entities_schema: List[Dict[str, Any]],
+        relationships_schema: List[Dict[str, Any]],
     ) -> Dict[str, Any]:
-        """Call LLM to extract entities and references."""
+        """Call LLM to extract entities and references, using a schema-built prompt (WS4-B)."""
         client = self._get_openai_client()
 
-        # Build metadata context
+        # WS4-B: system prompt is generated from the active schema's vocabulary,
+        # not the hardcoded tax-law EXTRACTION_SYSTEM_PROMPT.
+        system_prompt = self._build_extraction_prompt(entities_schema, relationships_schema)
+
+        # Build metadata context (still useful as a hint regardless of domain).
         meta_parts = []
         if metadata:
             if metadata.get("law_code"):
@@ -348,7 +524,7 @@ class RelationshipExtractionService:
         response = await client.chat.completions.create(
             model=model,
             messages=[
-                {"role": "system", "content": EXTRACTION_SYSTEM_PROMPT},
+                {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_prompt},
             ],
             temperature=0.1,
@@ -456,8 +632,10 @@ class RelationshipExtractionService:
     # Database Storage
     # ─────────────────────────────────────────────────────────────────
 
-    async def _store_entities(self, chunk_id: int, entities: List[Dict]) -> int:
-        """Store extracted entities in chunk_entities table."""
+    async def _store_entities(
+        self, chunk_id: int, entities: List[Dict], schema_id: Optional[str] = None
+    ) -> int:
+        """Store extracted entities in chunk_entities table (with schema_id provenance)."""
         if not entities:
             return 0
 
@@ -467,16 +645,18 @@ class RelationshipExtractionService:
             for entity in entities:
                 try:
                     await conn.execute("""
-                        INSERT INTO chunk_entities (chunk_id, entity_type, entity_value, normalized_value, metadata)
-                        VALUES ($1, $2, $3, $4, $5)
+                        INSERT INTO chunk_entities (chunk_id, entity_type, entity_value, normalized_value, metadata, schema_id)
+                        VALUES ($1, $2, $3, $4, $5, $6)
                         ON CONFLICT (chunk_id, entity_type, entity_value) DO UPDATE
-                        SET normalized_value = EXCLUDED.normalized_value
+                        SET normalized_value = EXCLUDED.normalized_value,
+                            schema_id = EXCLUDED.schema_id
                     """,
                         chunk_id,
                         entity.get("type", "concept"),
                         entity.get("value", ""),
                         entity.get("normalized"),
                         json.dumps(entity.get("metadata", {})),
+                        schema_id,
                     )
                     stored += 1
                 except Exception as e:
@@ -484,8 +664,10 @@ class RelationshipExtractionService:
 
         return stored
 
-    async def _store_relationships(self, chunk_id: int, references: List[Dict]) -> int:
-        """Store extracted relationships in chunk_relationships table."""
+    async def _store_relationships(
+        self, chunk_id: int, references: List[Dict], schema_id: Optional[str] = None
+    ) -> int:
+        """Store extracted relationships in chunk_relationships table (with schema_id provenance)."""
         if not references:
             return 0
 
@@ -511,11 +693,12 @@ class RelationshipExtractionService:
                     await conn.execute("""
                         INSERT INTO chunk_relationships
                         (source_chunk_id, target_chunk_id, relationship_type, confidence,
-                         extracted_by, target_reference, target_law_code, target_article_number, metadata)
-                        VALUES ($1, $2, $3, $4, 'llm', $5, $6, $7, $8)
+                         extracted_by, target_reference, target_law_code, target_article_number, metadata, schema_id)
+                        VALUES ($1, $2, $3, $4, 'llm', $5, $6, $7, $8, $9)
                         ON CONFLICT (source_chunk_id, COALESCE(target_chunk_id, -1), relationship_type)
                         DO UPDATE SET confidence = GREATEST(chunk_relationships.confidence, EXCLUDED.confidence),
                                       target_chunk_id = COALESCE(EXCLUDED.target_chunk_id, chunk_relationships.target_chunk_id),
+                                      schema_id = EXCLUDED.schema_id,
                                       updated_at = NOW()
                     """,
                         chunk_id,
@@ -526,6 +709,7 @@ class RelationshipExtractionService:
                         target_law if target_law else None,
                         target_article if target_article else None,
                         json.dumps({"context": context[:500]}),
+                        schema_id,
                     )
                     stored += 1
                 except Exception as e:

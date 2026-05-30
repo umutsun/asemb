@@ -133,6 +133,38 @@ export interface LLMConfig {
   lawCodeConfig?: LawCodeConfig;
   /** Sanitizer configuration for filtering ungrounded claims */
   sanitizerConfig?: SanitizerConfig;
+  /** WS4-B (ADR-0003): knowledge-graph entity taxonomy (schema-first extraction) */
+  entities?: EntityDefinition[];
+  /** WS4-B (ADR-0003): knowledge-graph relationship taxonomy (schema-first extraction) */
+  relationships?: RelationshipDefinition[];
+}
+
+// WS4-B (ADR-0003): knowledge-graph entity type, declared per schema
+export interface EntityDefinition {
+  /** Stable machine type, snake_case (chunk_entities.entity_type), e.g. "organization" */
+  type: string;
+  /** Human-readable label for UI/prompt */
+  label: string;
+  /** Short description fed into the extraction prompt */
+  description: string;
+  /** Example surface forms to anchor the LLM */
+  examples?: string[];
+}
+
+// WS4-B (ADR-0003): knowledge-graph relationship (edge) type, declared per schema
+export interface RelationshipDefinition {
+  /** Stable machine type, snake_case (chunk_relationships.relationship_type), e.g. "issued_by" */
+  type: string;
+  /** Human-readable label for UI/prompt */
+  label: string;
+  /** Short description fed into the extraction prompt */
+  description: string;
+  /** Entity types allowed as the edge source (optional validation hint) */
+  validSourceTypes?: string[];
+  /** Entity types allowed as the edge target (optional validation hint) */
+  validTargetTypes?: string[];
+  /** Example phrasings that signal this relationship */
+  examples?: string[];
 }
 
 // Ana Data Schema yapısı
@@ -271,5 +303,22 @@ export const DEFAULT_LLM_CONFIG: LLMConfig = {
   transformRules: 'Metin içindeki anahtar bilgileri çıkar.',
   questionGenerator: 'Bu belgenin içeriği hakkında sorular öner.',
   searchContext: 'Genel doküman arama',
-  sanitizerConfig: DEFAULT_SANITIZER_CONFIG
+  sanitizerConfig: DEFAULT_SANITIZER_CONFIG,
+  // WS4-B (ADR-0003): default KG vocabulary for the Yeditepe procurement-tender
+  // domain. Mirrors the backend DEFAULT_LLM_CONFIG; a different domain overrides
+  // these in its own schema's llmConfig. Keep in sync with backend.
+  entities: [
+    { type: 'organization', label: 'Kurum / Organizasyon', description: 'Kamu kurumu, üniversite, hastane, şirket veya ihaleye taraf olan tüzel kişilik.', examples: ['Yeditepe Üniversitesi', 'T.C. Sağlık Bakanlığı'] },
+    { type: 'person', label: 'Kişi', description: 'İhale belgesinde adı geçen gerçek kişi (yetkili, imza sahibi, komisyon üyesi).', examples: ['Dr. Ahmet Yılmaz', 'Komisyon Başkanı'] },
+    { type: 'date', label: 'Tarih', description: 'İhale tarihi, son teklif tarihi, sözleşme tarihi veya herhangi bir takvim tarihi.', examples: ['15.03.2026', '15 Mart 2026'] },
+    { type: 'amount', label: 'Tutar', description: 'Parasal tutar, yaklaşık maliyet, teklif bedeli, teminat tutarı.', examples: ['1.250.000,00 TL', '%3 geçici teminat'] },
+    { type: 'product_service', label: 'Mal / Hizmet', description: 'İhale konusu mal, hizmet veya iş kalemi.', examples: ['Tıbbi sarf malzemesi', 'Temizlik hizmeti alımı'] },
+    { type: 'tender_no', label: 'İhale Kayıt No', description: 'İhale kayıt numarası (İKN) veya ihaleyi tanımlayan referans numarası.', examples: ['2026/123456', 'İKN: 2026/987654'] }
+  ],
+  relationships: [
+    { type: 'issued_by', label: 'Düzenleyen', description: 'Bir ihalenin/belgenin hangi kurum tarafından düzenlendiğini gösterir.', validSourceTypes: ['tender_no', 'product_service'], validTargetTypes: ['organization'], examples: ['... tarafından düzenlenmiştir', 'ihale makamı'] },
+    { type: 'references', label: 'Atıf', description: 'Bir belgenin başka bir belgeye, ihaleye veya mevzuata atıfta bulunması.', examples: ['... sayılı karara istinaden'] },
+    { type: 'supersedes', label: 'Yürürlükten Kaldıran', description: 'Bir belgenin/ihalenin öncekini iptal ettiğini veya yerine geçtiğini gösterir.', examples: ['... iptal edilmiştir', 'zeyilname ile değiştirilmiştir'] },
+    { type: 'part_of', label: 'Parçası', description: 'Bir kalemin daha büyük bir ihalenin veya iş grubunun parçası olduğunu gösterir.', validSourceTypes: ['product_service', 'amount'], validTargetTypes: ['tender_no'], examples: ['... kapsamında', 'kısmi teklif'] }
+  ]
 };

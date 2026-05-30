@@ -822,6 +822,33 @@ class DataSchemaService {
     this.config = config;
   }
 
+  /**
+   * WS4-B (ADR-0003): seed the default knowledge-graph vocabulary into `settings`
+   * so the Python extraction service has a domain-agnostic fallback when no
+   * user_schemas row carries an llmConfig yet.
+   *
+   * Source of truth is DEFAULT_LLM_CONFIG.entities/relationships (this codebase) —
+   * we mirror it into settings keys `relationships.defaultEntities` /
+   * `relationships.defaultRelationships` (category 'relationships'), which the
+   * Python side reads (prefix stripped) in _load_active_schema(). Idempotent
+   * upsert; safe to call on every boot.
+   */
+  async seedRelationshipVocabulary(): Promise<void> {
+    const entities = DEFAULT_LLM_CONFIG.entities ?? [];
+    const relationships = DEFAULT_LLM_CONFIG.relationships ?? [];
+    if (entities.length === 0 && relationships.length === 0) return;
+
+    await pool.query(
+      `INSERT INTO settings (key, value, category)
+       VALUES
+         ('relationships.defaultEntities', $1, 'relationships'),
+         ('relationships.defaultRelationships', $2, 'relationships')
+       ON CONFLICT (key)
+       DO UPDATE SET value = EXCLUDED.value, updated_at = CURRENT_TIMESTAMP`,
+      [JSON.stringify(entities), JSON.stringify(relationships)]
+    );
+  }
+
   async getSchemas(): Promise<DataSchema[]> {
     const config = await this.loadConfig();
     return config.schemas;

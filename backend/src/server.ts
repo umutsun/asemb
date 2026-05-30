@@ -1069,6 +1069,16 @@ async function startServer() {
       console.warn('[freshness] monitor start skipped:', freshnessErr?.message);
     }
 
+    // WS4-B (ADR-0003): seed the default knowledge-graph vocabulary into `settings`
+    // so the Python extraction service has a domain-agnostic fallback before any
+    // user_schemas row carries an llmConfig. Idempotent; fully fail-safe.
+    try {
+      const { dataSchemaService } = await import('./services/data-schema.service');
+      await dataSchemaService.seedRelationshipVocabulary();
+    } catch (kgSeedErr: any) {
+      console.warn('[ws4b] relationship vocabulary seed skipped:', kgSeedErr?.message);
+    }
+
     // Initialize Notification Broadcast WebSocket
     console.log(`[DEBUG] WEBSOCKET.ENABLED=${SERVER.WEBSOCKET.ENABLED}, wss=${!!wss}`);
     if (SERVER.WEBSOCKET.ENABLED && wss) {
