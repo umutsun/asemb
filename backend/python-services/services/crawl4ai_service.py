@@ -9,12 +9,23 @@ from typing import Optional, Dict, Any, List
 from datetime import datetime
 import hashlib
 
-from crawl4ai import AsyncWebCrawler
-from crawl4ai.extraction_strategy import (
-    LLMExtractionStrategy,
-    JsonCssExtractionStrategy,
-    CosineStrategy
-)
+# crawl4ai is an OPTIONAL, heavy dependency (pulls playwright + pins lxml/numpy that conflict
+# with the rest of the stack, and is absent on the air-gapped GX10 appliance). Guard the import
+# so the FastAPI service still boots without it; crawl endpoints then fail with a clear error
+# instead of taking the whole service down at import time.
+try:
+    from crawl4ai import AsyncWebCrawler
+    from crawl4ai.extraction_strategy import (
+        LLMExtractionStrategy,
+        JsonCssExtractionStrategy,
+        CosineStrategy
+    )
+    _CRAWL4AI_AVAILABLE = True
+except ImportError:
+    AsyncWebCrawler = None  # type: ignore
+    LLMExtractionStrategy = JsonCssExtractionStrategy = CosineStrategy = None  # type: ignore
+    _CRAWL4AI_AVAILABLE = False
+
 from loguru import logger
 
 from services.database import execute_update, execute_query
@@ -24,6 +35,8 @@ class Crawl4AIService:
     """Service for AI-powered web scraping using Crawl4AI"""
 
     def __init__(self):
+        if not _CRAWL4AI_AVAILABLE:
+            logger.warning("[crawl4ai] package not installed — crawl endpoints disabled (service still runs)")
         self.max_workers = int(os.getenv("CRAWL4AI_MAX_WORKERS", 5))
         self.timeout = int(os.getenv("CRAWL4AI_TIMEOUT", 30))
         self.max_retries = int(os.getenv("CRAWL4AI_MAX_RETRIES", 3))
