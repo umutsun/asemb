@@ -191,14 +191,38 @@ class RelationshipExtractionService:
             logger.error(f"[RelExtract] Failed to load settings: {e}")
             return {}
 
-    def _get_openai_client(self) -> openai.AsyncOpenAI:
-        """Get or create OpenAI async client."""
+    async def _get_openai_client(self) -> openai.AsyncOpenAI:
+        """
+        Get or create the OpenAI async client.
+
+        Hard Rule #1: the API key's source of truth is Settings/DB, not env.
+        Resolve order: settings.openai.apiKey (DB) -> OPENAI_API_KEY (env fallback).
+        This keeps the extraction client aligned with the rest of the app (the
+        Settings UI manages the key) and avoids the env/DB drift that silently
+        forces regex fallback when the env key is stale.
+        """
         if not self._openai_client:
-            api_key = os.getenv("OPENAI_API_KEY")
+            api_key = await self._get_openai_api_key()
             if not api_key:
-                raise ValueError("OPENAI_API_KEY not configured")
+                raise ValueError("OpenAI API key not configured (settings.openai.apiKey / OPENAI_API_KEY)")
             self._openai_client = openai.AsyncOpenAI(api_key=api_key)
         return self._openai_client
+
+    async def _get_openai_api_key(self) -> Optional[str]:
+        """Read the OpenAI key from DB settings (preferred), falling back to env."""
+        try:
+            pool = await get_db()
+            db_key = await pool.fetchval(
+                "SELECT value FROM settings WHERE key = 'openai.apiKey' LIMIT 1"
+            )
+            if db_key:
+                # settings values may be JSON-quoted strings
+                key = db_key.strip().strip('"').strip("'") if isinstance(db_key, str) else str(db_key)
+                if key and key.lower() not in ("null", "none"):
+                    return key
+        except Exception as e:
+            logger.warning(f"[RelExtract] Could not read openai.apiKey from settings, falling back to env: {e}")
+        return os.getenv("OPENAI_API_KEY")
 
     # ─────────────────────────────────────────────────────────────────
     # Schema-first vocabulary (WS4-B, ADR-0003)
@@ -497,7 +521,7 @@ Rules:
         relationships_schema: List[Dict[str, Any]],
     ) -> Dict[str, Any]:
         """Call LLM to extract entities and references, using a schema-built prompt (WS4-B)."""
-        client = self._get_openai_client()
+        client = await self._get_openai_client()
 
         # WS4-B: system prompt is generated from the active schema's vocabulary,
         # not the hardcoded tax-law EXTRACTION_SYSTEM_PROMPT.
