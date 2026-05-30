@@ -353,12 +353,48 @@ class SemanticResponseCache:
         if client is not None:
             await self._incr(client, stat, by)
 
+    async def _probe_capability(self, client: aredis.Redis) -> Dict[str, Any]:
+        """Verify the search stack is REAL, not just reachable. The TCP ping in stats()
+        only proves the socket is up — WS2 read 'available:true' with zero entries because
+        nothing distinguished 'connected' from 'search actually works'. FT._LIST resolves
+        iff the RediSearch module is loaded; an llmcache index exists iff something has been
+        cached. Distinguishes connected / module-loaded / index-ready. Never raises."""
+        search_module = False
+        cache_indexes: List[str] = []
+        total_entries = 0
+        try:
+            raw = await client.execute_command("FT._LIST")
+            search_module = True  # command resolved → module present
+            for i in (raw or []):
+                name = i.decode() if isinstance(i, (bytes, bytearray)) else str(i)
+                if name.startswith("idx:gx10llmcache:"):
+                    cache_indexes.append(name)
+        except Exception:
+            pass  # unknown command / module missing → search_module stays False
+        # Live entry count straight from the index (the cache uses TTL, so this is the
+        # real number of live cached answers — not a stat counter that can drift).
+        for name in cache_indexes:
+            try:
+                info = await client.ft(name).info()
+                nd = info.get("num_docs") if isinstance(info, dict) else None
+                if nd is not None:
+                    total_entries += int(nd)
+            except Exception:
+                pass
+        return {
+            "search_module": search_module,
+            "index_ready": len(cache_indexes) > 0,
+            "cache_indexes": cache_indexes,
+            "totalEntries": total_entries,
+        }
+
     async def stats(self) -> Dict[str, Any]:
         """Hit/miss/savings stats — mirrors the OCR cache stats shape. Never raises."""
         out = {
-            "enabled": False, "available": False, "hits": 0, "misses": 0, "writes": 0,
-            "skipped": 0, "hitRate": 0.0, "savedMs": 0, "avgSavedMsPerHit": 0,
-            "totalEntries": 0,
+            "enabled": False, "available": False, "search_module": False,
+            "index_ready": False, "cache_indexes": [], "hits": 0, "misses": 0,
+            "writes": 0, "skipped": 0, "hitRate": 0.0, "savedMs": 0,
+            "avgSavedMsPerHit": 0, "totalEntries": 0,
         }
         try:
             cfg = await self.get_config()
@@ -368,6 +404,8 @@ class SemanticResponseCache:
                 return out
             await client.ping()
             out["available"] = True
+            # Real capability probe — distinguishes "socket up" from "search works".
+            out.update(await self._probe_capability(client))
 
             async def _num(stat: str) -> int:
                 try:
