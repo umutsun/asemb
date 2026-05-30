@@ -20,6 +20,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import re
 from typing import Any, Dict, List, Optional, Sequence
 
 from loguru import logger
@@ -51,6 +52,15 @@ def _content_hash(content: str) -> str:
 def _vec_literal(embedding: List[float]) -> str:
     # pgvector string literal — identical format to the rest of the engine.
     return "[" + ",".join(map(str, embedding)) + "]"
+
+
+# RediSearch TAG values must escape punctuation (-, ., @, etc.) or the query parser treats it as
+# an operator — e.g. user_id "umut-test" parses as `umut AND NOT test` → syntax error.
+_TAG_ESCAPE = re.compile(r"([,.<>{}\[\]\"':;!@#$%^&*()\-+=~|/ ])")
+
+
+def _escape_tag(value: str) -> str:
+    return _TAG_ESCAPE.sub(r"\\\1", value or "")
 
 
 class AgentMemoryService:
@@ -274,9 +284,9 @@ class AgentMemoryService:
         if syms is None:
             return None
         try:
-            filt = f"@namespace:{{{namespace}}} @user_id:{{{user_id or '_anon'}}}"
+            filt = f"@namespace:{{{_escape_tag(namespace)}}} @user_id:{{{_escape_tag(user_id or '_anon')}}}"
             if memory_types:
-                filt += " @memory_type:{" + "|".join(memory_types) + "}"
+                filt += " @memory_type:{" + "|".join(_escape_tag(t) for t in memory_types) + "}"
             q = (
                 syms["Query"](f"({filt})=>[KNN {int(limit)} @embedding $vec AS dist]")
                 .sort_by("dist", asc=True)
