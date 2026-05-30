@@ -459,39 +459,45 @@ Rules:
 
         # ─────────────────────────────────────────────────────────────
         # NEO4J INTEGRATION: Push to Knowledge Graph (Isolated by workspace_id)
+        # ADR-0003: Neo4j is an OPTIONAL accelerator — Postgres is the canonical
+        # graph. Gate the push on neo4jEnabled AND a live driver, otherwise every
+        # chunk wastes seconds trying to connect to a dead :7687 (this was the
+        # main batch-extraction slowdown on bookie, where Neo4j is not installed).
         # ─────────────────────────────────────────────────────────────
         workspace_id = os.getenv("TENANT_ID", "default")  # was undefined here (bug) — Neo4j push silently failed
-        try:
-            # 1. Ensure Chunk exists in Neo4j
-            await neo4j_service.upsert_chunk_node(workspace_id, chunk_id, content, metadata or {})
-            
-            # 2. Add Entities
-            for entity in entities:
-                await neo4j_service.add_entity(workspace_id, chunk_id, entity.get("type", "concept"), entity.get("value", ""))
-            
-            # 3. Add Relationships
-            for ref in references:
-                target_law = ref.get("target_law")
-                target_article = ref.get("target_article")
-                rel_type = ref.get("type", "references")
-                target_ref = f"{target_law} Madde {target_article}" if target_law and target_article else ref.get("context", "")[:100]
-                
-                # Try to resolve target_chunk_id (similar to PG storage)
-                target_chunk_id = None
-                if target_law and target_article:
-                    pool = await get_db()
-                    target_chunk_id = await pool.fetchval("""
-                        SELECT id FROM unified_embeddings 
-                        WHERE metadata->>'law_code' = $1 AND metadata->>'article_number' = $2 LIMIT 1
-                    """, target_law, str(target_article))
-                
-                await neo4j_service.add_relationship(
-                    workspace_id, chunk_id, target_chunk_id, rel_type, target_ref, target_law, str(target_article) if target_article else None
-                )
-                
-            logger.info(f"🕸️ Knowledge Graph: Pushed chunk {chunk_id} to Neo4j (Workspace: {workspace_id})")
-        except Exception as e:
-            logger.warning(f"🕸️ Knowledge Graph: Failed to push to Neo4j for chunk {chunk_id}: {e}")
+        neo4j_enabled = str(settings.get('neo4jEnabled', 'false')).lower() == 'true'
+        if neo4j_enabled and neo4j_service.driver:
+            try:
+                # 1. Ensure Chunk exists in Neo4j
+                await neo4j_service.upsert_chunk_node(workspace_id, chunk_id, content, metadata or {})
+
+                # 2. Add Entities
+                for entity in entities:
+                    await neo4j_service.add_entity(workspace_id, chunk_id, entity.get("type", "concept"), entity.get("value", ""))
+
+                # 3. Add Relationships
+                for ref in references:
+                    target_law = ref.get("target_law")
+                    target_article = ref.get("target_article")
+                    rel_type = ref.get("type", "references")
+                    target_ref = f"{target_law} Madde {target_article}" if target_law and target_article else ref.get("context", "")[:100]
+
+                    # Try to resolve target_chunk_id (similar to PG storage)
+                    target_chunk_id = None
+                    if target_law and target_article:
+                        pool = await get_db()
+                        target_chunk_id = await pool.fetchval("""
+                            SELECT id FROM unified_embeddings
+                            WHERE metadata->>'law_code' = $1 AND metadata->>'article_number' = $2 LIMIT 1
+                        """, target_law, str(target_article))
+
+                    await neo4j_service.add_relationship(
+                        workspace_id, chunk_id, target_chunk_id, rel_type, target_ref, target_law, str(target_article) if target_article else None
+                    )
+
+                logger.info(f"🕸️ Knowledge Graph: Pushed chunk {chunk_id} to Neo4j (Workspace: {workspace_id})")
+            except Exception as e:
+                logger.warning(f"🕸️ Knowledge Graph: Failed to push to Neo4j for chunk {chunk_id}: {e}")
 
         elapsed = (time.time() - start_time) * 1000
 
