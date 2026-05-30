@@ -273,6 +273,80 @@ export class PythonIntegrationService {
     }
   }
 
+  // ──────────────────────────────────────────────────────────────────────────
+  // WS4-A: Agent Memory (Redis Iris "Agent Memory" — native dual-store equivalent).
+  // The Node agent-memory.service runs LLM extraction; this bridge embeds/dedups/
+  // dual-writes (Postgres durable + Redis hot) and recalls. All FAIL-SAFE: recall
+  // returns [] and store/stats no-op on any error or when the Python service is down,
+  // so the chat path is never blocked.
+  // ──────────────────────────────────────────────────────────────────────────
+
+  /** Namespace/user-scoped semantic recall of stored memories. Returns [] on miss/error. */
+  public async agentMemoryRecall(
+    query: string,
+    opts: { userId?: string | null; namespace?: string; limit?: number; memoryTypes?: string[] } = {}
+  ): Promise<any[]> {
+    try {
+      if (!(await this.isPythonServiceAvailable())) return [];
+      const resp = await this.axiosClient.post(
+        '/api/python/agent-memory/recall',
+        {
+          query,
+          user_id: opts.userId ?? null,
+          namespace: opts.namespace || 'default',
+          limit: opts.limit ?? 5,
+          memory_types: opts.memoryTypes ?? null,
+        },
+        { timeout: 8000 }
+      );
+      return resp.data?.memories || [];
+    } catch (error: any) {
+      logger.warn('[agentmemory] recall failed (treated as empty):', error?.message);
+      return [];
+    }
+  }
+
+  /** Store extracted memories (embed + dedup + dual-write). Fire-and-forget; never throws. */
+  public async agentMemoryStore(
+    items: Array<{ content: string; memory_type?: string; topics?: string[]; metadata?: any; importance?: number }>,
+    opts: { userId?: string | null; namespace?: string; sessionId?: string | null; sourceSessionId?: string | null } = {}
+  ): Promise<{ stored: number; deduped: number; ids: string[] }> {
+    const empty = { stored: 0, deduped: 0, ids: [] as string[] };
+    try {
+      if (!items?.length || !(await this.isPythonServiceAvailable())) return empty;
+      const resp = await this.axiosClient.post(
+        '/api/python/agent-memory/store',
+        {
+          items,
+          user_id: opts.userId ?? null,
+          namespace: opts.namespace || 'default',
+          session_id: opts.sessionId ?? null,
+          source_session_id: opts.sourceSessionId ?? null,
+        },
+        { timeout: 15000 }
+      );
+      return resp.data || empty;
+    } catch (error: any) {
+      logger.warn('[agentmemory] store failed (skipped):', error?.message);
+      return empty;
+    }
+  }
+
+  /** Memory counts by type/backend for the Settings UI. */
+  public async agentMemoryStats(namespace?: string): Promise<any | null> {
+    try {
+      if (!(await this.isPythonServiceAvailable())) return null;
+      const url = namespace
+        ? `/api/python/agent-memory/stats?namespace=${encodeURIComponent(namespace)}`
+        : '/api/python/agent-memory/stats';
+      const resp = await this.axiosClient.get(url, { timeout: 8000 });
+      return resp.data;
+    } catch (error: any) {
+      logger.warn('[agentmemory] stats failed:', error?.message);
+      return null;
+    }
+  }
+
   /**
    * Fetch the detailed microservices inventory from the Python service's
    * /health/services endpoint. Returns `{ microservices: [...], system: {...} }`

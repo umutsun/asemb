@@ -2763,7 +2763,10 @@ function RAGSettings() {
     autoFreshnessEnabled: false,
     freshnessPollSeconds: 30,
     // WS4: PostgreSQL full-text (BM25) language. 'turkish' preserves legacy behavior.
-    ftsLanguage: 'turkish'
+    ftsLanguage: 'turkish',
+    // WS4-A: Agent Memory (Redis Iris "Agent Memory" — native equivalent). OFF by default.
+    agentMemoryEnabled: false,
+    agentMemoryRecallLimit: 5
   };
 
   // WS2: semantic-cache live stats (fetched on demand from the health route)
@@ -3398,6 +3401,48 @@ function RAGSettings() {
                         {t('settings.rag.semanticCacheRealtimeNote', 'Settings apply instantly. The cache auto-refreshes when content or RAG settings change; "Clear" forces it now.')}
                       </p>
                     </div>
+                  </div>
+                )}
+
+                {/* WS4-A: Agent Memory (Redis Iris "Agent Memory" — native, dual store) */}
+                <div className="flex items-center justify-between py-2">
+                  <div className="flex-1">
+                    <Label>{t('settings.rag.agentMemory', 'Agent Memory')}</Label>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {t('settings.rag.agentMemoryHelp', 'Remember durable per-user facts & preferences across sessions and recall them into answers. Off by default; needs the Python service + memories migration.')}
+                    </p>
+                  </div>
+                  <Switch
+                    checked={tempRAGConfig?.ragSettings?.agentMemoryEnabled ?? DEFAULT_RAG_SETTINGS.agentMemoryEnabled}
+                    onCheckedChange={(checked) => updateRAGSetting('agentMemoryEnabled', checked)}
+                  />
+                </div>
+
+                {(tempRAGConfig?.ragSettings?.agentMemoryEnabled ?? DEFAULT_RAG_SETTINGS.agentMemoryEnabled) && (
+                  <div className="space-y-3 pl-4 border-l-2 border-emerald-200 dark:border-emerald-800">
+                    <div className="space-y-1">
+                      <div className="flex items-center justify-between">
+                        <Label className="text-sm">{t('settings.rag.agentMemoryRecallLimit', 'Memories recalled per query')}</Label>
+                        <span className="text-sm font-mono text-muted-foreground">
+                          {tempRAGConfig?.ragSettings?.agentMemoryRecallLimit ?? DEFAULT_RAG_SETTINGS.agentMemoryRecallLimit}
+                        </span>
+                      </div>
+                      <input
+                        type="range"
+                        min="0"
+                        max="20"
+                        step="1"
+                        value={tempRAGConfig?.ragSettings?.agentMemoryRecallLimit ?? DEFAULT_RAG_SETTINGS.agentMemoryRecallLimit}
+                        onChange={(e) => updateRAGSetting('agentMemoryRecallLimit', parseInt(e.target.value))}
+                        className="w-full h-2 bg-gray-200 dark:bg-gray-700 rounded-lg appearance-none cursor-pointer accent-emerald-500"
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        {t('settings.rag.agentMemoryRecallLimitHelp', 'How many remembered items to inject as context. 0 disables recall (extraction still runs).')}
+                      </p>
+                    </div>
+                    <p className="text-[10px] text-muted-foreground">
+                      {t('settings.rag.agentMemoryNote', 'Memories are extracted on the configured LLM after each answer, deduped, and dual-written: durable (Postgres) + hot recall (Redis). Per-user scoped.')}
+                    </p>
                   </div>
                 )}
 

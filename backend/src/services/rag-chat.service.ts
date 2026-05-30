@@ -2,6 +2,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { semanticSearch, SemanticSearchService } from './semantic-search.service';
 import { LLMManager } from './llm-manager.service';
 import { PythonIntegrationService } from './python-integration.service';
+import { agentMemoryService } from './agent-memory.service';
 import { dataSchemaService } from './data-schema.service';
 import pool from '../config/database';
 import { redis } from '../config/redis';
@@ -3576,11 +3577,31 @@ Lütfen "beyanname" veya "ödeme" yazarak belirtin.`;
         }
       }
 
+      // ── WS4-A: Agent Memory recall (Redis Iris "Agent Memory" — native equivalent) ──
+      // On a cache MISS, recall namespace/user-scoped long-term memories and PREPEND them to
+      // the user prompt so the LLM can personalise the answer. Flag-gated (OFF by default) and
+      // fully fail-safe — any error leaves the prompt untouched. Skipped on a hit (no LLM call).
+      let userPromptForLlm = userPrompt;
+      const agentMemoryEnabled =
+        (settingsMap.get('ragSettings.agentMemoryEnabled') || 'false').toString().toLowerCase() === 'true';
+      if (agentMemoryEnabled && !cacheHit) {
+        try {
+          const recallLimit = parseInt(settingsMap.get('ragSettings.agentMemoryRecallLimit') || '5', 10) || 5;
+          const recall = await agentMemoryService.recall(message, { userId, limit: recallLimit });
+          if (recall.contextBlock) {
+            userPromptForLlm = recall.contextBlock + userPrompt;
+            console.log(`🧠 [agentmemory] recalled ${recall.memories.length} memories for user ${userId}`);
+          }
+        } catch (e) {
+          // fail-safe: ignore recall errors, keep the original prompt
+        }
+      }
+
       const response: { content: string; provider: string; model: string; fallbackUsed?: boolean; cached?: boolean; usage?: any } =
         cacheHit
           ? { content: cachedAnswer as string, provider: providerFromModel, model: activeModel, cached: true }
           : await llmManager.generateChatResponse(
-              userPrompt,  // User message with context (no system prompt here)
+              userPromptForLlm,  // User message with context (+ recalled memories) — no system prompt here
               {
                 temperature: options.temperature,
                 maxTokens: options.maxTokens,
@@ -3600,6 +3621,21 @@ Lütfen "beyanname" veya "ödeme" yazarak belirtin.`;
             .llmCacheStore(message, response.content, [], systemPrompt, responseLanguage, timings.llm)
             .catch(() => { /* fail-safe */ });
         }
+      }
+
+      // ── WS4-A: Agent Memory extraction (promotion). After a fresh (non-cached) answer,
+      // extract durable user memories on the configured LLM and dual-write them. Fire-and-forget,
+      // flag-gated, fully fail-safe — never blocks or delays the response. ──
+      if (!cacheHit && agentMemoryEnabled && response.content) {
+        agentMemoryService
+          .extractAndStore({
+            userMessage: message,
+            assistantAnswer: response.content,
+            userId,
+            sessionId: convId,
+            preferredProvider: providerFromModel,
+          })
+          .catch(() => { /* fail-safe */ });
       }
       timings.total = Date.now() - startTotal;
       console.log(`⏱️ LLM response in ${timings.llm}ms | TOTAL: ${timings.total}ms (settings: ${timings.settings}, history: ${timings.history}, search: ${timings.search}, llm: ${timings.llm})`);

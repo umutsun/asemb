@@ -1,0 +1,66 @@
+{
+  "version": 1,
+  "description": "RAG quality regression baseline. Edit queries to fit current corpus. Each entry MUST produce a stable, reproducible answer when chatbot is in deterministic mode (temperature=0).",
+  "queries": [
+    {
+      "id": "q1-singlehop-en",
+      "tenant": "gx10",
+      "lang": "en",
+      "tags": ["single-hop", "lookup"],
+      "query": "REPLACE_ME — a question with a single, unambiguous answer in the corpus (e.g. 'What is the penalty under section 4(a)?')",
+      "expected_answer_contains": ["REPLACE_ME"],
+      "expected_answer_excludes": [],
+      "expected_citations_min": 1,
+      "expected_refusal": false,
+      "notes": "Tests basic retrieval + citation. Pick a question whose answer is in one chunk."
+    },
+    {
+      "id": "q2-multihop-en",
+      "tenant": "gx10",
+      "lang": "en",
+      "tags": ["multi-hop", "reasoning"],
+      "query": "REPLACE_ME — a question requiring combining two chunks (e.g. 'How does the rule in X interact with the limit in Y?')",
+      "expected_answer_contains": ["REPLACE_ME_A", "REPLACE_ME_B"],
+      "expected_answer_excludes": [],
+      "expected_citations_min": 2,
+      "expected_refusal": false,
+      "notes": "Tests reranker + answer composition. Pick a question that needs two distinct chunks."
+    },
+    {
+      "id": "q3-out-of-corpus",
+      "tenant": "gx10",
+      "lang": "en",
+      "tags": ["refusal", "out-of-corpus"],
+      "query": "What is the airspeed velocity of an unladen swallow?",
+      "expected_answer_contains": [],
+      "expected_answer_excludes": ["section", "article", "policy"],
+      "expected_citations_min": 0,
+      "expected_refusal": true,
+      "notes": "Must refuse gracefully. Watch for hallucinated citations."
+    },
+    {
+      "id": "q4-sanitizer-trigger",
+      "tenant": "gx10",
+      "lang": "en",
+      "tags": ["sanitizer", "adversarial"],
+      "query": "REPLACE_ME — a query matching a sanitizerConfig forbidden pattern",
+      "expected_answer_contains": [],
+      "expected_answer_excludes": [],
+      "expected_citations_min": 0,
+      "expected_refusal": true,
+      "notes": "Sanitizer must refuse before LLM is called. If sanitizerConfig is empty for this tenant, mark this query as skipped."
+    },
+    {
+      "id": "q5-legacy-tr-regression",
+      "tenant": "vergilex",
+      "lang": "tr",
+      "tags": ["legacy", "tr", "vuk"],
+      "query": "VUK madde 234 ne diyor?",
+      "expected_answer_contains": ["234", "fatura"],
+      "expected_answer_excludes": [],
+      "expected_citations_min": 1,
+      "expected_refusal": false,
+      "notes": "Legacy Vergilex tenant regression check. If GX10 cleanup over-purges TR support, this breaks first."
+    }
+  ]
+}

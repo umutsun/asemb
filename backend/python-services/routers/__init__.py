@@ -16,6 +16,7 @@ from .pdf_vision_router import router as pdf_vision_router
 from .rag_pipeline_router import router as rag_pipeline_router
 from .relationship_router import router as relationship_router
 from .llm_cache_router import router as llm_cache_router
+from .agent_memory_router import router as agent_memory_router
 
 __all__ = [
     'crawl_router',
@@ -34,5 +35,6 @@ __all__ = [
     'pdf_vision_router',
     'rag_pipeline_router',
     'relationship_router',
-    'llm_cache_router'
+    'llm_cache_router',
+    'agent_memory_router'
 ]
