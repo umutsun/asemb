@@ -1,6 +1,7 @@
 import { v4 as uuidv4 } from 'uuid';
 import { semanticSearch, SemanticSearchService } from './semantic-search.service';
 import { LLMManager } from './llm-manager.service';
+import { PythonIntegrationService } from './python-integration.service';
 import { dataSchemaService } from './data-schema.service';
 import pool from '../config/database';
 import { redis } from '../config/redis';
@@ -3549,16 +3550,57 @@ Lütfen "beyanname" veya "ödeme" yazarak belirtin.`;
 
       // ⏱️ LLM timing
       const startLLM = Date.now();
-      const response = await llmManager.generateChatResponse(
-        userPrompt,  // User message with context (no system prompt here)
-        {
-          temperature: options.temperature,
-          maxTokens: options.maxTokens,
-          systemPrompt: systemPrompt,  // System prompt sent separately to LLM API
-          preferredProvider: providerFromModel  // Pass normalized provider name (claude/openai/gemini/deepseek)
+
+      // ── WS2: Semantic LLM-response cache (Redis Iris "LangCache" OSS equivalent) ──
+      // Lookup by the user QUESTION (semantic), scoped server-side by system prompt +
+      // language + embed model + corpusVersion. On a hit we SKIP the expensive on-box LLM
+      // generation; the cached raw answer then flows through the SAME downstream
+      // post-processing (heading strip, deadline/sanitizer, citation validation) below, so
+      // the final answer + freshly-retrieved citations stay consistent. Flag-gated (OFF by
+      // default) and fully fail-safe — any cache error falls through to normal generation.
+      const pythonIntegration = PythonIntegrationService.getInstance();
+      const semanticCacheEnabled =
+        (settingsMap.get('ragSettings.semanticCacheEnabled') || 'false').toString().toLowerCase() === 'true';
+      let cacheHit = false;
+      let cachedAnswer: string | null = null;
+      if (semanticCacheEnabled) {
+        try {
+          const cached = await pythonIntegration.llmCacheLookup(message, systemPrompt, responseLanguage);
+          if (cached && cached.hit && cached.answer) {
+            cachedAnswer = cached.answer;
+            cacheHit = true;
+            console.log(`⚡ [llmcache] HIT (sim=${cached.similarity}) — skipped LLM generation`);
+          }
+        } catch (e) {
+          // fail-safe: ignore cache errors, fall through to normal generation
         }
-      );
+      }
+
+      const response: { content: string; provider: string; model: string; fallbackUsed?: boolean; cached?: boolean; usage?: any } =
+        cacheHit
+          ? { content: cachedAnswer as string, provider: providerFromModel, model: activeModel, cached: true }
+          : await llmManager.generateChatResponse(
+              userPrompt,  // User message with context (no system prompt here)
+              {
+                temperature: options.temperature,
+                maxTokens: options.maxTokens,
+                systemPrompt: systemPrompt,  // System prompt sent separately to LLM API
+                preferredProvider: providerFromModel  // Pass normalized provider name (claude/openai/gemini/deepseek)
+              }
+            );
       timings.llm = Date.now() - startLLM;
+
+      // WS2: on a MISS, cache the RAW answer (pre-post-processing) keyed by the question,
+      // gated on confidence so low-score / no-result answers are never cached. Sources are
+      // re-derived fresh per request, so they are intentionally NOT stored. Fire-and-forget.
+      if (!cacheHit && semanticCacheEnabled) {
+        const cacheMinBest = parseFloat(settingsMap.get('ragSettings.semanticCacheMinBestScore') || '0');
+        if ((initialDisplayCount || 0) > 0 && bestScore >= cacheMinBest) {
+          pythonIntegration
+            .llmCacheStore(message, response.content, [], systemPrompt, responseLanguage, timings.llm)
+            .catch(() => { /* fail-safe */ });
+        }
+      }
       timings.total = Date.now() - startTotal;
       console.log(`⏱️ LLM response in ${timings.llm}ms | TOTAL: ${timings.total}ms (settings: ${timings.settings}, history: ${timings.history}, search: ${timings.search}, llm: ${timings.llm})`);
 

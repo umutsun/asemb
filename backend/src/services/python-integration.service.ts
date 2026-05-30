@@ -214,6 +214,65 @@ export class PythonIntegrationService {
     return await this.checkHealth();
   }
 
+  // ──────────────────────────────────────────────────────────────────────────
+  // WS2: Semantic LLM-response cache (Redis Iris "LangCache" OSS equivalent).
+  // All three are FAIL-SAFE: lookup returns {hit:false} and store/stats no-op on any
+  // error or when the Python service is down, so the chat path is never blocked.
+  // ──────────────────────────────────────────────────────────────────────────
+
+  /** Semantic lookup of a cached LLM answer for `query` (scoped by system prompt + language). */
+  public async llmCacheLookup(
+    query: string,
+    systemPrompt: string = '',
+    language: string = 'xx'
+  ): Promise<{ hit: boolean; answer?: string; sources?: any[]; similarity?: number; distance?: number }> {
+    try {
+      if (!(await this.isPythonServiceAvailable())) return { hit: false };
+      const resp = await this.axiosClient.post(
+        '/api/python/llm-cache/lookup',
+        { query, system_prompt: systemPrompt, language },
+        { timeout: 8000 }
+      );
+      return resp.data || { hit: false };
+    } catch (error: any) {
+      logger.warn('[llmcache] lookup failed (treated as miss):', error?.message);
+      return { hit: false };
+    }
+  }
+
+  /** Store a (query -> answer) entry. Fire-and-forget; never throws. */
+  public async llmCacheStore(
+    query: string,
+    answer: string,
+    sources: any[] = [],
+    systemPrompt: string = '',
+    language: string = 'xx',
+    llmMs: number = 0
+  ): Promise<void> {
+    try {
+      if (!(await this.isPythonServiceAvailable())) return;
+      await this.axiosClient.post(
+        '/api/python/llm-cache/store',
+        { query, answer, sources, system_prompt: systemPrompt, language, llm_ms: llmMs },
+        { timeout: 8000 }
+      );
+    } catch (error: any) {
+      logger.warn('[llmcache] store failed (skipped):', error?.message);
+    }
+  }
+
+  /** Fetch semantic-cache hit/miss/savings stats (for Settings UI + /gx10-health). */
+  public async llmCacheStats(): Promise<any | null> {
+    try {
+      if (!(await this.isPythonServiceAvailable())) return null;
+      const resp = await this.axiosClient.get('/api/python/llm-cache/stats', { timeout: 8000 });
+      return resp.data;
+    } catch (error: any) {
+      logger.warn('[llmcache] stats failed:', error?.message);
+      return null;
+    }
+  }
+
   /**
    * Fetch the detailed microservices inventory from the Python service's
    * /health/services endpoint. Returns `{ microservices: [...], system: {...} }`

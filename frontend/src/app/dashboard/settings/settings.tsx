@@ -2753,8 +2753,79 @@ function RAGSettings() {
     enableScrapeEmbeddings: false,  // Don't include scraped content
     unifiedEmbeddingsPriority: 8,   // High priority for database content
     strictMode: true,               // Strict RAG mode - DEFAULT ON for legal platforms
-    streamingEnabled: true          // Enable streaming mode for chat responses
+    streamingEnabled: true,         // Enable streaming mode for chat responses
+    // WS2: Semantic LLM-response cache (Redis Iris "LangCache" OSS equivalent). OFF by default.
+    semanticCacheEnabled: false,
+    semanticCacheThreshold: 0.95,   // cosine similarity hit gate (precision-biased)
+    semanticCacheTTL: 21600,        // 6 hours
+    semanticCacheMinBestScore: 0,   // don't cache low-confidence answers
+    // WS-RT: real-time data freshness monitor (Iris fresh-context pillar). OFF by default.
+    autoFreshnessEnabled: false,
+    freshnessPollSeconds: 30,
+    // WS4: PostgreSQL full-text (BM25) language. 'turkish' preserves legacy behavior.
+    ftsLanguage: 'turkish'
   };
+
+  // WS2: semantic-cache live stats (fetched on demand from the health route)
+  const [cacheStats, setCacheStats] = useState<any>(null);
+  const [cacheStatsLoading, setCacheStatsLoading] = useState(false);
+  const fetchCacheStats = useCallback(async () => {
+    setCacheStatsLoading(true);
+    try {
+      const token = localStorage.getItem('accessToken');
+      const headers: HeadersInit = { 'Content-Type': 'application/json' };
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+      const resp = await fetch(`${API_CONFIG.baseUrl}/api/v2/health/semantic-cache/stats`, { headers });
+      if (resp.ok) {
+        const data = await resp.json();
+        setCacheStats(data?.semanticCache ?? null);
+      }
+    } catch {
+      /* ignore — stats are best-effort */
+    } finally {
+      setCacheStatsLoading(false);
+    }
+  }, []);
+
+  // WS2/real-time: force semantic-cache invalidation by bumping corpusVersion (epoch token).
+  // Old entries orphan (scope_key changes) and TTL out — no FLUSH. Then refresh stats.
+  const clearSemanticCache = useCallback(async () => {
+    try {
+      const token = localStorage.getItem('accessToken');
+      const headers: HeadersInit = { 'Content-Type': 'application/json' };
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+      await fetch(`${API_CONFIG.baseUrl}/api/v2/settings`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ 'ragSettings.corpusVersion': String(Date.now()) }),
+      });
+    } catch {
+      /* ignore */
+    } finally {
+      fetchCacheStats();
+    }
+  }, [fetchCacheStats]);
+
+  // WS-RT: data-freshness status (polled from the health route on demand)
+  const [freshness, setFreshness] = useState<any>(null);
+  const [freshnessLoading, setFreshnessLoading] = useState(false);
+  const fetchFreshness = useCallback(async () => {
+    setFreshnessLoading(true);
+    try {
+      const token = localStorage.getItem('accessToken');
+      const headers: HeadersInit = { 'Content-Type': 'application/json' };
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+      const resp = await fetch(`${API_CONFIG.baseUrl}/api/v2/health/data-freshness`, { headers });
+      if (resp.ok) {
+        const data = await resp.json();
+        setFreshness(data?.dataFreshness ?? null);
+      }
+    } catch {
+      /* ignore — status is best-effort */
+    } finally {
+      setFreshnessLoading(false);
+    }
+  }, []);
 
   // Load source tables for table priorities
   const loadSourceTables = useCallback(async () => {
@@ -3233,6 +3304,160 @@ function RAGSettings() {
                     </p>
                   </div>
                 )}
+
+                {/* WS2: Semantic Response Cache (Redis Iris "LangCache" — OSS / air-gapped) */}
+                <div className="flex items-center justify-between py-2">
+                  <div className="flex-1">
+                    <Label>{t('settings.rag.semanticCache', 'Semantic Response Cache')}</Label>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {t('settings.rag.semanticCacheHelp', 'Reuse a cached answer for semantically similar questions and skip the LLM. Off by default; requires Redis 8.')}
+                    </p>
+                  </div>
+                  <Switch
+                    checked={tempRAGConfig?.ragSettings?.semanticCacheEnabled ?? DEFAULT_RAG_SETTINGS.semanticCacheEnabled}
+                    onCheckedChange={(checked) => updateRAGSetting('semanticCacheEnabled', checked)}
+                  />
+                </div>
+
+                {(tempRAGConfig?.ragSettings?.semanticCacheEnabled ?? DEFAULT_RAG_SETTINGS.semanticCacheEnabled) && (
+                  <div className="space-y-3 pl-4 border-l-2 border-emerald-200 dark:border-emerald-800">
+                    {/* Cache hit similarity threshold */}
+                    <div className="space-y-1">
+                      <div className="flex items-center justify-between">
+                        <Label className="text-sm">{t('settings.rag.semanticCacheThreshold', 'Cache hit similarity')}</Label>
+                        <span className="text-sm font-mono text-muted-foreground">
+                          {((tempRAGConfig?.ragSettings?.semanticCacheThreshold ?? DEFAULT_RAG_SETTINGS.semanticCacheThreshold) * 100).toFixed(0)}%
+                        </span>
+                      </div>
+                      <input
+                        type="range"
+                        min="50"
+                        max="100"
+                        step="1"
+                        value={(tempRAGConfig?.ragSettings?.semanticCacheThreshold ?? DEFAULT_RAG_SETTINGS.semanticCacheThreshold) * 100}
+                        onChange={(e) => updateRAGSetting('semanticCacheThreshold', parseInt(e.target.value) / 100)}
+                        className="w-full h-2 bg-gray-200 dark:bg-gray-700 rounded-lg appearance-none cursor-pointer accent-emerald-500"
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        {t('settings.rag.semanticCacheThresholdHelp', 'Higher = stricter (fewer, safer hits). 95% recommended for high-stakes answers.')}
+                      </p>
+                    </div>
+                    {/* Cache TTL */}
+                    <div className="space-y-1">
+                      <div className="flex items-center justify-between">
+                        <Label className="text-sm">{t('settings.rag.semanticCacheTTL', 'Cache TTL')}</Label>
+                        <span className="text-sm font-mono text-muted-foreground">
+                          {Math.round((tempRAGConfig?.ragSettings?.semanticCacheTTL ?? DEFAULT_RAG_SETTINGS.semanticCacheTTL) / 3600)}h
+                        </span>
+                      </div>
+                      <input
+                        type="range"
+                        min="600"
+                        max="86400"
+                        step="600"
+                        value={tempRAGConfig?.ragSettings?.semanticCacheTTL ?? DEFAULT_RAG_SETTINGS.semanticCacheTTL}
+                        onChange={(e) => updateRAGSetting('semanticCacheTTL', parseInt(e.target.value))}
+                        className="w-full h-2 bg-gray-200 dark:bg-gray-700 rounded-lg appearance-none cursor-pointer accent-emerald-500"
+                      />
+                    </div>
+                    {/* Live stats */}
+                    <div className="rounded-md bg-muted/40 p-3">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-xs font-medium">{t('settings.rag.semanticCacheStats', 'Cache stats')}</span>
+                        <div className="flex items-center gap-3">
+                          <button
+                            type="button"
+                            onClick={fetchCacheStats}
+                            disabled={cacheStatsLoading}
+                            className="text-xs underline text-muted-foreground hover:text-foreground disabled:opacity-50"
+                          >
+                            {cacheStatsLoading ? '…' : t('common.refresh', 'Refresh')}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={clearSemanticCache}
+                            className="text-xs underline text-muted-foreground hover:text-foreground"
+                          >
+                            {t('settings.rag.semanticCacheClear', 'Clear')}
+                          </button>
+                        </div>
+                      </div>
+                      {cacheStats ? (
+                        <div className="grid grid-cols-4 gap-2 text-center">
+                          <div><div className="text-sm font-semibold">{cacheStats.hits ?? 0}</div><div className="text-[10px] text-muted-foreground">hits</div></div>
+                          <div><div className="text-sm font-semibold">{cacheStats.misses ?? 0}</div><div className="text-[10px] text-muted-foreground">misses</div></div>
+                          <div><div className="text-sm font-semibold">{Math.round((cacheStats.hitRate ?? 0) * 100)}%</div><div className="text-[10px] text-muted-foreground">hit rate</div></div>
+                          <div><div className="text-sm font-semibold">{Math.round((cacheStats.savedMs ?? 0) / 1000)}s</div><div className="text-[10px] text-muted-foreground">saved</div></div>
+                        </div>
+                      ) : (
+                        <p className="text-xs text-muted-foreground">
+                          {t('settings.rag.semanticCacheStatsEmpty', 'Click refresh to load stats (requires Redis 8 + Python service).')}
+                        </p>
+                      )}
+                      <p className="text-[10px] text-muted-foreground mt-2">
+                        {t('settings.rag.semanticCacheRealtimeNote', 'Settings apply instantly. The cache auto-refreshes when content or RAG settings change; "Clear" forces it now.')}
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {/* WS4: Full-text (BM25) search language — English-first, config-driven */}
+                <div className="py-2">
+                  <Label>{t('settings.rag.ftsLanguage', 'Full-text search language')}</Label>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {t('settings.rag.ftsLanguageHelp', 'PostgreSQL text-search config used for BM25. Switching away from the corpus language needs a search_vector re-index migration.')}
+                  </p>
+                  <select
+                    value={tempRAGConfig?.ragSettings?.ftsLanguage ?? DEFAULT_RAG_SETTINGS.ftsLanguage}
+                    onChange={(e) => updateRAGSetting('ftsLanguage', e.target.value)}
+                    className="mt-2 w-full rounded-md border bg-background px-3 py-2 text-sm"
+                  >
+                    <option value="english">English</option>
+                    <option value="turkish">Turkish</option>
+                    <option value="simple">Simple (no stemming)</option>
+                    <option value="german">German</option>
+                    <option value="french">French</option>
+                    <option value="spanish">Spanish</option>
+                  </select>
+                </div>
+
+                {/* WS-RT: Real-time Data Freshness (Redis Iris "fresh context" pillar) */}
+                <div className="flex items-center justify-between py-2">
+                  <div className="flex-1">
+                    <Label>{t('settings.rag.dataFreshness', 'Real-time Data Freshness')}</Label>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {t('settings.rag.dataFreshnessHelp', 'Watch the corpus and auto-invalidate the answer cache when content changes, so answers reflect newly ingested data within seconds.')}
+                    </p>
+                  </div>
+                  <Switch
+                    checked={tempRAGConfig?.ragSettings?.autoFreshnessEnabled ?? DEFAULT_RAG_SETTINGS.autoFreshnessEnabled}
+                    onCheckedChange={(checked) => updateRAGSetting('autoFreshnessEnabled', checked)}
+                  />
+                </div>
+                <div className="rounded-md bg-muted/40 p-3">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs font-medium">{t('settings.rag.dataFreshnessStatus', 'Corpus status')}</span>
+                    <button
+                      type="button"
+                      onClick={fetchFreshness}
+                      disabled={freshnessLoading}
+                      className="text-xs underline text-muted-foreground hover:text-foreground disabled:opacity-50"
+                    >
+                      {freshnessLoading ? '…' : t('common.refresh', 'Refresh')}
+                    </button>
+                  </div>
+                  {freshness ? (
+                    <div className="grid grid-cols-3 gap-2 text-center">
+                      <div><div className="text-sm font-semibold">{freshness.totalEmbeddings ?? '—'}</div><div className="text-[10px] text-muted-foreground">embeddings</div></div>
+                      <div><div className="text-sm font-semibold">{freshness.lastUpdated ? new Date(freshness.lastUpdated).toLocaleString() : '—'}</div><div className="text-[10px] text-muted-foreground">last update</div></div>
+                      <div><div className="text-sm font-semibold">{freshness.enabled ? `~${freshness.pollSeconds}s` : 'off'}</div><div className="text-[10px] text-muted-foreground">monitor</div></div>
+                    </div>
+                  ) : (
+                    <p className="text-xs text-muted-foreground">
+                      {t('settings.rag.dataFreshnessEmpty', 'Click refresh to load corpus status (total embeddings, last update).')}
+                    </p>
+                  )}
+                </div>
 
                 {/* Source Question Generation Toggle */}
                 <div className="flex items-center justify-between">

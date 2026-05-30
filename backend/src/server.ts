@@ -1059,6 +1059,16 @@ async function startServer() {
       console.log(" Metrics WebSocket: Initialized");
     }
 
+    // Real-time data freshness (Redis Iris pillar): watch unified_embeddings and bump
+    // ragSettings.corpusVersion on change so the WS2 semantic cache auto-invalidates.
+    // No-op unless ragSettings.autoFreshnessEnabled=true; fully fail-safe.
+    try {
+      const { dataFreshnessMonitor } = await import('./services/data-freshness-monitor.service');
+      dataFreshnessMonitor.start();
+    } catch (freshnessErr: any) {
+      console.warn('[freshness] monitor start skipped:', freshnessErr?.message);
+    }
+
     // Initialize Notification Broadcast WebSocket
     console.log(`[DEBUG] WEBSOCKET.ENABLED=${SERVER.WEBSOCKET.ENABLED}, wss=${!!wss}`);
     if (SERVER.WEBSOCKET.ENABLED && wss) {

@@ -4,6 +4,7 @@
 import { Router, Request, Response } from 'express';
 import { lsembPool } from '../config/database.config';
 import { settingsCache } from '../services/cache.service';
+// NOTE: `settingsService` is already imported lower in this file (semantic-analyzer section).
 
 const router = Router();
 
@@ -485,6 +486,10 @@ router.post('/', async (req: Request, res: Response) => {
     const cleared = settingsCache.clearPattern('settings');
     console.log(`️ [CACHE] Cleared ${cleared} entries`);
 
+    // Real-time settings: also invalidate the SettingsService singleton cache (5-min TTL)
+    // so single-key reads (e.g. ragSettings.ftsLanguage) reflect changes immediately.
+    try { settingsService.forceInvalidateCache(); } catch { /* non-fatal */ }
+
     // CRITICAL: Reload LLM Manager settings to pick up changes immediately
     const llmManager = (await import('../services/llm-manager.service')).LLMManager.getInstance();
     await llmManager.reloadSettings();
@@ -492,10 +497,30 @@ router.post('/', async (req: Request, res: Response) => {
 
     // CRITICAL: Reload Semantic Search settings for RAG changes
     const hasRAGSettings = updates.some(u => u.key.startsWith('ragSettings.'));
+    const hasPromptChanges = updates.some(u => u.key.startsWith('prompts.'));
     if (hasRAGSettings) {
       const { semanticSearch } = await import('../services/semantic-search.service');
       await semanticSearch.refreshRAGSettingsNow();
       console.log(' [Semantic Search] RAG settings reloaded after update');
+    }
+
+    // Real-time freshness (WS2): a retrieval-affecting change can make previously cached
+    // answers stale (they were generated from the old retrieval/prompt). Bump
+    // ragSettings.corpusVersion to a fresh token so the semantic-cache scope_key changes and
+    // old entries are orphaned (they TTL out — no FLUSH). Epoch token avoids fragile integer
+    // casts. Skipped if the caller explicitly set corpusVersion in this request.
+    const callerSetCorpusVersion = updates.some(u => u.key === 'ragSettings.corpusVersion');
+    if ((hasRAGSettings || hasPromptChanges) && !callerSetCorpusVersion) {
+      try {
+        await lsembPool.query(
+          `INSERT INTO settings (key, value, category)
+           VALUES ('ragSettings.corpusVersion', EXTRACT(EPOCH FROM NOW())::bigint::text, 'rag')
+           ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = CURRENT_TIMESTAMP`
+        );
+        console.log('🔄 [RT] Bumped ragSettings.corpusVersion — semantic cache invalidated');
+      } catch (e: any) {
+        console.warn('[RT] corpusVersion bump failed (non-fatal):', e?.message);
+      }
     }
 
     res.json({ success: true, message: 'Settings updated successfully' });

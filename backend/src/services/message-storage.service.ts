@@ -3,6 +3,7 @@ import { LLMManager } from './llm-manager.service';
 import { redisClient } from '../config/redis';
 import { initializeRedis } from '../config/redis';
 import { logger } from '../utils/logger';
+import { settingsService } from './settings.service';
 import { v4 as uuidv4 } from 'uuid';
 
 // Get the actual Redis client instance
@@ -45,6 +46,46 @@ export class MessageStorageService {
   private readonly MAX_MESSAGES_PER_SESSION = 100;
   private readonly FLUSH_THRESHOLD = 50; // Embed after 50 messages
   private readonly FLUSH_INTERVAL = 30 * 60 * 1000; // 30 minutes
+
+  // ── Hard Rule #1: language-agnostic FTS config (English-first appliance) ──
+  // Defaults preserve current Turkish behavior; appliances seed ragSettings.* to override.
+  // Declared static so the static analytics methods below can read them.
+  private static readonly DEFAULT_FTS_LANGUAGE = 'turkish';
+  private static readonly DEFAULT_FTS_STOPWORDS = ['ve', 'ile', 'için', 'göre', 'bir', 'bu', 'olarak', 'daha', 'kadar', 'sonra'];
+  private static readonly DEFAULT_TOPIC_TERMS = 'vergi|kdv|gelir|kurumlar';
+
+  /** Resolve the configured Postgres FTS regconfig; falls back to the column's language. */
+  private static async getFtsLanguage(): Promise<string> {
+    try {
+      const v: any = await settingsService.getSetting('ragSettings.ftsLanguage');
+      const lang = (typeof v === 'string' ? v : '').trim().toLowerCase();
+      return /^[a-z_]+$/.test(lang) ? lang : MessageStorageService.DEFAULT_FTS_LANGUAGE;
+    } catch {
+      return MessageStorageService.DEFAULT_FTS_LANGUAGE;
+    }
+  }
+
+  /** Resolve config-driven FTS stopwords for analytics; defaults to the legacy Turkish set. */
+  private static async getFtsStopwords(): Promise<string[]> {
+    try {
+      const v: any = await settingsService.getSetting('ragSettings.ftsStopwords');
+      if (Array.isArray(v)) return v.map(String);
+      if (typeof v === 'string' && v.trim()) {
+        const parsed = JSON.parse(v);
+        if (Array.isArray(parsed)) return parsed.map(String);
+      }
+    } catch { /* fall through to default */ }
+    return MessageStorageService.DEFAULT_FTS_STOPWORDS;
+  }
+
+  /** Resolve config-driven topic-analysis seed terms; defaults to the legacy Turkish set. */
+  private static async getTopicTerms(): Promise<string> {
+    try {
+      const v: any = await settingsService.getSetting('ragSettings.topicAnalysisTerms');
+      if (typeof v === 'string' && v.trim()) return v;
+    } catch { /* fall through to default */ }
+    return MessageStorageService.DEFAULT_TOPIC_TERMS;
+  }
 
   /**
    * Store message in Redis temporarily
@@ -274,6 +315,9 @@ export class MessageStorageService {
    * Analyze cross-session patterns
    */
   static async analyzeUserPatterns(userId: string, timeRange: number = 30): Promise<any> {
+    // Hard Rule #1: FTS language + topic seed terms are config-driven (no hardcoded Turkish).
+    const ftsLanguage = await MessageStorageService.getFtsLanguage();
+    const topicTerms = await MessageStorageService.getTopicTerms();
     const query = `
       WITH session_analysis AS (
         SELECT
@@ -290,8 +334,8 @@ export class MessageStorageService {
       topic_analysis AS (
         SELECT
           COUNT(*) as frequency,
-          ts_rank_cd(to_tsvector('turkish', content), query) as relevance
-        FROM message_embeddings, plainto_tsquery('turkish', 'vergi|kdv|gelir|kurumlar') query
+          ts_rank_cd(to_tsvector($2::regconfig, content), query) as relevance
+        FROM message_embeddings, plainto_tsquery($2::regconfig, $3) query
         WHERE user_id = $1
           AND created_at >= CURRENT_DATE - INTERVAL '${timeRange} days'
           AND to_tsvector @@ query
@@ -307,7 +351,7 @@ export class MessageStorageService {
     `;
 
     try {
-      const result = await lsembPool.query(query, [userId]);
+      const result = await lsembPool.query(query, [userId, ftsLanguage, topicTerms]);
       return result.rows[0] || {};
     } catch (error) {
       logger.error('Error analyzing user patterns:', error);
@@ -319,6 +363,8 @@ export class MessageStorageService {
    * Get popular topics from all user messages
    */
   static async getPopularTopics(limit: number = 20): Promise<any[]> {
+    // Hard Rule #1: stopwords are config-driven (no hardcoded Turkish list).
+    const stopwords = await MessageStorageService.getFtsStopwords();
     const query = `
       SELECT
         word,
@@ -332,7 +378,7 @@ export class MessageStorageService {
         WHERE created_at >= CURRENT_DATE - INTERVAL '30 days'
       ) words
       WHERE length(word) > 3
-        AND word NOT IN ('ve', 'ile', 'için', 'göre', 'bir', 'bu', 'olarak', 'daha', 'kadar', 'sonra')
+        AND word <> ALL($2::text[])
       GROUP BY word
       HAVING COUNT(*) > 5
       ORDER BY frequency DESC
@@ -340,7 +386,7 @@ export class MessageStorageService {
     `;
 
     try {
-      const result = await lsembPool.query(query, [limit]);
+      const result = await lsembPool.query(query, [limit, stopwords]);
       return result.rows;
     } catch (error) {
       logger.error('Error getting popular topics:', error);

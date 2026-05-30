@@ -3,6 +3,8 @@ import { lsembPool, initializeConfigs } from '../config/database.config';
 import { initializeRedis } from '../config/redis';
 import { SettingsService } from '../services/settings.service';
 import { settingsCache } from '../services/cache.service';
+import { PythonIntegrationService } from '../services/python-integration.service';
+import { dataFreshnessMonitor } from '../services/data-freshness-monitor.service';
 import fs from 'fs';
 import path from 'path';
 
@@ -25,6 +27,28 @@ try {
 // Version endpoint
 router.get('/version', (req: Request, res: Response) => {
   res.json(versionInfo);
+});
+
+// WS2: Semantic LLM-response cache stats (Redis Iris "LangCache" OSS equivalent).
+// Fail-safe: returns semanticCache:null if the Python service / Redis 8 is unavailable.
+router.get('/semantic-cache/stats', async (_req: Request, res: Response) => {
+  try {
+    const stats = await PythonIntegrationService.getInstance().llmCacheStats();
+    res.json({ status: 'ok', semanticCache: stats });
+  } catch (error: any) {
+    res.json({ status: 'error', semanticCache: null, error: error?.message });
+  }
+});
+
+// Real-time data freshness (Redis Iris "fresh context" pillar). Read-only, fail-safe.
+// Reports total embeddings, last corpus update, corpusVersion, and monitor state.
+router.get('/data-freshness', async (_req: Request, res: Response) => {
+  try {
+    const dataFreshness = await dataFreshnessMonitor.getStatus();
+    res.json({ status: 'ok', dataFreshness });
+  } catch (error: any) {
+    res.json({ status: 'error', dataFreshness: null, error: error?.message });
+  }
 });
 
 // Basic health check for load balancers

@@ -91,6 +91,12 @@ class RAGSettings:
     rerank_model: str = "jina-reranker-v2-base-multilingual"
     rerank_top_n: int = 10  # Number of results after reranking
     rerank_min_score: float = 0.0  # Minimum rerank score threshold
+    # Full-text (BM25) search config language — Hard Rule #1 (language-agnostic).
+    # Default 'turkish' preserves current behavior AND matches the generated
+    # unified_embeddings.search_vector column (to_tsvector('turkish', ...)). English-first
+    # appliances seed ragSettings.ftsLanguage='english' together with the flagged
+    # search_vector column migration (+ re-embed). See WS4 plan.
+    fts_language: str = "turkish"
 
 
 @dataclass
@@ -595,6 +601,19 @@ class SemanticSearchService:
 
         return "\n\n".join(parts)
 
+    @staticmethod
+    def _normalize_fts_language(value: Optional[str]) -> str:
+        """Sanitize the configured Postgres FTS regconfig name (Hard Rule #1).
+
+        Falls back to 'turkish' (the search_vector column's generated config) for
+        empty/invalid values so BM25 keeps working. The ``::regconfig`` cast at query
+        time validates that the config actually exists.
+        """
+        lang = (value or "").strip().lower()
+        if lang and all(c.isalpha() or c == "_" for c in lang):
+            return lang
+        return "turkish"
+
     async def get_rag_settings(self) -> RAGSettings:
         """Load RAG settings from database with caching"""
         import time
@@ -659,6 +678,7 @@ class SemanticSearchService:
                 rerank_model=settings_dict.get('ragSettings.rerankModel', 'jina-reranker-v2-base-multilingual'),
                 rerank_top_n=int(settings_dict.get('ragSettings.rerankTopN', 10)),
                 rerank_min_score=float(settings_dict.get('ragSettings.rerankMinScore', 0.0)),
+                fts_language=self._normalize_fts_language(settings_dict.get('ragSettings.ftsLanguage', 'turkish')),
             )
 
             # Update cache
@@ -1433,17 +1453,22 @@ class SemanticSearchService:
                 return []
 
             max_excerpt = settings.max_excerpt_length if settings else 1500
+            fts_language = settings.fts_language if settings else "turkish"
 
-            # Use plainto_tsquery for robust query parsing (handles any input)
+            # Use plainto_tsquery for robust query parsing (handles any input).
+            # ftsLanguage ($4::regconfig) is config-driven (Hard Rule #1) and MUST match the
+            # search_vector column's generated config (currently 'turkish') for correct @@
+            # matching — switching languages also needs the flagged search_vector migration
+            # + re-embed (WS4). Bound as a parameter, so it is injection-safe.
             rows = await pool.fetch("""
                 SELECT id, LEFT(content, $3) as content, source_table, source_type,
                        source_id, metadata,
-                       ts_rank_cd(search_vector, plainto_tsquery('turkish', $1), 32) as bm25_score
+                       ts_rank_cd(search_vector, plainto_tsquery($4::regconfig, $1), 32) as bm25_score
                 FROM unified_embeddings
-                WHERE search_vector @@ plainto_tsquery('turkish', $1)
+                WHERE search_vector @@ plainto_tsquery($4::regconfig, $1)
                 ORDER BY bm25_score DESC
                 LIMIT $2
-            """, query, limit, max_excerpt)
+            """, query, limit, max_excerpt, fts_language)
 
             results = []
             for row in rows:

@@ -43,7 +43,7 @@ logger.add(
 )
 
 # Import routers
-from routers import crawl_router, pgai_router, health_router, whisper_router, import_router, worker_router, pdf_router, csv_transform_router, embedding_router, document_analyzer_router, semantic_search_router, devops_router, semantic_analyzer_router, pdf_vision_router, rag_pipeline_router, relationship_router
+from routers import crawl_router, pgai_router, health_router, whisper_router, import_router, worker_router, pdf_router, csv_transform_router, embedding_router, document_analyzer_router, semantic_search_router, devops_router, semantic_analyzer_router, pdf_vision_router, rag_pipeline_router, relationship_router, llm_cache_router
 from routers.scheduler_router import router as scheduler_router
 from routers.data_health_router import router as data_health_router
 from routers.document_optimization_router import router as doc_optimization_router
@@ -83,6 +83,13 @@ async def lifespan(app: FastAPI):
             logger.info("✅ Semantic search service warmed up")
         except Exception as warmup_err:
             logger.warning(f"⚠️ Semantic search warmup skipped: {warmup_err}")
+
+        # WS2: Pre-warm semantic response cache (Redis 8 Query Engine check). Non-fatal.
+        try:
+            from services.semantic_response_cache import semantic_response_cache
+            await semantic_response_cache.warmup()
+        except Exception as cache_warmup_err:
+            logger.warning(f"⚠️ Semantic response cache warmup skipped: {cache_warmup_err}")
 
     except Exception as e:
         logger.error(f"❌ Failed to initialize services: {e}")
@@ -275,6 +282,12 @@ app.include_router(
     prefix="/api/python/relationships",
     tags=["relationships"]
     # Chunk relationship extraction: entities, cross-references, graph traversal
+)
+app.include_router(
+    llm_cache_router,
+    prefix="/api/python/llm-cache",
+    tags=["llm-cache"]
+    # WS2: Semantic LLM-response cache (Redis Iris "LangCache" OSS equivalent)
 )
 
 # Global exception handler
