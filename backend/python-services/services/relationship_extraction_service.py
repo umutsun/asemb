@@ -34,6 +34,11 @@ DEFAULT_BATCH_SIZE = 50
 DEFAULT_CONFIDENCE_THRESHOLD = 0.7
 MAX_CONTENT_LENGTH = 6000  # Truncate content sent to LLM
 EXTRACTION_CACHE_TTL = 86400  # 24h cache for extraction results
+# WS4-B: how many chunks to extract concurrently inside a batch. Each chunk is
+# one ~7s LLM round-trip; serial processing made full re-extraction take ~20h.
+# Bounded concurrency keeps us well under gpt-4o-mini rate limits. Overridable
+# via settings.relationships.extractionConcurrency.
+DEFAULT_EXTRACTION_CONCURRENCY = 8
 
 # Reuse article detection patterns from rag_pipeline_service.py
 ARTICLE_PATTERN = re.compile(
@@ -873,6 +878,32 @@ Rules:
 
             rows = await pool.fetch(query, *params)
 
+            # WS4-B: process each batch with bounded concurrency. Each chunk is a
+            # ~7s LLM round-trip; serial processing made the full corpus ~20h.
+            settings = await self._get_settings()
+            concurrency = int(settings.get('extractionConcurrency', DEFAULT_EXTRACTION_CONCURRENCY))
+            sem = asyncio.Semaphore(max(1, concurrency))
+
+            async def _process_one(row):
+                async with sem:
+                    raw_meta = row['metadata']
+                    if isinstance(raw_meta, dict):
+                        metadata = raw_meta
+                    elif isinstance(raw_meta, str):
+                        try:
+                            metadata = json.loads(raw_meta)
+                        except (json.JSONDecodeError, TypeError):
+                            metadata = {}
+                    else:
+                        metadata = {}
+                    return await self.extract_from_chunk(
+                        chunk_id=row['id'],
+                        content=row['content'],
+                        metadata=metadata,
+                        source_table=row['source_table'],
+                        source_type=row['source_type'],
+                    )
+
             job_status = 'running'
 
             for i in range(0, len(rows), batch_size):
@@ -886,31 +917,18 @@ Rules:
                     logger.info(f"[RelExtract] Job {job_id} cancelled")
                     break
 
-                for row in batch:
-                    try:
-                        raw_meta = row['metadata']
-                        if isinstance(raw_meta, dict):
-                            metadata = raw_meta
-                        elif isinstance(raw_meta, str):
-                            metadata = json.loads(raw_meta)
-                        else:
-                            metadata = {}
-                        result = await self.extract_from_chunk(
-                            chunk_id=row['id'],
-                            content=row['content'],
-                            metadata=metadata,
-                            source_table=row['source_table'],
-                            source_type=row['source_type'],
-                        )
+                # Run the batch concurrently (Semaphore caps in-flight LLM calls).
+                results = await asyncio.gather(
+                    *(_process_one(row) for row in batch), return_exceptions=True
+                )
+                for row, result in zip(batch, results):
+                    if isinstance(result, Exception):
+                        failed += 1
+                        logger.error(f"[RelExtract] Chunk {row['id']} failed: {result}")
+                    else:
                         processed += 1
                         total_relationships += result.get("relationships_stored", 0)
                         total_entities += result.get("entities_stored", 0)
-                    except Exception as e:
-                        failed += 1
-                        logger.error(f"[RelExtract] Chunk {row['id']} failed: {e}")
-
-                    # Rate limit: ~20 requests/sec for gpt-4o-mini
-                    await asyncio.sleep(0.05)
 
                 # Update progress
                 await pool.execute("""
