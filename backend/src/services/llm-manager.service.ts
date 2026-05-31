@@ -864,7 +864,7 @@ export class LLMManager {
       preferredProvider?: string; // Add preferred provider option
       _isFallback?: boolean; // Internal flag to prevent infinite recursion
     } = {}
-  ): Promise<{ content: string; provider: string; model: string; fallbackUsed?: boolean }> {
+  ): Promise<{ content: string; provider: string; model: string; fallbackUsed?: boolean; usage?: { promptTokens: number; completionTokens: number; totalTokens: number } }> {
     await this.refreshSettingsIfNeeded();
 
     // Use provided options || fall back to config from database
