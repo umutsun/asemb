@@ -9,6 +9,22 @@
 
 const fs = require('fs');
 const path = require('path');
+const { resolveApiKey, close: closeSettingsDb } = require('./db-settings');
+
+// OpenAI key comes from the DB `settings` table (source of truth, Hard Rule #1), with
+// OPENAI_API_KEY as a fallback. Resolved once and cached.
+let _openAiKeyPromise;
+function getOpenAiKey() {
+    if (!_openAiKeyPromise) {
+        _openAiKeyPromise = resolveApiKey('openai.apiKey', 'OPENAI_API_KEY').then((key) => {
+            if (!key) {
+                throw new Error('No OpenAI key — set settings.openai.apiKey in the DB (Settings UI) or export OPENAI_API_KEY');
+            }
+            return key;
+        });
+    }
+    return _openAiKeyPromise;
+}
 
 // Configuration
 const LOCALES_DIR = path.join(__dirname, '../frontend/public/locales');
@@ -75,17 +91,13 @@ function setNestedValue(obj, path, value) {
 }
 
 /**
- * Translate text using OpenAI GPT-4 (highest quality translation)
- * Requires OPENAI_API_KEY in the environment, e.g.:
- *   PowerShell:  $env:OPENAI_API_KEY = 'sk-...'; node scripts/auto_translate.js tr
- *   bash:        OPENAI_API_KEY=sk-... node scripts/auto_translate.js tr
- * Never hardcode the key here — this file used to embed a live key in plaintext.
+ * Translate text using OpenAI GPT-4 (highest quality translation).
+ * The API key is read from the DB `settings` table (key `openai.apiKey`, managed via the
+ * Settings UI), falling back to the OPENAI_API_KEY env var. Never hardcode the key here —
+ * this file used to embed a live key in plaintext.
  */
 async function translateText(text, targetLang, sourceLang = 'en') {
-    const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
-    if (!OPENAI_API_KEY) {
-        throw new Error('OPENAI_API_KEY is not set — export it in the environment before running auto_translate.js');
-    }
+    const OPENAI_API_KEY = await getOpenAiKey();
 
     // Language name mapping for GPT-4
     const languageNames = {
@@ -335,7 +347,9 @@ async function main() {
 }
 
 // Run the script
-main().catch(error => {
-    console.error('❌ Fatal error:', error);
-    process.exit(1);
-});
+main()
+    .catch(error => {
+        console.error('❌ Fatal error:', error);
+        process.exitCode = 1;
+    })
+    .finally(() => closeSettingsDb()); // release the settings DB pool so the process exits
