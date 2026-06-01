@@ -617,15 +617,7 @@
       "data": "Data",
       "messageHistory": "Message History",
       "messages": "Messages",
-      "title": "title",
-      "4": "o",
-      "6": "e",
-      "5": "r",
-      "1": "e",
-      "3": "t",
-      "0": "V",
-      "2": "k",
-      "7": "n"
+      "title": "title"
     },
     "systemStatus": "Stato del sistema",
     "recentActivity": "Attività recente",
@@ -639,20 +631,7 @@
     "disconnected": "Disconnesso",
     "status": {
       "notConfigured": "not Configured",
-      "unknown": "unknown",
-      "5": "]",
-      "11": "u",
-      "4": "O",
-      "6": "6",
-      "7": "S",
-      "8": "t",
-      "12": "s",
-      "3": "T",
-      "0": "[",
-      "10": "t",
-      "1": "A",
-      "9": "a",
-      "2": "U"
+      "unknown": "unknown"
     },
     "lastUpdated": "Last Updated",
     "totalSize": "Total Size",
@@ -1484,19 +1463,7 @@
       "description": "Preview of translated text",
       "noPreview": "Preview not available",
       "loading": "Loading...",
-      "error": "Error occurred while loading preview",
-      "7": "с",
-      "4": "4",
-      "3": "3",
-      "9": "о",
-      "2": "2",
-      "11": "р",
-      "0": "0",
-      "10": "т",
-      "8": "м",
-      "5": "5",
-      "6": "о",
-      "1": "1"
+      "error": "Error occurred while loading preview"
     },
     "stats": {
       "title": "Translation Statistics",
@@ -1683,13 +1650,7 @@
         "cancel": "Cancel",
         "restart": "Restart",
         "delete": "Delete"
-      },
-      "2": "2",
-      "4": "4",
-      "3": "3",
-      "5": "5",
-      "1": "1",
-      "0": "0"
+      }
     },
     "translateTable": {
       "title": "Table Translation",
@@ -2495,16 +2456,7 @@
       "uploading": "Caricamento...",
       "saveToDatabase": "Salva nel database",
       "preparing": "Preparazione...",
-      "completed": "Completato!",
-      "2": "2",
-      "0": "0",
-      "3": "ロ",
-      "6": "и",
-      "8": "ь",
-      "7": "т",
-      "1": "1",
-      "5": "ド",
-      "4": "ー"
+      "completed": "Completato!"
     },
     "physicalFiles": {
       "title": "docs",
@@ -2534,23 +2486,7 @@
       "embedded": "Embedded",
       "notEmbedded": "Not Embedded",
       "noDocumentsFound": "No documents found",
-      "uploadToStart": "Upload files to get started",
-      "4": "4",
-      "12": "н",
-      "0": "0",
-      "1": "1",
-      "2": "2",
-      "9": "9",
-      "6": "6",
-      "3": "3",
-      "14": "о",
-      "15": "в",
-      "5": "5",
-      "10": "10",
-      "7": "7",
-      "13": "т",
-      "8": "8",
-      "11": "е"
+      "uploadToStart": "Upload files to get started"
     },
     "table": {
       "name": "Name",
@@ -2571,13 +2507,7 @@
       "failed": "Failed",
       "embedded": "Embedded",
       "ocrDone": "OCR Done",
-      "raw": "Raw",
-      "1": "1",
-      "2": "2",
-      "3": "3",
-      "0": "0",
-      "4": "4",
-      "5": "5"
+      "raw": "Raw"
     },
     "batch": {
       "noCsvDocuments": "No CSV Documents",
@@ -2634,16 +2564,7 @@
       "deleteSelected": "Are you sure you want to delete {count} documents?",
       "deleteSelectedDocuments": "Delete selected documents",
       "analyze": "Analyze",
-      "analyzeTooltip": "Extract text from PDFs (OCR if needed) before embedding",
-      "4": "4",
-      "5": "5",
-      "7": "7",
-      "8": "8",
-      "6": "6",
-      "1": "1",
-      "2": "2",
-      "0": "0",
-      "3": "3"
+      "analyzeTooltip": "Extract text from PDFs (OCR if needed) before embedding"
     },
     "toast": {
       "authenticationError": "Authentication Error",
@@ -3204,20 +3125,7 @@
       "provider": "Provider",
       "status": {
         "completed": "completed",
-        "running": "running",
-        "10": "t",
-        "8": "t",
-        "7": "S",
-        "1": "A",
-        "5": "]",
-        "6": "6",
-        "11": "u",
-        "0": "[",
-        "9": "a",
-        "4": "O",
-        "3": "T",
-        "12": "s",
-        "2": "U"
+        "running": "running"
       },
       "progress": "Progress",
       "cost": "Cost",
@@ -3561,39 +3469,39 @@
       "hybrid": {
         "title": "Hybrid RAG",
         "items": {
-          "2": "pgvector + FTS kullanir",
           "0": "Semantic + Keyword search",
-          "1": "En iyi sonuclar icin"
+          "1": "En iyi sonuclar icin",
+          "2": "pgvector + FTS kullanir"
         }
       },
       "lightrag": {
         "title": "LightRAG",
         "items": {
-          "2": "Langchain kullanir",
           "0": "Graph-based RAG",
-          "1": "Iliskisel sorgular icin"
+          "1": "Iliskisel sorgular icin",
+          "2": "Langchain kullanir"
         }
       },
       "semantic": {
         "title": "Semantic Search",
         "items": {
+          "0": "Vektor benzerligi",
           "1": "Anlamsal arama",
-          "2": "OpenAI embeddings",
-          "0": "Vektor benzerligi"
+          "2": "OpenAI embeddings"
         }
       },
       "raganything": {
         "title": "RAGAnything",
         "items": {
-          "1": "Multi-modal destekli",
           "0": "Universal RAG",
+          "1": "Multi-modal destekli",
           "2": "Otomatik indeksleme"
         }
       }
     },
     "examples": {
-      "1": "E-fatura zorunlulugu kimleri kapsar?",
       "0": "KDV indirimi sartlari nelerdir?",
+      "1": "E-fatura zorunlulugu kimleri kapsar?",
       "2": "Vergi cezasi affi nasil yapilir?"
     },
     "alerts": {
@@ -5343,6 +5251,8 @@
     "updated": "Updated"
   },
   "errors": {
+    "404": "404",
+    "500": "500",
     "deleteFailed": "Delete failed",
     "unauthorized": "Unauthorized",
     "uploadFailed": "Upload failed",
@@ -5350,11 +5260,9 @@
     "networkError": "Network error",
     "weakPassword": "Weak password",
     "saveFailed": "Save failed",
-    "404": "404",
     "validationError": "Validation error",
     "fileTooBig": "File too big",
     "timeout": "Timeout",
-    "500": "500",
     "loadFailed": "Load failed",
     "invalidFileType": "Invalid file type",
     "passwordMismatch": "Password mismatch",
