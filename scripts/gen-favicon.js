@@ -17,7 +17,9 @@ const sharp = require(path.join(__dirname, '..', 'frontend', 'node_modules', 'sh
 
 const APP = path.join(__dirname, '..', 'frontend', 'src', 'app');
 const ASSETS = path.join(__dirname, '..', 'frontend', 'public', 'assets', 'luwi');
-const SRC_SVG = path.join(ASSETS, 'luwi-logo-black.svg');
+// Favicon source = the real luwi logo orientation: white tile + black ring/glyph
+// (black-on-white), matching the brand mark. NOT the dark tile (white-on-black).
+const SRC_SVG = path.join(APP, 'icon.svg');
 
 function pngBuffer(size) {
     // high density so the SVG rasterizes crisply at small sizes
@@ -53,11 +55,11 @@ function buildIco(frames) {
 (async () => {
     fs.writeFileSync(path.join(APP, 'icon.png'), await pngBuffer(512));
     fs.writeFileSync(path.join(APP, 'apple-icon.png'), await pngBuffer(180));
-    fs.writeFileSync(path.join(ASSETS, 'luwi-logo-black-512.png'), await pngBuffer(512));
+    fs.writeFileSync(path.join(ASSETS, 'luwi-logo-black-on-white-512.png'), await pngBuffer(512));
 
     const frames = [];
     for (const size of [16, 32, 48]) frames.push({ size, data: await pngBuffer(size) });
     fs.writeFileSync(path.join(APP, 'favicon.ico'), buildIco(frames));
 
-    console.log('Regenerated black favicon assets: icon.png(512), apple-icon.png(180), favicon.ico(16/32/48), luwi-logo-black-512.png');
+    console.log('Regenerated favicon (black-on-white): icon.png(512), apple-icon.png(180), favicon.ico(16/32/48), luwi-logo-black-on-white-512.png');
 })().catch(e => { console.error(e); process.exit(1); });
