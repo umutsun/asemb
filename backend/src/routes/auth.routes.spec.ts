@@ -1,5 +1,6 @@
 import request from 'supertest';
 import express from 'express';
+import cookieParser from 'cookie-parser';
 import authRouter from './auth.routes';
 import { AuthService } from '../services/auth.service';
 import { pool } from '../config/database';
@@ -34,16 +35,19 @@ jest.mock('../middleware/auth.middleware', () => ({
 
 const app = express();
 app.use(express.json());
+app.use(cookieParser()); // /refresh reads req.cookies — without this it's undefined and the handler throws → 401
 app.use('/api/auth', authRouter);
 
 describe('Auth Routes', () => {
-  let mockedAuthService: jest.Mocked<AuthService>;
+  // AuthService is auto-mocked; its methods live on the prototype and are shared by the
+  // single instance the router creates at import time (`const authService = new AuthService()`).
+  // Configure mocks there — `mock.instances[0]` is wiped by jest.clearAllMocks() in beforeEach,
+  // so the old `mock.instances[0] || new AuthService()` resolved to a throwaway instance the
+  // router never uses, leaving every method returning undefined.
+  const mockedAuthService = AuthService.prototype as jest.Mocked<AuthService>;
 
   beforeEach(() => {
     jest.clearAllMocks();
-    // Get the mocked instance - in auth.routes, it's created as 'const authService = new AuthService();'
-    // Because of jest.mock, the constructor is already mocked.
-    mockedAuthService = (AuthService as any).mock.instances[0] || new AuthService();
   });
 
   describe('POST /api/auth/register', () => {
