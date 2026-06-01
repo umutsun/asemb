@@ -18,6 +18,10 @@ import { LLMManager } from '../services/llm-manager.service';
 
 const router = Router();
 
+// Loopback self-calls must target THIS backend's real port (PORT=8085 on bookie),
+// never a hardcoded one — else requests land on another tenant's backend (cross-talk).
+const INTERNAL_API_URL = `http://localhost:${process.env.PORT || 8083}`;
+
 /**
  * Helper function to extract JSON from markdown code fences
  * Handles cases where LLM returns: "text ```json {...} ``` more text"
@@ -452,7 +456,7 @@ async function processFilesAsync(jobId: string, files: BatchFile[], options: any
       // If no template from folder_config, try auto-detection
       if (!templateId) {
         try {
-          const templateResponse = await fetch(`http://localhost:8083/api/v2/templates/detect`, {
+          const templateResponse = await fetch(`${INTERNAL_API_URL}/api/v2/templates/detect`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -578,7 +582,7 @@ async function processFilesAsync(jobId: string, files: BatchFile[], options: any
               }
 
               // Call transform service (uses pdf-batch routes transform logic)
-              const transformResponse = await fetch(`http://localhost:8083/api/v2/pdf/metadata-transform`, {
+              const transformResponse = await fetch(`${INTERNAL_API_URL}/api/v2/pdf/metadata-transform`, {
                 method: 'POST',
                 headers: {
                   'Content-Type': 'application/json',
@@ -1057,7 +1061,7 @@ router.post('/:folderName/analyze', async (req: Request, res: Response) => {
         const ocrResult = await ocrService.processDocument(pdfPath, 'application/pdf');
 
         // Detect template
-        const templateResponse = await fetch(`http://localhost:8083/api/v2/templates/detect`, {
+        const templateResponse = await fetch(`${INTERNAL_API_URL}/api/v2/templates/detect`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({

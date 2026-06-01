@@ -5,6 +5,10 @@
 
 import { gql } from 'graphql-tag';
 
+// Loopback self-calls must target THIS backend's real port (PORT=8085 on bookie),
+// never a hardcoded one — else requests land on another tenant's backend (cross-talk).
+const INTERNAL_API_URL = `http://localhost:${process.env.PORT || 8083}`;
+
 export const migrationTypeDefs = gql`
   # Migration status enum
   enum MigrationStatus {
@@ -192,18 +196,18 @@ export const migrationTypeDefs = gql`
 export const migrationResolvers = {
   Query: {
     migrationCapabilities: async (_: any, __: any, context: any) => {
-      const response = await fetch('http://localhost:8083/api/v2/migration/capabilities');
+      const response = await fetch(INTERNAL_API_URL + '/api/v2/migration/capabilities');
       return response.json();
     },
 
     migration: async (_: any, { id }: { id: string }, context: any) => {
-      const response = await fetch(`http://localhost:8083/api/v2/migration/progress/${id}`);
+      const response = await fetch(`${INTERNAL_API_URL}/api/v2/migration/progress/${id}`);
       if (!response.ok) return null;
       return response.json();
     },
 
     migrations: async (_: any, { status, limit, offset }: any, context: any) => {
-      const response = await fetch('http://localhost:8083/api/v2/migration/status');
+      const response = await fetch(INTERNAL_API_URL + '/api/v2/migration/status');
       const data = await response.json();
 
       let migrations = [...data.active, ...data.history];
@@ -216,14 +220,14 @@ export const migrationResolvers = {
     },
 
     migrationSummary: async (_: any, __: any, context: any) => {
-      const response = await fetch('http://localhost:8083/api/v2/migration/status');
+      const response = await fetch(INTERNAL_API_URL + '/api/v2/migration/status');
       const data = await response.json();
 
       return data.summary;
     },
 
     migrationHistory: async (_: any, { tableName, limit }: any, context: any) => {
-      const response = await fetch('http://localhost:8083/api/v2/migration/status');
+      const response = await fetch(INTERNAL_API_URL + '/api/v2/migration/status');
       const data = await response.json();
 
       let history = data.history;
@@ -238,7 +242,7 @@ export const migrationResolvers = {
 
   Mutation: {
     startMigration: async (_: any, args: any, context: any) => {
-      const response = await fetch('http://localhost:8083/api/v2/migration/start', {
+      const response = await fetch(INTERNAL_API_URL + '/api/v2/migration/start', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -256,7 +260,7 @@ export const migrationResolvers = {
     },
 
     stopMigration: async (_: any, { id }: { id: string }, context: any) => {
-      const response = await fetch(`http://localhost:8083/api/v2/migration/stop/${id}`, {
+      const response = await fetch(`${INTERNAL_API_URL}/api/v2/migration/stop/${id}`, {
         method: 'POST'
       });
 
@@ -282,7 +286,7 @@ export const migrationResolvers = {
     },
 
     optimizeEmbeddings: async (_: any, { tableName }: any, context: any) => {
-      const response = await fetch('http://localhost:8083/api/v2/migration/optimize', {
+      const response = await fetch(INTERNAL_API_URL + '/api/v2/migration/optimize', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ tableName })

@@ -19,6 +19,10 @@ import { URL } from 'url';
 
 const router = Router();
 
+// Loopback self-calls must target THIS backend's real port (PORT=8085 on bookie),
+// never a hardcoded one — else requests land on another tenant's backend (cross-talk).
+const INTERNAL_API_URL = `http://localhost:${process.env.PORT || 8083}`;
+
 // Initialize Socket.IO lazily to avoid circular dependency
 let io: any = null;
 function getSocketIO() {
@@ -2514,7 +2518,7 @@ router.get('/test-llm', async (req: Request, res: Response) => {
 
     for (const msg of testMessages) {
       try {
-        const response = await fetch('http://localhost:8083/api/v2/chat', {
+        const response = await fetch(INTERNAL_API_URL + '/api/v2/chat', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json'
@@ -2584,7 +2588,7 @@ router.post('/test-embeddings', async (req: Request, res: Response) => {
 
     for (const text of texts) {
       try {
-        const response = await fetch('http://localhost:8083/api/v2/embeddings', {
+        const response = await fetch(INTERNAL_API_URL + '/api/v2/embeddings', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json'

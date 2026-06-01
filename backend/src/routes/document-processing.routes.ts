@@ -10,6 +10,10 @@ import path from 'path';
 
 const router = Router();
 
+// Loopback self-calls must target THIS backend's real port (PORT=8085 on bookie),
+// never a hardcoded one — else requests land on another tenant's backend (cross-talk).
+const INTERNAL_API_URL = `http://localhost:${process.env.PORT || 8083}`;
+
 /**
  * Scan /docs folder and return all found documents
  */
@@ -241,7 +245,7 @@ router.post('/translate', async (req: Request, res: Response) => {
     console.log(`[DOCUMENT PROCESSING API] Translating to ${targetLanguage}...`);
 
     // Call the translation service
-    const response = await fetch('http://localhost:8083/api/v2/translate', {
+    const response = await fetch(INTERNAL_API_URL + '/api/v2/translate', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -301,7 +305,7 @@ router.post('/embeddings', async (req: Request, res: Response) => {
     console.log(`[DOCUMENT PROCESSING API] Generating embeddings with ${model}...`);
 
     // Call the embeddings service
-    const response = await fetch('http://localhost:8083/api/v2/embeddings', {
+    const response = await fetch(INTERNAL_API_URL + '/api/v2/embeddings', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -475,7 +479,7 @@ function checkOCRService(): boolean {
 
 async function checkTranslationService(): Promise<boolean> {
   try {
-    const response = await fetch('http://localhost:8083/api/v2/translate', {
+    const response = await fetch(INTERNAL_API_URL + '/api/v2/translate', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ text: 'test', target: 'tr' })
@@ -488,7 +492,7 @@ async function checkTranslationService(): Promise<boolean> {
 
 async function checkEmbeddingService(): Promise<boolean> {
   try {
-    const response = await fetch('http://localhost:8083/api/v2/embeddings', {
+    const response = await fetch(INTERNAL_API_URL + '/api/v2/embeddings', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ text: 'test' })
