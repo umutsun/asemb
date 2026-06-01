@@ -53,6 +53,19 @@ class RecallResponse(BaseModel):
     memories: List[Dict[str, Any]] = Field(default_factory=list)
 
 
+class RehydrateRequest(BaseModel):
+    namespace: Optional[str] = Field(None, description="Limit to one namespace (default: all)")
+    drop_first: bool = Field(False, description="Purge stale gx10mem: keys before rebuild (use after PG deletes)")
+
+
+class RehydrateResponse(BaseModel):
+    rehydrated: int = 0
+    skipped: int = 0
+    purged: int = 0
+    scanned: int = 0
+    error: Optional[str] = None
+
+
 @router.post("/store", response_model=StoreResponse)
 async def store(request: StoreRequest) -> StoreResponse:
     """Embed + dedup + dual-write extracted memories. Returns zeros on any error."""
@@ -87,7 +100,23 @@ async def recall(request: RecallRequest) -> RecallResponse:
         return RecallResponse()
 
 
+@router.post("/rehydrate", response_model=RehydrateResponse)
+async def rehydrate(request: RehydrateRequest) -> RehydrateResponse:
+    """Rebuild the Redis hot index from the Postgres source-of-truth after a Redis
+    flush/restart (repairs dual-write drift). Reuses stored embeddings — no re-embedding,
+    no writes to Postgres. Fail-safe: returns counts with an `error` field, never raises."""
+    try:
+        result = await agent_memory_service.rehydrate(
+            namespace=request.namespace,
+            drop_first=request.drop_first,
+        )
+        return RehydrateResponse(**result)
+    except Exception as e:
+        logger.warning(f"[agent-memory] rehydrate handler error: {e}")
+        return RehydrateResponse(error="handler_error")
+
+
 @router.get("/stats")
 async def stats(namespace: Optional[str] = None) -> dict:
-    """Memory counts by type/backend for the Settings UI + health."""
+    """Memory counts by type/backend for the Settings UI + health (incl. redis_total + drift)."""
     return await agent_memory_service.stats(namespace)

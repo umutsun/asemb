@@ -360,6 +360,102 @@ class AgentMemoryService:
         except Exception:
             pass  # non-critical
 
+    # ── maintenance: rebuild the Redis hot index from Postgres ───────────────────
+    @staticmethod
+    def _parse_embedding(raw: Any) -> Optional[List[float]]:
+        """pgvector comes back from asyncpg as a '[...]' text literal (no codec registered)."""
+        if raw is None:
+            return None
+        if isinstance(raw, str):
+            try:
+                return [float(x) for x in raw.strip().lstrip("[").rstrip("]").split(",") if x.strip()]
+            except Exception:
+                return None
+        try:
+            return [float(x) for x in raw]  # already a sequence
+        except Exception:
+            return None
+
+    async def _purge_hot_keys(self, client: aredis.Redis) -> int:
+        """UNLINK every gx10mem: key (an isolated prefix — never touches corpus/cache vectors)
+        so a rebuild starts clean. The HASH index auto-empties as its keys disappear."""
+        purged = 0
+        try:
+            batch: List[str] = []
+            async for key in client.scan_iter(match=f"{_REDIS_PREFIX}*", count=500):
+                batch.append(key)
+                if len(batch) >= 500:
+                    purged += int(await client.unlink(*batch) or 0)
+                    batch = []
+            if batch:
+                purged += int(await client.unlink(*batch) or 0)
+        except Exception as e:
+            logger.warning(f"[agent-memory] purge hot keys failed: {e}")
+        return purged
+
+    async def rehydrate(
+        self,
+        *,
+        namespace: Optional[str] = None,
+        drop_first: bool = False,
+    ) -> Dict[str, Any]:
+        """Rebuild the Redis hot-recall index from the Postgres source-of-truth.
+
+        Repairs dual-write drift after a Redis flush / restart / eviction: Postgres keeps every
+        memory durably, but the Redis mirror is volatile and `store()` only mirrors on write — so
+        a lost Redis stays cold (recall silently falls back to slow Postgres) until new writes.
+        This reuses each row's stored embedding (NO re-embedding, NO LLM, NO writes to Postgres)
+        and is idempotent (re-hset by mem_id overwrites). With drop_first=True, stale gx10mem: keys
+        are purged first — use after memories were deleted from Postgres. Fail-safe: returns counts
+        with an `error` field rather than raising.
+        """
+        result: Dict[str, Any] = {"rehydrated": 0, "skipped": 0, "purged": 0, "scanned": 0}
+        if np is None:
+            return {**result, "error": "numpy_unavailable"}
+        client = self._get_client()
+        if client is None or self._search_symbols() is None:
+            return {**result, "error": "redis_unavailable"}
+        try:
+            pool = await get_db()
+        except Exception as e:
+            logger.warning(f"[agent-memory] rehydrate: db unavailable: {e}")
+            return {**result, "error": "db_unavailable"}
+
+        if drop_first:
+            result["purged"] = await self._purge_hot_keys(client)
+            self._ensured.clear()
+
+        try:
+            if namespace:
+                rows = await pool.fetch(
+                    "SELECT id, namespace, user_id, memory_type, content, embedding "
+                    "FROM memories WHERE embedding IS NOT NULL AND namespace = $1",
+                    namespace,
+                )
+            else:
+                rows = await pool.fetch(
+                    "SELECT id, namespace, user_id, memory_type, content, embedding "
+                    "FROM memories WHERE embedding IS NOT NULL"
+                )
+        except Exception as e:
+            logger.warning(f"[agent-memory] rehydrate: pg read failed: {e}")
+            return {**result, "error": "pg_read_failed"}
+
+        result["scanned"] = len(rows)
+        for r in rows:
+            embedding = self._parse_embedding(r["embedding"])
+            if embedding is None:
+                result["skipped"] += 1
+                continue
+            await self._mirror_to_redis(
+                str(r["id"]), r["namespace"], r["user_id"],
+                r["memory_type"] or _DEFAULT_TYPE, r["content"] or "", embedding,
+            )
+            result["rehydrated"] += 1
+
+        logger.info(f"[agent-memory] rehydrate complete: {result}")
+        return result
+
     # ── introspection ────────────────────────────────────────────────────────────
     async def stats(self, namespace: Optional[str] = None) -> Dict[str, Any]:
         out: Dict[str, Any] = {"enabled_backends": [], "total": 0, "by_type": {}}
@@ -379,8 +475,25 @@ class AgentMemoryService:
             out["enabled_backends"].append("postgres")
         except Exception as e:
             logger.warning(f"[agent-memory] stats (pg) failed: {e}")
-        if self._get_client() is not None and self._search_symbols() is not None:
+        client = self._get_client()
+        if client is not None and self._search_symbols() is not None:
             out["enabled_backends"].append("redis")
+            # Hot-index doc count, so callers can SEE dual-write drift (redis < postgres ⇒
+            # rehydrate needed after a Redis flush/restart). Best-effort; omitted on error.
+            try:
+                names = await client.execute_command("FT._LIST")
+                redis_total = 0
+                for n in names or []:
+                    n = n.decode() if isinstance(n, (bytes, bytearray)) else n
+                    if isinstance(n, str) and n.startswith(f"idx:{_REDIS_PREFIX}"):
+                        info = await client.ft(n).info()
+                        nd = info.get("num_docs") if isinstance(info, dict) else None
+                        redis_total += int(nd or 0)
+                out["redis_total"] = redis_total  # total hot docs (index spans all namespaces)
+                if namespace is None:  # drift only comparable on the global count
+                    out["drift"] = max(0, int(out.get("total", 0)) - redis_total)
+            except Exception as e:
+                logger.debug(f"[agent-memory] redis stats probe failed: {e}")
         return out
 
 
