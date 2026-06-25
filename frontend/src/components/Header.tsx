@@ -50,8 +50,7 @@ import {
   CheckSquare,
   Square,
   Server,
-  CircuitBoard,
-  ListTodo
+  CircuitBoard
 } from 'lucide-react';
 import ThemeToggle from '@/components/ThemeToggle';
 import NotificationCenter from '@/components/NotificationCenter';
@@ -366,7 +365,6 @@ export default function Header() {
     // Admin only - dashboard access (chat removed from menu)
     ...(currentUser?.role === 'admin' ? [
       { href: '/dashboard', label: t('header.menu.dashboard'), icon: Home },
-      { href: '/dashboard/admin-tasks', label: t('header.menu.adminTasks'), icon: ListTodo },
       { href: '/dashboard/users', label: t('header.menu.users'), icon: Users },
       { href: '/dashboard/migrations', label: t('header.menu.migrations'), icon: Database },
       { href: '/dashboard/documents', label: t('header.menu.documents'), icon: FileText },
@@ -493,7 +491,7 @@ export default function Header() {
           </Sheet>
 
           {/* Logo - Responsive */}
-          <Link href="/" className="flex items-center gap-2 lg:gap-3 hover:opacity-80 transition-opacity">
+          <Link href={pathname.startsWith('/dashboard') ? '/dashboard' : '/'} className="flex items-center gap-2 lg:gap-3 hover:opacity-80 transition-opacity">
             {(config as any)?.app?.logoUrl ? (
               <img
                 src={(config as any).app.logoUrl}
@@ -622,7 +620,7 @@ export default function Header() {
                         }`}>
                         <div className="flex items-center gap-2 mb-1">
                           <div className={`w-2 h-2 rounded-full ${systemStatus?.database.connected ? 'bg-green-500' : 'bg-red-500'}`} />
-                          <p className="text-sm font-medium">{t('dashboard.systemInfo.database')}</p>
+                          <p className="text-sm font-medium">Database</p>
                         </div>
                         <p className="text-xs text-muted-foreground">{systemStatus?.database.databaseName || '—'}</p>
                       </div>
@@ -634,7 +632,7 @@ export default function Header() {
                         }`}>
                         <div className="flex items-center gap-2 mb-1">
                           <div className={`w-2 h-2 rounded-full ${systemStatus?.redis.connected ? 'bg-green-500' : 'bg-red-500'}`} />
-                          <p className="text-sm font-medium">{t('dashboard.systemInfo.redis')}</p>
+                          <p className="text-sm font-medium">Redis</p>
                         </div>
                         <p className="text-xs text-muted-foreground">{systemStatus?.redis.keyCount !== undefined ? `${systemStatus.redis.keyCount} keys` : '—'}</p>
                       </div>
@@ -646,7 +644,7 @@ export default function Header() {
                         }`}>
                         <div className="flex items-center gap-2 mb-1">
                           <div className={`w-2 h-2 rounded-full ${systemStatus?.llmModel.active ? 'bg-green-500' : 'bg-red-500'}`} />
-                          <p className="text-sm font-medium">{t('dashboard.systemInfo.llmModel')}</p>
+                          <p className="text-sm font-medium">LLM Model</p>
                         </div>
                         <p className="text-xs text-muted-foreground">{systemStatus?.llmModel.displayName || 'Unknown'}</p>
                       </div>
@@ -658,7 +656,7 @@ export default function Header() {
                         }`}>
                         <div className="flex items-center gap-2 mb-1">
                           <div className={`w-2 h-2 rounded-full ${systemStatus?.embedder.active ? 'bg-green-500' : 'bg-red-500'}`} />
-                          <p className="text-sm font-medium">{t('dashboard.embeddings.title')}</p>
+                          <p className="text-sm font-medium">Embeddings</p>
                         </div>
                         <p className="text-xs text-muted-foreground">{systemStatus?.embedder.active ? 'Active' : 'Offline'}</p>
                       </div>

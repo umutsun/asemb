@@ -12,7 +12,6 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { useSocketIO } from '@/hooks/useSocketIO';
 import { useTranslation } from 'react-i18next';
-import { useRouter } from 'next/navigation';
 import useAuthStore from '@/stores/auth.store';
 import useAdminTodoStore from '@/stores/admin-todo.store';
 import { AdminNotification } from '@/types/admin-todo';
@@ -41,7 +40,6 @@ export default function NotificationCenter({
   enableWebSocket = true // Varsayılan: AÇIK (artık kullanıyoruz)
 }: NotificationCenterProps) {
   const { t, i18n } = useTranslation();
-  const router = useRouter();
   const { user } = useAuthStore();
   const {
     notifications: adminNotifications,
@@ -155,12 +153,7 @@ export default function NotificationCenter({
 
   const handleClick = useCallback((notification: Notification) => {
     handleMarkAsRead(notification);
-
-    // Navigate to admin tasks if it's a todo notification
-    if (notification.type === 'todo' && notification.data?.todoId) {
-      router.push('/dashboard/admin-tasks');
-    }
-  }, [handleMarkAsRead, router]);
+  }, [handleMarkAsRead]);
 
   const getNotificationIcon = (type: Notification['type']) => {
     switch (type) {
