@@ -54,7 +54,7 @@ export async function POST(request: NextRequest) {
         ragWeight: config.llmSettings?.ragWeight || LLM.DEFAULT_SETTINGS.RAG_WEIGHT,
         llmKnowledgeWeight: config.llmSettings?.llmKnowledgeWeight || LLM.DEFAULT_SETTINGS.LLM_KNOWLEDGE_WEIGHT,
         useLocalDb: config.dataSource?.useLocalDb !== false,
-        language: config.llmSettings?.language || 'tr',
+        language: config.llmSettings?.language || 'en',
         responseStyle: config.llmSettings?.responseStyle || 'professional',
         topP: config.llmSettings?.topP || LLM.DEFAULT_SETTINGS.TOP_P,
         maxTokens: config.llmSettings?.maxTokens || LLM.DEFAULT_SETTINGS.MAX_TOKENS,

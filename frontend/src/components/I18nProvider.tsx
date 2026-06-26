@@ -28,22 +28,26 @@ export default function I18nProvider({ children }: Props) {
   }, []);
 
   useEffect(() => {
-    // Config'ten gelen dil ayarını uygula
-    if (config?.app?.locale && i18n.language !== config.app.locale) {
-      i18n.changeLanguage(config.app.locale).then(() => {
-        // HTML lang attribute'ini güncelle
-        if (typeof document !== 'undefined') {
-          document.documentElement.lang = config.app.locale;
-        }
+    // Apply the configured app locale authoritatively. Default to 'en' until config loads,
+    // so a stale detector cache (e.g. a previously-selected 'tr') can never win on load.
+    const target = config?.app?.locale || 'en';
 
-        // Local storage'a kaydet
-        if (typeof window !== 'undefined') {
-          localStorage.setItem('selectedLanguage', config.app.locale);
-        }
+    const apply = () => {
+      if (typeof document !== 'undefined') {
+        document.documentElement.lang = target;
+      }
+      if (typeof window !== 'undefined') {
+        // Write BOTH keys: i18next's LanguageDetector reads 'i18nextLng'; the app uses 'selectedLanguage'.
+        localStorage.setItem('i18nextLng', target);
+        localStorage.setItem('selectedLanguage', target);
+      }
+      setCurrentLang(target);
+    };
 
-        // Force re-render
-        setCurrentLang(config.app.locale);
-      });
+    if (i18n.language !== target) {
+      i18n.changeLanguage(target).then(apply);
+    } else {
+      apply();
     }
   }, [config?.app?.locale]);
 

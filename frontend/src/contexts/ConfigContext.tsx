@@ -112,7 +112,7 @@ interface ConfigContextType {
 }
 
 const DEFAULT_CONFIG: Config = {
-  app: { name: 'LSEMB', description: 'AI-Powered Knowledge Management System', version: '1.0.0', locale: 'tr' },
+  app: { name: 'LSEMB', description: 'AI-Powered Knowledge Management System', version: '1.0.0', locale: 'en' },
   database: { host: 'localhost', port: 5432, name: 'lsemb', user: 'postgres', password: 'postgres', ssl: false, maxConnections: 20 },
   redis: { host: 'localhost', port: 6379, password: '', db: 0 },
   openai: { apiKey: '', model: 'gpt-4-turbo-preview', embeddingModel: 'text-embedding-3-small', maxTokens: 4096, temperature: 0.7 },
@@ -155,7 +155,7 @@ export function ConfigProvider({ children }: { children: ReactNode }) {
           name: data.app?.name || 'Luwi Semantic Bridge',
           description: data.app?.description || 'Intelligent RAG & Context Engine',
           version: data.app?.version || '1.0.0',
-          locale: data.app?.locale || 'tr'
+          locale: data.app?.locale || 'en'
         },
         database: data.database || DEFAULT_CONFIG.database,
         redis: data.redis || DEFAULT_CONFIG.redis,
