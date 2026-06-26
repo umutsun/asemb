@@ -78,6 +78,25 @@ function cacheMiddleware(req: Request, res: Response, next: any) {
  *             schema:
  *               $ref: '#/components/schemas/Error'
  */
+// SECURITY: this GET endpoint is unauthenticated (used pre-login for branding), so it must
+// never return credentials. Strip secret values (API keys, passwords, tokens) from the response.
+// Admin keys are written via PUT, not read back from here, so blanking them is safe.
+function redactSettingsSecrets(obj: any): any {
+  if (!obj || typeof obj !== 'object') return obj;
+  const SECRET_KEY = /(api[_-]?key|password|passwd|secret|token|privatekey|private[_-]?key|access[_-]?key)$/i;
+  for (const section of Object.keys(obj)) {
+    const val = obj[section];
+    if (val && typeof val === 'object' && !Array.isArray(val)) {
+      for (const k of Object.keys(val)) {
+        if (SECRET_KEY.test(k) && val[k]) val[k] = '';
+      }
+    } else if (SECRET_KEY.test(section) && val) {
+      obj[section] = '';
+    }
+  }
+  return obj;
+}
+
 // Optimized category getter - returns ONLY the requested category
 router.get('/', cacheMiddleware, async (req: Request, res: Response) => {
   try {
@@ -89,7 +108,7 @@ router.get('/', cacheMiddleware, async (req: Request, res: Response) => {
         `SELECT key, value FROM settings
          WHERE key IN ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
         ['app.name', 'app.description', 'app.version', 'app.locale', 'llmSettings.activeChatModel', 'llmSettings.activeEmbeddingModel',
-         'database.host', 'database.port', 'database.name', 'database.user', 'database.password', 'database.ssl']
+         'database.host', 'database.port', 'database.name', 'database.user', 'database.ssl']
       );
 
       // Start with environment-based defaults for database
@@ -127,7 +146,7 @@ router.get('/', cacheMiddleware, async (req: Request, res: Response) => {
         }
       });
 
-      return res.json(config);
+      return res.json(redactSettingsSecrets(config));
     }
 
     // Category-specific optimized queries
@@ -358,7 +377,7 @@ router.get('/', cacheMiddleware, async (req: Request, res: Response) => {
       console.log(`  └─ Embedding Model: ${config.llmSettings?.embeddingModel || 'NOT SET'}`);
     }
 
-    res.json(config);
+    res.json(redactSettingsSecrets(config));
 
   } catch (error) {
     console.error('Error fetching optimized settings:', error);
