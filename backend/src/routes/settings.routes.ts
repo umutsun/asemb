@@ -1016,6 +1016,11 @@ router.get('/key/:key', async (req: Request, res: Response) => {
     const row = result.rows[0];
     let value = row.value;
 
+    // SECURITY: this endpoint is unauthenticated — never return secret values by key.
+    if (/(api[_-]?key|password|passwd|secret|token|privatekey|private[_-]?key|access[_-]?key)$/i.test(row.key)) {
+      return res.json({ key: row.key, value: '', category: row.category, description: row.description });
+    }
+
     // Try to parse JSON value
     try {
       value = JSON.parse(value);
