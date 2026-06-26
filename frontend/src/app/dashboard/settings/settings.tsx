@@ -1313,7 +1313,9 @@ function LLMSettings() {
                         <Input
                           type={visibleKeys[provider] ? "text" : "password"}
                           value={data.key === '••••••••' ? '' : data.key || ''}
-                          placeholder={t('settings.llm.enterApiKey')}
+                          placeholder={(verifiedDate || providerStatus.status === 'active')
+                            ? '•••••••••••••••• · key saved (enter a new key to replace)'
+                            : t('settings.llm.enterApiKey')}
                           className="flex-1 pr-20"
                           onChange={(e) => {
                             const newConfig = { ...tempConfig };
