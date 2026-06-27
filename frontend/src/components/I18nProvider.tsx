@@ -17,7 +17,10 @@ export default function I18nProvider({ children }: Props) {
     // Listen to language change events
     const handleLanguageChanged = (lng: string) => {
       setCurrentLang(lng);
-      console.log('Language changed to:', lng);
+      if (typeof document !== 'undefined') {
+        document.documentElement.lang = lng;
+        document.documentElement.dir = ['ar', 'he', 'fa', 'ur'].includes(lng) ? 'rtl' : 'ltr';
+      }
     };
 
     i18n.on('languageChanged', handleLanguageChanged);
@@ -35,6 +38,8 @@ export default function I18nProvider({ children }: Props) {
     const apply = () => {
       if (typeof document !== 'undefined') {
         document.documentElement.lang = target;
+        // RTL for Arabic (and other RTL locales); LTR otherwise.
+        document.documentElement.dir = ['ar', 'he', 'fa', 'ur'].includes(target) ? 'rtl' : 'ltr';
       }
       if (typeof window !== 'undefined') {
         // Write BOTH keys: i18next's LanguageDetector reads 'i18nextLng'; the app uses 'selectedLanguage'.
