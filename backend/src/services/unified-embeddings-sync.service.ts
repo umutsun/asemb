@@ -22,12 +22,13 @@ export class UnifiedEmbeddingsSyncService {
     try {
       await lsembPool.query(`
         INSERT INTO unified_embeddings (
-          source_table, source_type, source_id, content, embedding, metadata, created_at
+          source_table, source_type, source_id, source_name, content, embedding, metadata, created_at
         )
         SELECT
           'document_embeddings' as source_table,
           'document' as source_type,
           de.id as source_id,
+          COALESCE(d.title, 'Document ' || de.document_id::text) as source_name,
           de.chunk_text as content,
           de.embedding,
           jsonb_build_object(
@@ -96,12 +97,13 @@ export class UnifiedEmbeddingsSyncService {
     try {
       await lsembPool.query(`
         INSERT INTO unified_embeddings (
-          source_table, source_type, source_id, content, embedding, metadata, created_at
+          source_table, source_type, source_id, source_name, content, embedding, metadata, created_at
         )
         SELECT
           'scrape_embeddings' as source_table,
           'webpage' as source_type,
           se.id::text as source_id,
+          COALESCE(se.title, se.source_url, 'Web Page') as source_name,
           se.content,
           se.embedding,
           jsonb_build_object(
