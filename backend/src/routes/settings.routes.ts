@@ -81,9 +81,18 @@ function cacheMiddleware(req: Request, res: Response, next: any) {
 // SECURITY: this GET endpoint is unauthenticated (used pre-login for branding), so it must
 // never return credentials. Strip secret values (API keys, passwords, tokens) from the response.
 // Admin keys are written via PUT, not read back from here, so blanking them is safe.
+// Secret keys are returned redacted (blank) from GET, so re-saving a category
+// re-sends them empty — a blind UPSERT then WIPES the stored secret. Skip writing
+// a secret-pattern key whose incoming value is blank; only an explicitly typed new
+// value overwrites it. (Same pattern as redactSettingsSecrets below.)
+const SECRET_KEY_RE = /(api[_-]?key|bearer[_-]?key|password|passwd|secret|token|privatekey|private[_-]?key|access[_-]?key)$/i;
+function isBlankSecretWrite(key: string, value: any): boolean {
+  return SECRET_KEY_RE.test(key) && (value === undefined || value === null || String(value).trim() === '');
+}
+
 function redactSettingsSecrets(obj: any): any {
   if (!obj || typeof obj !== 'object') return obj;
-  const SECRET_KEY = /(api[_-]?key|password|passwd|secret|token|privatekey|private[_-]?key|access[_-]?key)$/i;
+  const SECRET_KEY = /(api[_-]?key|bearer[_-]?key|password|passwd|secret|token|privatekey|private[_-]?key|access[_-]?key)$/i;
   for (const section of Object.keys(obj)) {
     const val = obj[section];
     if (val && typeof val === 'object' && !Array.isArray(val)) {
@@ -106,7 +115,7 @@ router.get('/', cacheMiddleware, async (req: Request, res: Response) => {
       // Return minimal full config if no category - include active models, app description, and all database settings
       const result = await lsembPool.query(
         `SELECT key, value FROM settings
-         WHERE key IN ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
+         WHERE key IN ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
         ['app.name', 'app.description', 'app.version', 'app.locale', 'llmSettings.activeChatModel', 'llmSettings.activeEmbeddingModel',
          'database.host', 'database.port', 'database.name', 'database.user', 'database.ssl']
       );
@@ -469,6 +478,7 @@ router.post('/', async (req: Request, res: Response) => {
 
     // Batch update - determine category from key prefix
     for (const update of updates) {
+      if (isBlankSecretWrite(update.key, update.value)) continue;
       // Extract category from key (e.g., "llmSettings.temperature" -> "llm")
       const keyPrefix = update.key.split('.')[0];
       const categoryMap: { [key: string]: string } = {
@@ -729,6 +739,7 @@ router.put('/:categoryName', async (req: Request, res: Response) => {
 
     // Batch update
     for (const update of updates) {
+      if (isBlankSecretWrite(update.key, update.value)) continue;
       await lsembPool.query(
         `INSERT INTO settings (key, value, category)
          VALUES ($1, $2, $3)
@@ -805,6 +816,7 @@ router.put('/category/:categoryName', async (req: Request, res: Response) => {
 
     // Batch update
     for (const update of updates) {
+      if (isBlankSecretWrite(update.key, update.value)) continue;
       await lsembPool.query(
         `INSERT INTO settings (key, value, category)
          VALUES ($1, $2, $3)
@@ -1017,7 +1029,7 @@ router.get('/key/:key', async (req: Request, res: Response) => {
     let value = row.value;
 
     // SECURITY: this endpoint is unauthenticated — never return secret values by key.
-    if (/(api[_-]?key|password|passwd|secret|token|privatekey|private[_-]?key|access[_-]?key)$/i.test(row.key)) {
+    if (/(api[_-]?key|bearer[_-]?key|password|passwd|secret|token|privatekey|private[_-]?key|access[_-]?key)$/i.test(row.key)) {
       return res.json({ key: row.key, value: '', category: row.category, description: row.description });
     }
 
