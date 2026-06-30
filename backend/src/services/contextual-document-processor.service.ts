@@ -1072,7 +1072,7 @@ export class ContextualDocumentProcessorService {
         )
       `);
 
-      const chunks = this.createIntelligentChunks(content, documentType);
+      const chunks = await this.createIntelligentChunks(content, documentType);
       let totalTokensUsed = 0;
       let modelName = 'text-embedding-ada-002';
       let embeddingDimension = 1536;
