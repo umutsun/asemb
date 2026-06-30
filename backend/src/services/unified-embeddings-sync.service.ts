@@ -22,10 +22,11 @@ export class UnifiedEmbeddingsSyncService {
     try {
       await lsembPool.query(`
         INSERT INTO unified_embeddings (
-          source_table, source_id, content, embedding, metadata, created_at
+          source_table, source_type, source_id, content, embedding, metadata, created_at
         )
         SELECT
           'document_embeddings' as source_table,
+          'document' as source_type,
           de.id as source_id,
           de.chunk_text as content,
           de.embedding,
@@ -95,10 +96,11 @@ export class UnifiedEmbeddingsSyncService {
     try {
       await lsembPool.query(`
         INSERT INTO unified_embeddings (
-          source_table, source_id, content, embedding, metadata, created_at
+          source_table, source_type, source_id, content, embedding, metadata, created_at
         )
         SELECT
           'scrape_embeddings' as source_table,
+          'webpage' as source_type,
           se.id::text as source_id,
           se.content,
           se.embedding,
