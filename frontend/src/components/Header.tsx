@@ -30,6 +30,7 @@ import {
   Brain,
   ChevronDown,
   Home,
+  LayoutDashboard,
   Database,
   LogOut,
   User,
@@ -365,6 +366,7 @@ export default function Header() {
     // Admin only - dashboard access (chat removed from menu)
     ...(currentUser?.role === 'admin' ? [
       { href: '/dashboard', label: t('header.menu.dashboard'), icon: Home },
+      { href: '/dashboard/overview', label: t('header.menu.overview'), icon: LayoutDashboard },
       { href: '/dashboard/users', label: t('header.menu.users'), icon: Users },
       { href: '/dashboard/migrations', label: t('header.menu.migrations'), icon: Database },
       { href: '/dashboard/documents', label: t('header.menu.documents'), icon: FileText },

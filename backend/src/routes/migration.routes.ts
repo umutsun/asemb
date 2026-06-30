@@ -1150,8 +1150,42 @@ router.get('/stats', async (req: Request, res: Response) => {
       }
     }
     
+    // WS-D: also surface tables that live directly in unified_embeddings (direct-ingest
+    // corpus such as uae_legislation / uae_gov_services / document_embeddings) which have
+    // no row in the external source DB. Without this, a direct-ingest corpus shows
+    // "No tables found" in Migrations even though it is fully embedded. Additive: the
+    // legacy source-DB tables built above are untouched; we only add source_tables not
+    // already listed (so the Turkish migrate-from-source-DB flow is unchanged).
+    try {
+      const corpusResult = await pools.targetPool.query(`
+        SELECT source_table,
+               COUNT(*)::int AS chunks,
+               COUNT(DISTINCT source_id)::int AS documents
+        FROM unified_embeddings
+        GROUP BY source_table
+        ORDER BY chunks DESC
+      `);
+      const listed = new Set(stats.tables.map((t: any) => String(t.name).toLowerCase()));
+      for (const row of corpusResult.rows) {
+        if (listed.has(String(row.source_table).toLowerCase())) continue;
+        // Direct-ingest corpus: every chunk is already embedded (100%).
+        stats.tables.push({
+          name: row.source_table,
+          count: row.chunks,
+          embedded: row.chunks,
+          skipped: 0,
+          documents: row.documents,
+          directIngest: true
+        });
+        stats.totalRecords += row.chunks;
+        stats.embeddedRecords += row.chunks;
+      }
+    } catch (corpusError: any) {
+      console.warn('[migration/stats] unified_embeddings corpus augmentation failed (non-fatal):', corpusError?.message);
+    }
+
     stats.pendingRecords = stats.totalRecords - stats.embeddedRecords - stats.skippedRecords;
-    
+
     res.json(stats);
   } catch (error) {
     console.error('Stats error:', error);
