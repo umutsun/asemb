@@ -50,6 +50,13 @@ _COLLECTION_SELECT = {
 class PgvectorStore(VectorStore):
     _CAPS = {"source_table_filter", "bm25", "multi_collection"}
     _bm25_available: Optional[bool] = None  # class-cached column probe (mirrors the engine)
+    _bm25_ar_available: Optional[bool] = None  # class-cached search_vector_ar probe (Arabic)
+    _bm25_en_available: Optional[bool] = None  # class-cached search_vector_en probe (English)
+
+    @staticmethod
+    def _is_arabic(text: str) -> bool:
+        """True if the query contains Arabic-script chars (U+0600–U+06FF)."""
+        return bool(text) and any('؀' <= ch <= 'ۿ' for ch in text)
 
     def supports(self, capability: str) -> bool:
         return capability in self._CAPS
@@ -120,6 +127,10 @@ class PgvectorStore(VectorStore):
         *,
         max_excerpt: int = 1500,
         fts_language: str = "turkish",
+        fts_language_ar: str = "arabic",
+        fts_ar_enabled: bool = True,
+        fts_language_en: str = "english",
+        fts_en_enabled: bool = True,
     ) -> List[Dict[str, Any]]:
         pool = await get_db()
         if PgvectorStore._bm25_available is None:
@@ -135,19 +146,51 @@ class PgvectorStore(VectorStore):
                 PgvectorStore._bm25_available = False
         if not PgvectorStore._bm25_available:
             return []
+
+        async def _col_exists(name):
+            try:
+                return (await pool.fetchval(
+                    "SELECT COUNT(*) FROM information_schema.columns "
+                    "WHERE table_name='unified_embeddings' AND column_name=$1", name) or 0) > 0
+            except Exception:
+                return False
+
+        # Route by script to the matching additive column (mirrors the engine): Arabic →
+        # search_vector_ar, else → search_vector_en, else legacy search_vector ('turkish').
+        is_arabic = self._is_arabic(query)
+        if is_arabic and fts_ar_enabled:
+            if PgvectorStore._bm25_ar_available is None:
+                PgvectorStore._bm25_ar_available = await _col_exists("search_vector_ar")
+            use_ar = PgvectorStore._bm25_ar_available
+        else:
+            use_ar = False
+        if (not is_arabic) and fts_en_enabled:
+            if PgvectorStore._bm25_en_available is None:
+                PgvectorStore._bm25_en_available = await _col_exists("search_vector_en")
+            use_en = PgvectorStore._bm25_en_available
+        else:
+            use_en = False
+        if use_ar:
+            column, regconfig = "search_vector_ar", fts_language_ar
+        elif use_en:
+            column, regconfig = "search_vector_en", fts_language_en
+        else:
+            column, regconfig = "search_vector", fts_language
         try:
+            # Column name is from a fixed internal whitelist (not user input) → f-string is
+            # injection-safe; regconfig and query are bound params. Column ↔ regconfig must agree.
             rows = await pool.fetch(
-                """
+                f"""
                 SELECT id, LEFT(content, $3) as content, source_table, source_type,
                        source_id, metadata,
-                       ts_rank_cd(search_vector, plainto_tsquery($4::regconfig, $1), 32) as similarity_score,
+                       ts_rank_cd({column}, plainto_tsquery($4::regconfig, $1), 32) as similarity_score,
                        'bm25' as search_source
                 FROM unified_embeddings
-                WHERE search_vector @@ plainto_tsquery($4::regconfig, $1)
+                WHERE {column} @@ plainto_tsquery($4::regconfig, $1)
                 ORDER BY similarity_score DESC
                 LIMIT $2
                 """,
-                query, limit, max_excerpt, fts_language,
+                query, limit, max_excerpt, regconfig,
             )
             return [dict(r) for r in rows]
         except Exception as e:

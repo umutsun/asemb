@@ -57,6 +57,61 @@ export async function getEmbeddingSettings(): Promise<EmbeddingSettings> {
   }
 }
 
+// Cross-modal (CLIP) media embedding settings — canonical `mediaEmbedding.*` prefix.
+export interface MediaEmbeddingSettings {
+  enabled: boolean;
+  provider: string;   // jina | cohere | voyage | openclip-onnx
+  model: string;
+  dimension: number;
+  apiKey?: string;
+}
+
+const DEFAULT_MEDIA_SETTINGS: MediaEmbeddingSettings = {
+  enabled: false,
+  provider: 'jina',
+  model: 'jina-clip-v2',
+  dimension: 1024,
+};
+
+let cachedMediaSettings: MediaEmbeddingSettings | null = null;
+let lastMediaSettingsRefresh = 0;
+
+/**
+ * Load cross-modal media embedding settings from the database (mediaEmbedding.*).
+ * Mirrors getEmbeddingSettings with the same 1-minute cache TTL.
+ */
+export async function getMediaEmbeddingSettings(): Promise<MediaEmbeddingSettings> {
+  const now = Date.now();
+  if (cachedMediaSettings && (now - lastMediaSettingsRefresh) < SETTINGS_CACHE_TTL) {
+    return cachedMediaSettings;
+  }
+
+  try {
+    const result = await lsembPool.query(`
+      SELECT key, value FROM settings
+      WHERE key LIKE 'mediaEmbedding.%'
+    `);
+
+    const settings: MediaEmbeddingSettings = { ...DEFAULT_MEDIA_SETTINGS };
+
+    for (const row of result.rows) {
+      const key = row.key.replace('mediaEmbedding.', '');
+      if (key === 'enabled') settings.enabled = String(row.value).toLowerCase() === 'true';
+      if (key === 'provider') settings.provider = row.value;
+      if (key === 'model') settings.model = row.value;
+      if (key === 'dimension') settings.dimension = parseInt(row.value, 10) || DEFAULT_MEDIA_SETTINGS.dimension;
+      if (key === 'apiKey') settings.apiKey = row.value || undefined;
+    }
+
+    cachedMediaSettings = settings;
+    lastMediaSettingsRefresh = now;
+    return settings;
+  } catch (error) {
+    console.error('[EmbeddingService] Failed to load media embedding settings:', error);
+    return DEFAULT_MEDIA_SETTINGS;
+  }
+}
+
 /**
  * EmbeddingService class for generating embeddings
  */

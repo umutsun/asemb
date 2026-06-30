@@ -97,6 +97,18 @@ class RAGSettings:
     # appliances seed ragSettings.ftsLanguage='english' together with the flagged
     # search_vector column migration (+ re-embed). See WS4 plan.
     fts_language: str = "turkish"
+    # Arabic (UAE) BM25: Arabic queries are routed to the additive search_vector_ar
+    # column (to_tsvector('arabic', ...)) when present and enabled. fts_language_ar is
+    # the regconfig used for the Arabic tsquery; it MUST match the column's config.
+    # Migration: backend/database/migrations/20260627_bm25_search_vector_ar.sql.
+    fts_language_ar: str = "arabic"
+    fts_ar_enabled: bool = True
+    # English BM25: non-Arabic queries route to the additive search_vector_en column
+    # (to_tsvector('english', ...)) when present and enabled — the legacy search_vector is
+    # 'turkish'-generated, so English under-matches against it. Falls back to search_vector
+    # if the column is absent. Migration: 20260629_search_vector_english.sql.
+    fts_language_en: str = "english"
+    fts_en_enabled: bool = True
 
 
 @dataclass
@@ -602,17 +614,19 @@ class SemanticSearchService:
         return "\n\n".join(parts)
 
     @staticmethod
-    def _normalize_fts_language(value: Optional[str]) -> str:
+    def _normalize_fts_language(value: Optional[str], fallback: str = "turkish") -> str:
         """Sanitize the configured Postgres FTS regconfig name (Hard Rule #1).
 
-        Falls back to 'turkish' (the search_vector column's generated config) for
-        empty/invalid values so BM25 keeps working. The ``::regconfig`` cast at query
-        time validates that the config actually exists.
+        Falls back to ``fallback`` (default 'turkish', the search_vector column's
+        generated config) for empty/invalid values so BM25 keeps working. The
+        ``::regconfig`` cast at query time validates that the config actually exists.
+        For the Arabic column pass fallback='arabic' so a bad value can't silently
+        mismatch search_vector_ar's 'arabic' config.
         """
         lang = (value or "").strip().lower()
         if lang and all(c.isalpha() or c == "_" for c in lang):
             return lang
-        return "turkish"
+        return fallback
 
     async def get_rag_settings(self) -> RAGSettings:
         """Load RAG settings from database with caching"""
@@ -679,6 +693,10 @@ class SemanticSearchService:
                 rerank_top_n=int(settings_dict.get('ragSettings.rerankTopN', 10)),
                 rerank_min_score=float(settings_dict.get('ragSettings.rerankMinScore', 0.0)),
                 fts_language=self._normalize_fts_language(settings_dict.get('ragSettings.ftsLanguage', 'turkish')),
+                fts_language_ar=self._normalize_fts_language(settings_dict.get('ragSettings.ftsLanguageAr', 'arabic'), fallback='arabic'),
+                fts_ar_enabled=settings_dict.get('ragSettings.ftsArEnabled', 'true').lower() == 'true',
+                fts_language_en=self._normalize_fts_language(settings_dict.get('ragSettings.ftsLanguageEn', 'english'), fallback='english'),
+                fts_en_enabled=settings_dict.get('ragSettings.ftsEnEnabled', 'true').lower() == 'true',
             )
 
             # Update cache
@@ -1416,7 +1434,59 @@ class SemanticSearchService:
     # BM25 Full-Text Search (PostgreSQL tsvector)
     # ─────────────────────────────────────────────────────────────────
 
-    _bm25_available: Optional[bool] = None  # Cache column existence check
+    _bm25_available: Optional[bool] = None  # Cache column existence check (search_vector)
+    _bm25_ar_available: Optional[bool] = None  # Cache existence of search_vector_ar (Arabic)
+    _bm25_en_available: Optional[bool] = None  # Cache existence of search_vector_en (English)
+
+    @staticmethod
+    def _is_arabic(text: str) -> bool:
+        """True if the query contains Arabic-script characters (U+0600–U+06FF).
+        Used to route to the Arabic BM25 column; presence is enough for keyword search."""
+        if not text:
+            return False
+        return any('؀' <= ch <= 'ۿ' for ch in text)
+
+    @classmethod
+    async def _ensure_bm25_ar_available(cls, pool) -> bool:
+        """Lazily check (and cache) whether the search_vector_ar column exists, so Arabic
+        BM25 degrades gracefully to vector-only when the migration hasn't been applied."""
+        if cls._bm25_ar_available is None:
+            try:
+                exists = await pool.fetchval("""
+                    SELECT COUNT(*) FROM information_schema.columns
+                    WHERE table_name = 'unified_embeddings'
+                      AND column_name = 'search_vector_ar'
+                """)
+                cls._bm25_ar_available = exists > 0
+                if cls._bm25_ar_available:
+                    logger.info("[BM25] search_vector_ar column detected - Arabic BM25 enabled")
+                else:
+                    logger.info("[BM25] search_vector_ar not found - Arabic queries use vector-only "
+                                "(run migration 20260627_bm25_search_vector_ar.sql for Arabic BM25)")
+            except Exception:
+                cls._bm25_ar_available = False
+        return cls._bm25_ar_available
+
+    @classmethod
+    async def _ensure_bm25_en_available(cls, pool) -> bool:
+        """Lazily check (and cache) whether the search_vector_en column exists, so English
+        BM25 degrades gracefully to the legacy search_vector when the migration is absent."""
+        if cls._bm25_en_available is None:
+            try:
+                exists = await pool.fetchval("""
+                    SELECT COUNT(*) FROM information_schema.columns
+                    WHERE table_name = 'unified_embeddings'
+                      AND column_name = 'search_vector_en'
+                """)
+                cls._bm25_en_available = exists > 0
+                if cls._bm25_en_available:
+                    logger.info("[BM25] search_vector_en column detected - English BM25 enabled")
+                else:
+                    logger.info("[BM25] search_vector_en not found - English queries use legacy "
+                                "search_vector (run migration 20260629_search_vector_english.sql)")
+            except Exception:
+                cls._bm25_en_available = False
+        return cls._bm25_en_available
 
     async def bm25_search(
         self,
@@ -1453,19 +1523,38 @@ class SemanticSearchService:
                 return []
 
             max_excerpt = settings.max_excerpt_length if settings else 1500
-            fts_language = settings.fts_language if settings else "turkish"
+
+            # Route by script to the matching BM25 column (all additive; legacy search_vector
+            # is 'turkish'-generated). Arabic-script → search_vector_ar ('arabic'); otherwise →
+            # search_vector_en ('english'). Each gated + with graceful fallback to the legacy
+            # search_vector when its column is absent (vector search still covers either way).
+            is_arabic = self._is_arabic(query)
+            ar_enabled = settings.fts_ar_enabled if settings else True
+            en_enabled = settings.fts_en_enabled if settings else True
+            use_ar = is_arabic and ar_enabled and await self._ensure_bm25_ar_available(pool)
+            use_en = (not is_arabic) and en_enabled and await self._ensure_bm25_en_available(pool)
+
+            if use_ar:
+                column = "search_vector_ar"
+                fts_language = settings.fts_language_ar if settings else "arabic"
+            elif use_en:
+                column = "search_vector_en"
+                fts_language = settings.fts_language_en if settings else "english"
+            else:
+                column = "search_vector"
+                fts_language = settings.fts_language if settings else "turkish"
 
             # Use plainto_tsquery for robust query parsing (handles any input).
-            # ftsLanguage ($4::regconfig) is config-driven (Hard Rule #1) and MUST match the
-            # search_vector column's generated config (currently 'turkish') for correct @@
-            # matching — switching languages also needs the flagged search_vector migration
-            # + re-embed (WS4). Bound as a parameter, so it is injection-safe.
-            rows = await pool.fetch("""
+            # The column name comes from a fixed internal whitelist (search_vector /
+            # search_vector_ar) — NOT user input — so the f-string is injection-safe; the
+            # regconfig ($4::regconfig) and query text ($1) are bound parameters. The chosen
+            # column and its regconfig MUST agree (turkish↔search_vector, arabic↔search_vector_ar).
+            rows = await pool.fetch(f"""
                 SELECT id, LEFT(content, $3) as content, source_table, source_type,
                        source_id, metadata,
-                       ts_rank_cd(search_vector, plainto_tsquery($4::regconfig, $1), 32) as bm25_score
+                       ts_rank_cd({column}, plainto_tsquery($4::regconfig, $1), 32) as bm25_score
                 FROM unified_embeddings
-                WHERE search_vector @@ plainto_tsquery($4::regconfig, $1)
+                WHERE {column} @@ plainto_tsquery($4::regconfig, $1)
                 ORDER BY bm25_score DESC
                 LIMIT $2
             """, query, limit, max_excerpt, fts_language)
@@ -3884,12 +3973,127 @@ class SemanticSearchService:
         # Format unknown tables
         return source_table.replace("_", " ").title() if source_table else "Kaynak"
 
+    # =========================================================================
+    # MULTIMODAL CROSS-MODAL (CLIP) RETRIEVAL
+    # Separate vector space (media_embeddings, vector(1024)) fused into the text
+    # results by rank-based RRF. All of this is dormant unless mediaEmbedding.enabled.
+    # =========================================================================
+    _media_search_settings_cache: tuple = (False, 0.4)
+    _media_search_settings_time: float = 0.0
+
+    async def _get_media_search_settings(self) -> tuple:
+        """Return (include_media_default, media_weight) from settings (cached ~60s)."""
+        import time
+        now = time.time()
+        if now - self._media_search_settings_time < 60.0:
+            return self._media_search_settings_cache
+        include_default, media_weight = False, 0.4
+        try:
+            pool = await get_db()
+            rows = await pool.fetch("""
+                SELECT key, value FROM settings
+                WHERE key IN ('ragSettings.includeMediaDefault', 'ragSettings.mediaWeight')
+            """)
+            s = {r["key"]: r["value"] for r in rows}
+            include_default = str(s.get("ragSettings.includeMediaDefault", "false")).lower() == "true"
+            try:
+                media_weight = float(s.get("ragSettings.mediaWeight", "0.4"))
+            except (TypeError, ValueError):
+                media_weight = 0.4
+        except Exception as e:
+            logger.debug(f"[Media] settings load failed, using defaults: {e}")
+        self._media_search_settings_cache = (include_default, media_weight)
+        self._media_search_settings_time = now
+        return self._media_search_settings_cache
+
+    async def _embed_query_clip(self, query: str) -> Optional[List[float]]:
+        """Embed a text query into the CLIP space (text->image retrieval)."""
+        try:
+            from services.media_embedding_service import get_media_embedding_provider
+            provider = await get_media_embedding_provider()
+            return await provider.embed_text(query)
+        except Exception as e:
+            logger.warning(f"[Media] query CLIP embed failed: {e}")
+            return None
+
+    async def media_vector_search(self, clip_vec: List[float], limit: int = 10) -> List[Dict[str, Any]]:
+        """Cosine search over media_embeddings; returns rows shaped like text results."""
+        pool = await get_db()
+        vec_literal = "[" + ",".join(f"{x:.7f}" for x in clip_vec) + "]"
+        rows = await pool.fetch(
+            """
+            SELECT me.id, me.asset_id, me.segment_index, me.caption, me.segment_meta,
+                   ma.asset_type, ma.file_path,
+                   1 - (me.embedding <=> $1::vector) AS similarity
+            FROM media_embeddings me
+            JOIN media_assets ma ON ma.id = me.asset_id
+            WHERE me.embedding IS NOT NULL
+            ORDER BY me.embedding <=> $1::vector
+            LIMIT $2
+            """,
+            vec_literal, limit * 2,
+        )
+        results = []
+        for r in rows:
+            results.append({
+                "id": r["id"],
+                "content": r["caption"] or "",
+                "similarity_score": float(r["similarity"]) if r["similarity"] is not None else 0.0,
+                "source_table": "media_embeddings",
+                "source_type": "media",
+                "source_id": r["id"],
+                "source_name": f"{r['asset_type']}#{r['asset_id']}",
+                "metadata": {
+                    "media_asset_id": r["asset_id"],
+                    "media_type": r["asset_type"],
+                    "segment_index": r["segment_index"],
+                    "file_path": r["file_path"],
+                    **(r["segment_meta"] or {} if isinstance(r["segment_meta"], dict) else {}),
+                },
+                "is_media": True,
+            })
+        return results
+
+    def _fuse_media_into(
+        self, text_results: List[Dict[str, Any]], media_results: List[Dict[str, Any]],
+        media_weight: float = 0.4, k: int = 60,
+    ) -> List[Dict[str, Any]]:
+        """
+        Rank-based RRF merge of the (already fused) text results with media results.
+        Composite key (source_table, id) prevents int-id collisions between the two
+        spaces. Scale-free: no score normalization needed (mirrors rrf_fusion intent).
+        """
+        text_weight = max(0.0, 1.0 - media_weight)
+
+        def key(r):
+            return (r.get("source_table", ""), str(r.get("id")))
+
+        ranks_text = {key(r): i + 1 for i, r in enumerate(text_results)}
+        ranks_media = {key(r): i + 1 for i, r in enumerate(media_results)}
+
+        docs = {}
+        for r in text_results:
+            docs[key(r)] = r
+        for r in media_results:
+            docs.setdefault(key(r), r)
+
+        max_rank = max(len(text_results), len(media_results)) + 1
+        scored = []
+        for kk, doc in docs.items():
+            rt = ranks_text.get(kk, max_rank)
+            rm = ranks_media.get(kk, max_rank)
+            rrf = text_weight * (1.0 / (k + rt)) + media_weight * (1.0 / (k + rm))
+            scored.append((rrf, doc))
+        scored.sort(key=lambda x: x[0], reverse=True)
+        return [doc for _, doc in scored]
+
     async def semantic_search(
         self,
         query: str,
         limit: Optional[int] = None,
         use_cache: bool = True,
-        debug: bool = False
+        debug: bool = False,
+        include_media: Optional[bool] = None
     ) -> Dict[str, Any]:
         """
         Full semantic search pipeline with all features
@@ -3972,9 +4176,25 @@ class SemanticSearchService:
             else:
                 logger.debug(f"📊 Rate question detected but no law code could be determined from query")
 
-        # Check search result cache
+        # === MULTIMODAL: resolve whether to include cross-modal (CLIP) media results ===
+        # Gated by mediaEmbedding.enabled; explicit include_media wins, else settings default.
+        media_enabled = False
+        try:
+            from services.media_embedding_service import is_media_enabled
+            media_enabled = await is_media_enabled()
+        except Exception:
+            media_enabled = False
+        media_include_default, media_weight = await self._get_media_search_settings()
+        if include_media is None:
+            include_media = media_include_default
+        do_media = bool(media_enabled and include_media)
+
+        # Check search result cache (media flag namespaces the key so text-only and
+        # media-augmented results never share a cache entry)
         if use_cache:
             cache_key = self._get_search_cache_key(query, limit)
+            if do_media:
+                cache_key = f"{cache_key}:media"
             cached_results = await cache_get(cache_key)
             if cached_results:
                 logger.info(f"Search cache HIT for: {query[:50]}...")
@@ -4066,6 +4286,24 @@ class SemanticSearchService:
                             raw_results.append(kr)
                             existing_ids.add(kr["id"])
                     logger.info(f"Hybrid search: {len(keyword_results)} keyword augment results added")
+
+            # === MULTIMODAL CROSS-MODAL (CLIP) RETRIEVAL ===
+            # Embed the query into the CLIP space and fuse media hits via rank-based RRF.
+            # Fully gated by do_media (mediaEmbedding.enabled + include_media); on any error
+            # we log and continue with text-only results → zero regression when off.
+            if do_media:
+                media_start = datetime.now()
+                try:
+                    clip_vec = await self._embed_query_clip(query)
+                    if clip_vec:
+                        media_results = await self.media_vector_search(clip_vec, limit=limit)
+                        if media_results:
+                            raw_results = self._fuse_media_into(raw_results, media_results, media_weight)
+                            timings["media_results"] = len(media_results)
+                            timings["media_fused"] = len(raw_results)
+                except Exception as media_err:
+                    logger.warning(f"[Media] cross-modal retrieval failed (non-critical): {media_err}")
+                timings["media_ms"] = (datetime.now() - media_start).total_seconds() * 1000
 
             # === ARTICLE INJECTION: Ensure target article is included when detected ===
             # When user asks for specific article (VUK 8, KDVK 29), inject it directly

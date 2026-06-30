@@ -20,6 +20,7 @@ class SearchRequest(BaseModel):
     limit: Optional[int] = Field(25, ge=1, le=100, description="Maximum results to return")
     use_cache: Optional[bool] = Field(True, description="Use Redis cache for results")
     debug: Optional[bool] = Field(False, description="Include detailed debug info in response")
+    include_media: Optional[bool] = Field(None, description="Include cross-modal (CLIP) media results; null = settings default. No effect unless mediaEmbedding.enabled.")
 
 
 class EmbeddingRequest(BaseModel):
@@ -69,7 +70,8 @@ async def semantic_search(request: SearchRequest):
             query=request.query,
             limit=request.limit,
             use_cache=request.use_cache,
-            debug=request.debug or False
+            debug=request.debug or False,
+            include_media=request.include_media
         )
         return SearchResponse(**result)
 
@@ -83,7 +85,8 @@ async def semantic_search_get(
     query: str = Query(..., min_length=1, max_length=8000),
     limit: int = Query(25, ge=1, le=100),
     use_cache: bool = Query(True),
-    debug: bool = Query(False, description="Include detailed debug info (_debug key)")
+    debug: bool = Query(False, description="Include detailed debug info (_debug key)"),
+    include_media: Optional[bool] = Query(None, description="Include cross-modal media results (settings default if null)")
 ):
     """
     Semantic search via GET (for easy testing)
@@ -99,7 +102,8 @@ async def semantic_search_get(
             query=query,
             limit=limit,
             use_cache=use_cache,
-            debug=debug
+            debug=debug,
+            include_media=include_media
         )
         return result
 

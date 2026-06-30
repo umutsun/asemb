@@ -165,7 +165,14 @@ interface PdfContext {
   extractedText: string;
   pageCount: number;
   confidence?: number;
+  label?: string;      // overrides the "BELGE İÇERİĞİ" label (e.g. "GÖRSEL İÇERİĞİ" for media)
+  isMedia?: boolean;   // true when this context came from a query-time media upload
 }
+
+// Query-time multimodal context: an uploaded image/audio is reduced to text
+// (caption + OCR/transcript + cross-modal retrieved snippets) and reuses the
+// PDF hybrid pipeline. Same shape as PdfContext.
+type MediaContext = PdfContext;
 
 interface ChatOptions {
   temperature?: number;
@@ -177,6 +184,7 @@ interface ChatOptions {
   responseStyle?: string;
   maxTokens?: number;
   pdfContext?: PdfContext;
+  mediaContext?: MediaContext;  // query-time image/audio upload (P3 multimodal)
 }
 
 export class RAGChatService {
@@ -1548,7 +1556,11 @@ export class RAGChatService {
     }
 
     // Build PDF-focused prompt - instruction loaded from settings
-    const pdfLabel = responseLanguage === 'en' ? 'DOCUMENT CONTENT' : 'BELGE ICERIGI';
+    const pdfLabel = pdfContext.label
+      ? pdfContext.label
+      : (pdfContext.isMedia
+          ? (responseLanguage === 'en' ? 'MEDIA CONTENT' : 'GORSEL/MEDYA ICERIGI')
+          : (responseLanguage === 'en' ? 'DOCUMENT CONTENT' : 'BELGE ICERIGI'));
     const questionLabel = responseLanguage === 'en' ? 'USER QUESTION' : 'KULLANICI SORUSU';
 
     // Default instructions (used if not configured in settings)
@@ -1746,6 +1758,27 @@ ${questionLabel}: ${message}`;
     const foundTerms = legalTerms.filter(term => contentSample.includes(term));
 
     return [...filenameHints, ...foundTerms].join(' ');
+  }
+
+  /**
+   * Lightweight detection of the user's question language, used to drive answer
+   * language in `response_language='auto'` mode (Arabic secondary). Confidently
+   * detects Arabic (script) and Turkish (Turkish-only letters); returns null for
+   * everything else so the caller's configured default (autoDefaultLanguage) wins.
+   * - Arabic: Arabic-script chars are the MAJORITY (>= 50%) of all letters, so an
+   *   English question that merely cites one Arabic term is not flipped to Arabic.
+   *   (BM25 column routing on the Python side uses mere presence — a wider net for
+   *   keyword matching — which is intentionally more permissive than answer language.)
+   * - Turkish: presence of ı/İ/ğ/Ğ/ş/Ş — these letters do not occur in English.
+   */
+  private detectQuestionLanguage(message: string): 'ar' | 'tr' | null {
+    if (!message) return null;
+    const arabic = (message.match(/[؀-ۿ]/g) || []).length;
+    const letters = (message.match(/\p{L}/gu) || []).length;
+    if (letters === 0) return null;
+    if (arabic / letters >= 0.5) return 'ar';
+    if (/[ıİğĞşŞ]/.test(message)) return 'tr';
+    return null;
   }
 
   private async getSystemPrompt(): Promise<string> {
@@ -2017,6 +2050,13 @@ ${questionLabel}: ${message}`;
       let systemPrompt = options.systemPrompt || await this.getSystemPrompt();
       console.log(` System Prompt loaded (length: ${systemPrompt?.length || 0} chars)`);
 
+      // MEDIA MODE (P3 multimodal): a query-time image/audio upload is reduced to
+      // text (caption + OCR/transcript + cross-modal snippets) and reuses the PDF
+      // hybrid pipeline. Map it onto pdfContext so no separate branch is needed.
+      if (!options.pdfContext && options.mediaContext && options.mediaContext.extractedText) {
+        options.pdfContext = { ...options.mediaContext, isMedia: true };
+      }
+
       // PDF MODE: If user uploaded a PDF, process with optional RAG hybrid mode
       // Hybrid mode can be enabled via ragSettings.pdfEnableRag = 'true'
       const hasPdfContext = options.pdfContext && options.pdfContext.extractedText;
@@ -2073,6 +2113,8 @@ ${questionLabel}: ${message}`;
         'ragSettings.lowConfidenceThreshold', 'lowConfidenceThreshold', 'databaseconfidence',
         'ragSettings.highConfidenceThreshold',
         'response_language',
+        'ragSettings.autoDefaultLanguage',          // 'auto' mode fallback when question lang is undetected
+        'ragSettings.answerLanguageInstructionAr',  // appended to system prompt to force Arabic answers
         'llmSettings.activeChatModel',
         // Evidence Gate settings (for quality control)
         'ragSettings.evidenceGateEnabled',
@@ -2155,7 +2197,23 @@ ${questionLabel}: ${message}`;
         settingsMap.get('semantic_search_threshold') ||
         '0.005'
       );
-      const responseLanguage = settingsMap.get('response_language') || 'tr';
+      // ── Language-aware answering (Arabic secondary) ──────────────────────────────
+      // `response_language` may be a concrete language (tr/en/ar = hard override) or
+      // 'auto' (answer in the question's detected language). In 'auto' mode an
+      // undetected question falls back to ragSettings.autoDefaultLanguage (default 'tr';
+      // set to 'en' for the English-primary UAE demo).
+      const responseLanguageSetting = (settingsMap.get('response_language') || 'tr').toString().toLowerCase();
+      const autoDefaultLanguage = (settingsMap.get('ragSettings.autoDefaultLanguage') || 'tr').toString().toLowerCase();
+      const detectedQuestionLang = this.detectQuestionLanguage(message);
+      const effectiveAnswerLang =
+        (responseLanguageSetting && responseLanguageSetting !== 'auto')
+          ? responseLanguageSetting                          // hard override (tr/en/ar)
+          : (detectedQuestionLang || autoDefaultLanguage);   // auto-detect, configurable default
+      // Existing scaffolding strings branch on `responseLanguage === 'en' ? EN : TR`.
+      // Arabic answers reuse the English (non-Turkish) scaffolding branch for v1; the
+      // appended Arabic directive + cache key (effectiveAnswerLang) make answers Arabic.
+      const responseLanguage = effectiveAnswerLang === 'ar' ? 'en' : effectiveAnswerLang;
+      console.log(`🌐 [lang] setting=${responseLanguageSetting} detected=${detectedQuestionLang ?? 'none'} → effective=${effectiveAnswerLang} (scaffold=${responseLanguage})`);
       // NOTE: Claude 3.5 Sonnet RETIRED by Anthropic Oct 28, 2025 - use Claude Sonnet 4.5
     const activeModel = settingsMap.get('llmSettings.activeChatModel') || 'anthropic/claude-sonnet-4-5-20250929';
       const lowConfidenceThreshold = parseFloat(
@@ -3559,6 +3617,16 @@ Lütfen "beyanname" veya "ödeme" yazarak belirtin.`;
       // post-processing (heading strip, deadline/sanitizer, citation validation) below, so
       // the final answer + freshly-retrieved citations stay consistent. Flag-gated (OFF by
       // default) and fully fail-safe — any cache error falls through to normal generation.
+      // ── WS-A: force Arabic answers when the effective answer language is Arabic ──
+      // Appended LAST (after all strict/fast-mode assembly) so it overrides any
+      // base-prompt language. Sourced from settings (Hard Rule #1) with a safe default.
+      if (effectiveAnswerLang === 'ar') {
+        const arDirective = (settingsMap.get('ragSettings.answerLanguageInstructionAr') ||
+          'Respond entirely in Modern Standard Arabic (العربية الفصحى). Keep legal article citations and source numbers exactly as written.').toString();
+        systemPrompt = `${systemPrompt}\n\n${arDirective}`;
+        console.log(`🌐 [lang] Arabic answer directive appended (effectiveAnswerLang=ar)`);
+      }
+
       const pythonIntegration = PythonIntegrationService.getInstance();
       const semanticCacheEnabled =
         (settingsMap.get('ragSettings.semanticCacheEnabled') || 'false').toString().toLowerCase() === 'true';
@@ -3566,7 +3634,7 @@ Lütfen "beyanname" veya "ödeme" yazarak belirtin.`;
       let cachedAnswer: string | null = null;
       if (semanticCacheEnabled) {
         try {
-          const cached = await pythonIntegration.llmCacheLookup(message, systemPrompt, responseLanguage);
+          const cached = await pythonIntegration.llmCacheLookup(message, systemPrompt, effectiveAnswerLang);
           if (cached && cached.hit && cached.answer) {
             cachedAnswer = cached.answer;
             cacheHit = true;
@@ -3618,7 +3686,7 @@ Lütfen "beyanname" veya "ödeme" yazarak belirtin.`;
         const cacheMinBest = parseFloat(settingsMap.get('ragSettings.semanticCacheMinBestScore') || '0');
         if ((initialDisplayCount || 0) > 0 && bestScore >= cacheMinBest) {
           pythonIntegration
-            .llmCacheStore(message, response.content, [], systemPrompt, responseLanguage, timings.llm)
+            .llmCacheStore(message, response.content, [], systemPrompt, effectiveAnswerLang, timings.llm)
             .catch(() => { /* fail-safe */ });
         }
       }

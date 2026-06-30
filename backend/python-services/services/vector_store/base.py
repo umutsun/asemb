@@ -59,9 +59,16 @@ class VectorStore(ABC):
         *,
         max_excerpt: int = 1500,
         fts_language: str = "turkish",
+        fts_language_ar: str = "arabic",
+        fts_ar_enabled: bool = True,
+        fts_language_en: str = "english",
+        fts_en_enabled: bool = True,
     ) -> List[Dict[str, Any]]:
         """Postgres full-text BM25 over unified_embeddings.search_vector. Returns [] if the
-        column/feature is unavailable (graceful). `fts_language` is a regconfig (WS4)."""
+        column/feature is unavailable (graceful). `fts_language` is a regconfig (WS4).
+        Script-routed to additive columns: Arabic → search_vector_ar (`fts_language_ar`),
+        else → search_vector_en (`fts_language_en`) when present+enabled; else the legacy
+        search_vector. Each falls back to the legacy column when its own is absent."""
 
     # ── write / lifecycle ─────────────────────────────────────────────────────
     @abstractmethod

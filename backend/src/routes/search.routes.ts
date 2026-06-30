@@ -16,9 +16,12 @@ const semanticSearchHandler = async (req: Request, res: Response) => {
   try {
     // Support both GET (query params) and POST (body)
     const isGet = req.method === 'GET';
-    const { query, limit: limitStr, usePython: usePythonStr } = isGet ? req.query : req.body;
+    const { query, limit: limitStr, usePython: usePythonStr, includeMedia: includeMediaRaw } = isGet ? req.query : req.body;
     const limit = parseInt(limitStr as string || '25', 10);
     const usePython = isGet ? (usePythonStr === 'false' ? false : true) : (usePythonStr !== false);
+    // Cross-modal media toggle: undefined → Python uses ragSettings.includeMediaDefault.
+    const includeMedia = includeMediaRaw === undefined ? undefined
+      : (includeMediaRaw === true || includeMediaRaw === 'true');
 
     if (!query) {
       return res.status(400).json({ error: 'Query is required' });
@@ -27,7 +30,7 @@ const semanticSearchHandler = async (req: Request, res: Response) => {
     // Try Python microservice first for better performance
     if (usePython) {
       try {
-        const pythonResult = await pythonService.semanticSearch(query, { limit });
+        const pythonResult = await pythonService.semanticSearch(query, { limit, includeMedia });
 
         // Return Python result with formatted response
         return res.json({
@@ -73,7 +76,7 @@ router.post('/api/v2/search/semantic', semanticSearchHandler);
  */
 router.post('/api/v2/search', async (req: Request, res: Response) => {
   try {
-    const { query, limit = 25, threshold = 0.001 } = req.body;
+    const { query, limit = 25, threshold = 0.001, includeMedia } = req.body;
 
     if (!query) {
       return res.status(400).json({ error: 'Query is required' });
@@ -81,7 +84,7 @@ router.post('/api/v2/search', async (req: Request, res: Response) => {
 
     // Always try Python microservice first for better performance
     try {
-      const pythonResult = await pythonService.semanticSearch(query, { limit });
+      const pythonResult = await pythonService.semanticSearch(query, { limit, includeMedia });
 
       if (pythonResult.success) {
         // Transform Python results to expected format

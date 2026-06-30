@@ -12,6 +12,7 @@ import { questionGenerationService } from '../services/question-generation.servi
 import multer from 'multer';
 import { ocrRouterService } from '../services/ocr/ocr-router.service';
 import { settingsService } from '../services/settings.service';
+import { PythonIntegrationService } from '../services/python-integration.service';
 import crypto from 'crypto';
 import fs from 'fs/promises';
 import path from 'path';
@@ -35,6 +36,21 @@ const pdfUpload = multer({
     }
   }
 });
+
+// Image upload (query-time multimodal) - memory storage for processing
+const imageUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 20 * 1024 * 1024 }, // 20MB hard cap
+  fileFilter: (req, file, cb) => {
+    if (file.mimetype.startsWith('image/')) {
+      cb(null, true);
+    } else {
+      cb(new Error('Sadece görsel dosyaları desteklenir'));
+    }
+  }
+});
+
+const pythonServiceForMedia = PythonIntegrationService.getInstance();
 
 /**
  * Send a chat message - requires authentication and subscription
@@ -1077,6 +1093,107 @@ router.post('/api/v2/chat/with-pdf',
       res.status(500).json({
         error: 'PDF processing failed',
         details: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+  }
+);
+
+/**
+ * Chat with Media (P3 multimodal) - upload an image, retrieve cross-modally, and
+ * answer with the image's caption/OCR + retrieved media as context.
+ * Requires mediaEmbedding.enabled = 'true'.
+ */
+router.post('/api/v2/chat/with-media',
+  authenticateToken,
+  imageUpload.single('image'),
+  async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      if (!req.user) {
+        return res.status(401).json({ error: 'Authentication required' });
+      }
+      const userId = req.user.userId;
+      const { message, conversationId, temperature, model } = req.body;
+
+      // Feature gate
+      const mediaEnabled = await settingsService.getSetting('mediaEmbedding.enabled');
+      if (mediaEnabled !== 'true') {
+        return res.status(403).json({ error: 'Multimodal media feature is not enabled' });
+      }
+      if (!message || message.trim() === '') {
+        return res.status(400).json({ error: 'Message is required' });
+      }
+      if (!req.file) {
+        return res.status(400).json({ error: 'Image file is required' });
+      }
+
+      const file = req.file;
+      console.log(`[Media Chat] Processing image: ${file.originalname} (${(file.size / 1024).toFixed(0)} KB) for user ${userId}`);
+
+      // Ask the Python media service for caption + OCR + cross-modal retrieval
+      let mediaQuery;
+      try {
+        mediaQuery = await pythonServiceForMedia.queryWithImage(
+          file.buffer, file.originalname, file.mimetype, 8
+        );
+      } catch (mediaErr: any) {
+        console.error('[Media Chat] Python media query failed:', mediaErr.message);
+        return res.status(500).json({ error: 'Görsel işlenemedi, lütfen tekrar deneyin', details: mediaErr.message });
+      }
+
+      // Reduce the image to text context (caption + OCR + retrieved snippets) and
+      // reuse the PDF hybrid pipeline via mediaContext.
+      const retrieved = (mediaQuery.media_results || [])
+        .slice(0, 5)
+        .map((r: any, i: number) => `[${i + 1}] (${r.metadata?.media_type || 'media'}) ${r.content || ''}`.trim())
+        .join('\n');
+
+      const extractedText = [
+        mediaQuery.caption ? `Görsel açıklaması: ${mediaQuery.caption}` : '',
+        mediaQuery.ocr_text ? `Görseldeki metin (OCR): ${mediaQuery.ocr_text}` : '',
+        retrieved ? `İlgili medya kaynakları:\n${retrieved}` : '',
+      ].filter(Boolean).join('\n\n');
+
+      const result = await ragChat.processMessage(message, conversationId, userId, {
+        temperature: temperature ? parseFloat(temperature) : undefined,
+        model,
+        mediaContext: {
+          filename: file.originalname,
+          extractedText,
+          pageCount: 1,
+          confidence: 1,
+          isMedia: true,
+        },
+      });
+
+      const response = {
+        ...result,
+        mediaAttachment: {
+          filename: file.originalname,
+          size: file.size,
+          caption: mediaQuery.caption,
+          retrievedCount: (mediaQuery.media_results || []).length,
+        },
+      };
+
+      setImmediate(async () => {
+        try {
+          await MessageStorageService.saveChatInteraction(
+            result.conversationId || uuidv4(),
+            userId, message, result.response, [],
+            result.sources || [],
+            { model: model || 'default', mediaAttachment: { filename: file.originalname, size: file.size } }
+          );
+        } catch (saveError) {
+          console.error('[Media Chat] Failed to save interaction:', saveError);
+        }
+      });
+
+      res.json(response);
+    } catch (error: any) {
+      console.error('[Media Chat] Error:', error);
+      res.status(500).json({
+        error: 'Media processing failed',
+        details: error instanceof Error ? error.message : 'Unknown error',
       });
     }
   }

@@ -195,7 +195,9 @@ class RedisVectorStore(VectorStore):
         return []
 
     # ── read: lexical (not faithfully replicable in Redis — keep pgvector) ──────
-    async def bm25_search(self, query, limit, *, max_excerpt=1500, fts_language="turkish"):
+    async def bm25_search(self, query, limit, *, max_excerpt=1500, fts_language="turkish",
+                          fts_language_ar="arabic", fts_ar_enabled=True,
+                          fts_language_en="english", fts_en_enabled=True):
         return []
 
     # ── write / lifecycle ─────────────────────────────────────────────────────

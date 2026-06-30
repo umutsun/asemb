@@ -51,6 +51,7 @@ export interface SemanticSearchOptions {
   limit?: number;
   useCache?: boolean;
   debug?: boolean;  // Include detailed debug info (_debug key in response)
+  includeMedia?: boolean;  // Include cross-modal (CLIP) media results; undefined = settings default. No effect unless mediaEmbedding.enabled.
 }
 
 export interface SemanticSearchResult {
@@ -794,7 +795,10 @@ export class PythonIntegrationService {
         query,
         limit: options.limit || 25,
         use_cache: options.useCache !== false,
-        debug: options.debug || false
+        debug: options.debug || false,
+        // Pass through only when explicitly set; null lets the Python side use the
+        // ragSettings.includeMediaDefault. Gated by mediaEmbedding.enabled regardless.
+        include_media: options.includeMedia ?? null
       }, {
         timeout: 30000 // 30 second timeout
       });
@@ -816,6 +820,39 @@ export class PythonIntegrationService {
       logger.error('Python semantic search error:', error.message);
       throw error;
     }
+  }
+
+  /**
+   * Query-time multimodal: send an uploaded image to the Python media service,
+   * which CLIP-embeds it, retrieves cross-modal matches, and returns a caption +
+   * OCR for the LLM. Used by the /api/v2/chat/with-media route.
+   * Requires mediaEmbedding.enabled (Python returns 409 otherwise).
+   */
+  public async queryWithImage(
+    buffer: Buffer,
+    filename: string,
+    mime: string = 'image/jpeg',
+    limit: number = 8
+  ): Promise<{ caption: string; ocr_text: string; media_results: any[]; filename: string }> {
+    if (!await this.isPythonServiceAvailable()) {
+      throw new Error('Python media service is not available');
+    }
+    // Native FormData/Blob (Node 18+); axios sets the multipart boundary itself.
+    const form = new FormData();
+    form.append('file', new Blob([buffer as unknown as BlobPart], { type: mime }), filename);
+    form.append('limit', String(limit));
+
+    const response = await axios.post(
+      `${this.pythonServiceUrl}/api/python/media/query`,
+      form,
+      {
+        headers: { 'X-API-Key': this.internalApiKey },
+        timeout: 60000,
+        maxBodyLength: Infinity,
+        maxContentLength: Infinity,
+      }
+    );
+    return response.data;
   }
 
   /**
