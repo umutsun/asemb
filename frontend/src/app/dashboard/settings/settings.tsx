@@ -77,6 +77,7 @@ import { API_CONFIG } from '../../../lib/config';
 import { chatTemplates } from '@/templates/registry';
 import debug from '../../../lib/debug';
 import ApiTokensSection from '../../../components/settings/ApiTokensSection';
+import { RagAntiHallucinationPresets } from '../../../components/settings/RagAntiHallucinationPresets';
 
 
 
@@ -3069,6 +3070,19 @@ function RAGSettings() {
     });
   };
 
+  // Atomic bulk merge into ragSettings. Used by the anti-hallucination presets so a
+  // single mode selection (which writes many keys) doesn't clobber itself via stale
+  // closures the way repeated updateRAGSetting() calls would. Functional updater.
+  const applyRAGSettings = (patch: Record<string, any>) => {
+    setTempRAGConfig((prev: any) => ({
+      ...prev,
+      ragSettings: {
+        ...(prev?.ragSettings || {}),
+        ...patch
+      }
+    }));
+  };
+
   const updateChatbotSetting = (key: string, value: any) => {
     debug.log(`📝 [RAG SETTINGS] Updating chatbot setting: ${key} =`, value);
     const newConfig = {
@@ -3099,6 +3113,13 @@ function RAGSettings() {
 
   return (
     <div className="space-y-6">
+      {/* WS-C: Anti-hallucination presets (plain-language mode selector + advanced controls).
+          Maps to real wired ragSettings.* keys; see docs/RAG_ANTI_HALLUCINATION.md. */}
+      <RagAntiHallucinationPresets
+        settings={tempRAGConfig?.ragSettings}
+        onApplyPreset={applyRAGSettings}
+      />
+
       <div className="grid grid-cols-2 gap-6">
         {/* RAG Configuration - Left Column */}
         <Card>
@@ -4506,6 +4527,46 @@ function SecuritySettings() {
                 </div>
                 <p className="text-[11px] text-muted-foreground mt-1">
                   Used to sign user JWTs. Rotating invalidates existing logins.
+                </p>
+              </div>
+
+              <div>
+                <Label>MCP Bearer Key</Label>
+                <div className="flex items-center gap-2">
+                  <Input
+                    type="password"
+                    value={(tempConfig?.security?.mcpBearerKey ?? securityConfig?.security?.mcpBearerKey) || ''}
+                    placeholder="X-API-Key for lsemb-mcp (blank = use env INTERNAL_API_KEY)"
+                    onChange={(e) => setTempConfig({
+                      ...tempConfig,
+                      security: {
+                        ...tempConfig.security,
+                        mcpBearerKey: e.target.value
+                      }
+                    })}
+                  />
+                  <Button
+                    type="button"
+                    size="icon"
+                    variant="outline"
+                    className="h-9 w-9 shrink-0"
+                    title="Generate a random 48-hex MCP bearer key"
+                    onClick={() => {
+                      const bytes = new Uint8Array(24);
+                      (window.crypto || (window as any).msCrypto).getRandomValues(bytes);
+                      const secret = Array.from(bytes).map(b => b.toString(16).padStart(2, '0')).join('');
+                      setTempConfig({
+                        ...tempConfig,
+                        security: { ...tempConfig.security, mcpBearerKey: secret }
+                      });
+                      toast({ title: 'MCP bearer key generated', description: 'Remember to Save.' });
+                    }}
+                  >
+                    <RefreshCw className="w-4 h-4" />
+                  </Button>
+                </div>
+                <p className="text-[11px] text-muted-foreground mt-1">
+                  Auth for the lsemb-mcp monitoring server (remote scrape/embed tracking). Sent as the X-API-Key header. Blank = the env INTERNAL_API_KEY stays in effect.
                 </p>
               </div>
 
