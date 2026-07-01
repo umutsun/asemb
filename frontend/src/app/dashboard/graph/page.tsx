@@ -183,6 +183,48 @@ export default function KnowledgeGraphPage() {
     ctx.globalAlpha = 1;
   }, [highlight, neighbors, hoverId, hubIds, selected]);
 
+  // Memoize graph data + accessors. Passing a fresh { nodes, links } object (or new
+  // accessor functions) on every render makes react-force-graph re-ingest the data and
+  // re-run the whole simulation — which, combined with hover setting state, caused the
+  // graph to "constantly refresh". Stable references => hover only repaints the canvas.
+  const graphData = useMemo(() => ({ nodes: data?.nodes ?? [], links: data?.links ?? [] }), [data]);
+
+  const nodeVal = useCallback((n: any) => n.val, []);
+
+  const nodeLabel = useCallback((n: any) => {
+    const conn = adjacency.get(n.id)?.size || 0;
+    return `<div style="padding:8px 10px;background:rgba(15,23,42,0.97);border:1px solid rgba(148,163,184,0.25);border-radius:8px;color:#e2e8f0;font-size:12px;max-width:320px;box-shadow:0 6px 18px rgba(0,0,0,0.45)">
+      <div style="font-weight:600;margin-bottom:4px;line-height:1.35">${escapeHtml(n.id)}</div>
+      <div style="opacity:0.75;font-size:11px">${escapeHtml(humanizeGroup(n.group))} · ${conn} ${conn === 1 ? 'connection' : 'connections'} · referenced ${n.refs}×</div>
+    </div>`;
+  }, [adjacency]);
+
+  const linkColor = useCallback((l: any) => {
+    if (!hoverId) return 'rgba(120,120,140,0.16)';
+    const s = linkEnd(l.source), t2 = linkEnd(l.target);
+    return (s === hoverId || t2 === hoverId) ? 'rgba(96,165,250,0.75)' : 'rgba(120,120,140,0.04)';
+  }, [hoverId]);
+
+  const linkWidth = useCallback((l: any) => {
+    const base = Math.min(3, Math.max(0.4, Math.log2((l.weight || 1) + 1)));
+    if (!hoverId) return base;
+    const s = linkEnd(l.source), t2 = linkEnd(l.target);
+    return (s === hoverId || t2 === hoverId) ? base + 1 : base;
+  }, [hoverId]);
+
+  const handleNodeHover = useCallback((n: any) => {
+    setHoverId(n ? n.id : null);
+    if (wrapRef.current) wrapRef.current.style.cursor = n ? 'pointer' : 'default';
+  }, []);
+
+  const handleNodeClick = useCallback((n: any) => {
+    setSelected(n);
+    fgRef.current?.centerAt(n.x, n.y, 600);
+    fgRef.current?.zoom(4, 600);
+  }, []);
+
+  const handleBackgroundClick = useCallback(() => setSelected(null), []);
+
   return (
     <div className="space-y-4 p-1">
       <div className="flex items-start justify-between gap-4 flex-wrap">
@@ -236,39 +278,22 @@ export default function KnowledgeGraphPage() {
           ) : data && data.nodes.length > 0 ? (
             <ForceGraph2D
               ref={fgRef}
-              graphData={{ nodes: data.nodes, links: data.links }}
+              graphData={graphData}
               width={dims.w}
               height={dims.h}
               nodeId="id"
-              nodeVal={(n: any) => n.val}
-              nodeLabel={(n: any) => {
-                const conn = adjacency.get(n.id)?.size || 0;
-                return `<div style="padding:8px 10px;background:rgba(15,23,42,0.97);border:1px solid rgba(148,163,184,0.25);border-radius:8px;color:#e2e8f0;font-size:12px;max-width:320px;box-shadow:0 6px 18px rgba(0,0,0,0.45)">
-                  <div style="font-weight:600;margin-bottom:4px;line-height:1.35">${escapeHtml(n.id)}</div>
-                  <div style="opacity:0.75;font-size:11px">${escapeHtml(humanizeGroup(n.group))} · ${conn} ${conn === 1 ? 'connection' : 'connections'} · referenced ${n.refs}×</div>
-                </div>`;
-              }}
+              nodeVal={nodeVal}
+              nodeLabel={nodeLabel}
               nodeCanvasObject={paintNode as any}
-              onNodeHover={(n: any) => {
-                setHoverId(n ? n.id : null);
-                if (wrapRef.current) wrapRef.current.style.cursor = n ? 'pointer' : 'default';
-              }}
-              linkColor={(l: any) => {
-                if (!hoverId) return 'rgba(120,120,140,0.16)';
-                const s = linkEnd(l.source), t2 = linkEnd(l.target);
-                return (s === hoverId || t2 === hoverId) ? 'rgba(96,165,250,0.75)' : 'rgba(120,120,140,0.04)';
-              }}
-              linkWidth={(l: any) => {
-                const base = Math.min(3, Math.max(0.4, Math.log2((l.weight || 1) + 1)));
-                if (!hoverId) return base;
-                const s = linkEnd(l.source), t2 = linkEnd(l.target);
-                return (s === hoverId || t2 === hoverId) ? base + 1 : base;
-              }}
+              onNodeHover={handleNodeHover}
+              linkColor={linkColor}
+              linkWidth={linkWidth}
               linkDirectionalArrowLength={3}
               linkDirectionalArrowRelPos={1}
-              onNodeClick={(n: any) => { setSelected(n); fgRef.current?.centerAt(n.x, n.y, 600); fgRef.current?.zoom(4, 600); }}
-              onBackgroundClick={() => setSelected(null)}
+              onNodeClick={handleNodeClick}
+              onBackgroundClick={handleBackgroundClick}
               cooldownTicks={140}
+              warmupTicks={60}
             />
           ) : (
             <div className="flex items-center justify-center h-[70vh] text-sm text-gray-500">
