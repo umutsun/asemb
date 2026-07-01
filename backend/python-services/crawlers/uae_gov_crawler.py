@@ -19,7 +19,8 @@ import redis
 REDIS_HOST = os.getenv("REDIS_HOST", "localhost")
 REDIS_PORT = int(os.getenv("REDIS_PORT", "6379"))
 REDIS_DB = int(os.getenv("REDIS_DB", "2"))  # match backend crawl4aiRedis default (REDIS_DB||2)
-MAX_PAGES = int(os.getenv("CRAWL_MAX_PAGES", "25"))
+MAX_PAGES = int(os.getenv("CRAWL_MAX_PAGES", "100"))
+MIN_CHARS = int(os.getenv("CRAWL_MIN_CHARS", "500"))  # drop thin nav/hub pages
 DELAY_S = float(os.getenv("CRAWL_DELAY_S", "0.8"))
 UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
       "(KHTML, like Gecko) Chrome/124.0 Safari/537.36")
@@ -39,7 +40,12 @@ def extract(html, url):
     for t in soup(["script", "style", "nav", "header", "footer", "aside", "form", "noscript", "button"]):
         t.decompose()
     title = (soup.title.string or "").strip() if soup.title and soup.title.string else url
-    main = soup.find("main") or soup.find(attrs={"role": "main"}) or soup.body or soup
+    # Prefer real content containers over the whole <body> (which keeps nav/sidebar text
+    # even after tag-stripping and produced the thin nav-only extractions).
+    main = (soup.find("main") or soup.find(attrs={"role": "main"}) or soup.find("article")
+            or soup.find(id=re.compile("content|main", re.I))
+            or soup.find(class_=re.compile("content|article|page-body", re.I))
+            or soup.body or soup)
     text = unicodedata.normalize("NFC", main.get_text(separator=" ", strip=True)) if main else ""
     text = re.sub(r"\s+", " ", text).strip()
     links = [urldefrag(urljoin(url, a["href"]))[0] for a in soup.find_all("a", href=True)]
@@ -74,7 +80,7 @@ def main():
             title, text, links = extract(resp.text, url)
         except Exception as e:
             print(f"  skip {url}: {type(e).__name__}", flush=True); continue
-        if len(text) >= 350:
+        if len(text) >= MIN_CHARS:
             lang = "ar" if url.startswith("https://u.ae/ar/") else "en"
             item = {"title": title[:200], "content": text, "url": url,
                     "scrapedAt": time.strftime("%Y-%m-%dT%H:%M:%SZ"),

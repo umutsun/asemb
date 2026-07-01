@@ -706,95 +706,74 @@ router.post('/crawler-directories/:crawlerName/generate-embeddings', async (req:
     const validData = fetchedData.filter(d => d !== null);
 
 
-    // Generate embeddings using the embedding processor service
-    const embeddingResults = [];
+    // Import straight into unified_embeddings (the live RAG corpus) so imported crawl
+    // pages are immediately searchable + visible in the corpus/Overview/chat.
+    // (The old scrape_embeddings staging required project_id/original_content NOT NULL
+    // and used mismatched column names -> HTTP 500. unified_embeddings is the same target
+    // the ingest scripts use, so the demo flow crawl -> import -> corpus works end to end.)
+    const embeddingResults: any[] = [];
     const embeddingProcessor = require('../services/embedding-processor.service').default;
+    const sourceTable = (crawlerName || 'crawled').toString().toLowerCase().replace(/[^a-z0-9_]+/g, '_');
+
+    // (source_table, source_id) is UNIQUE; allocate ids after the current max for this table.
+    const sidRes = await lsembPool.query(
+      `SELECT COALESCE(MAX(source_id), -1) + 1 AS sid FROM unified_embeddings WHERE source_table = $1`,
+      [sourceTable]
+    );
+    let sid = parseInt(sidRes.rows[0]?.sid ?? '0', 10) || 0;
 
     for (const item of validData) {
-      const content = item?.data?.content || item?.data?.text || JSON.stringify(item?.data);
-      const title = item?.data?.title || item?.data?.name || item?.key;
+      const content: string = item?.data?.content || item?.data?.text || '';
+      const title = (item?.data?.title || item?.data?.name || item?.key || 'Web Page').toString().slice(0, 250);
       const url = item?.data?.url || item?.data?.source_url || null;
+      const lang = item?.data?.metadata?.lang || 'en';
+
+      if (!content || content.trim().length < 100) {
+        embeddingResults.push({ itemKey: item?.key, status: 'skipped', reason: 'no content' });
+        continue;
+      }
 
       try {
-        // Generate actual embeddings
         const embeddingResult = await embeddingProcessor.processEmbeddings(content, {
           model: 'text-embedding-3-small',
           chunkSize: 1000,
           chunkOverlap: 200
         });
 
-        // Insert with actual embedding data
-        const insertResult = await lsembPool.query(`
-          INSERT INTO scrape_embeddings (
-            content,
-            title,
-            source_url,
-            metadata,
-            category,
-            embedding,
-            embedding_generated,
-            model_used,
-            total_chunks
-          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-          ON CONFLICT DO NOTHING
-          RETURNING id
-        `, [
-          content,
-          title,
-          url,
-          JSON.stringify({
-            crawlerName,
-            itemKey: item?.key,
-            totalTokens: embeddingResult.totalTokens,
-            processingTimeMs: embeddingResult.processingTimeMs
-          }),
-          crawlerName,
-          JSON.stringify(embeddingResult.embedding),
-          true,
-          embeddingResult.model,
-          embeddingResult.totalChunks
-        ]);
-
-        embeddingResults.push({
-          itemKey: item?.key,
-          status: 'completed',
-          embeddingId: insertResult.rows[0]?.id,
-          chunks: embeddingResult.totalChunks
-        });
-      } catch (embErr) {
-        console.error(` Failed to generate embedding for item ${item?.key}:`, embErr);
-
-        // Insert without embedding as fallback
         await lsembPool.query(`
-          INSERT INTO scrape_embeddings (
-            content,
-            title,
-            source_url,
-            metadata,
-            category,
-            embedding_generated
-          ) VALUES ($1, $2, $3, $4, $5, $6)
-          ON CONFLICT DO NOTHING
+          INSERT INTO unified_embeddings
+            (source_table, source_type, source_id, source_name, content, embedding, model_used, metadata, created_at, updated_at)
+          VALUES ($1, 'webpage', $2, $3, $4, $5::vector, $6, $7::jsonb, now(), now())
+          ON CONFLICT (source_table, source_id) DO NOTHING
         `, [
-          content,
+          sourceTable,
+          sid,
           title,
-          url,
-          JSON.stringify({ crawlerName, itemKey: item?.key, error: embErr.message }),
-          crawlerName,
-          false
+          content,
+          JSON.stringify(embeddingResult.embedding),
+          embeddingResult.model || 'text-embedding-3-small',
+          JSON.stringify({ crawlerName, url, lang, itemKey: item?.key, source: 'crawler-import', totalTokens: embeddingResult.totalTokens })
         ]);
+        sid++;
 
-        embeddingResults.push({
-          itemKey: item?.key,
-          status: 'failed',
-          error: embErr.message
-        });
+        embeddingResults.push({ itemKey: item?.key, status: 'completed', chunks: embeddingResult.totalChunks });
+      } catch (embErr: any) {
+        console.error(`Failed to embed/import item ${item?.key}:`, embErr?.message);
+        embeddingResults.push({ itemKey: item?.key, status: 'failed', error: embErr?.message });
       }
     }
 
+    // Nudge retrieval to pick up the new corpus rows immediately.
+    try {
+      const { semanticSearch } = await import('../services/semantic-search.service');
+      await semanticSearch.refreshRAGSettingsNow();
+    } catch { /* non-fatal */ }
+
+    const imported = embeddingResults.filter(r => r.status === 'completed').length;
     res.json({
       success: true,
-      message: `Queued ${embeddingResults.length} items for embedding generation`,
+      message: `Imported ${imported}/${embeddingResults.length} items into the corpus (unified_embeddings, source_table=${sourceTable})`,
+      sourceTable,
       results: embeddingResults
     });
   } catch (error: any) {
