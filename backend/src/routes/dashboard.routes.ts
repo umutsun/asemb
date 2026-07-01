@@ -20,9 +20,11 @@ function getMetricsService(): SystemMetricsService {
   return metricsServiceInstance;
 }
 
-// Knowledge Graph: law->law citation network from chunk_relationships (resolved via
-// unified_embeddings), aggregated by source law. Returns nodes + links for an
-// interactive force-directed view (GET /api/v2/dashboard/graph).
+// Knowledge Graph: source->source reference network from chunk_relationships
+// (resolved via unified_embeddings), aggregated by source_name. Domain-agnostic —
+// no source_type/relationship filter, so it works for any ingested data (laws,
+// docs, web pages). Returns nodes + links for an interactive force-directed view
+// (GET /api/v2/dashboard/graph). Node `group` = source_table for coloring.
 router.get('/graph', async (req: Request, res: Response) => {
   try {
     const limit = Math.min(parseInt(String(req.query.limit ?? '600')) || 600, 2000);

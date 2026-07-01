@@ -1,9 +1,11 @@
 'use client';
 
 /**
- * Knowledge Graph — interactive, full-page force-directed view of the UAE legal
- * citation network (law -> law "references"), built from chunk_relationships in
- * unified_embeddings. Data: GET /api/v2/corpus/graph. Uses react-force-graph-2d.
+ * Knowledge Graph — interactive, full-page force-directed view of the citation /
+ * reference network between sources (node -> node), built from chunk_relationships
+ * over unified_embeddings. Domain-agnostic: nodes are whatever sources are ingested
+ * (laws, docs, web pages, …), colored by source group. Data: GET /api/v2/dashboard/graph.
+ * Uses react-force-graph-2d.
  */
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -23,13 +25,21 @@ const ForceGraph2D = dynamic(() => import('react-force-graph-2d'), {
   loading: () => <div className="flex items-center justify-center h-[70vh]"><Spinner size="lg" /></div>,
 });
 
+// Well-known source groups get a stable color; anything else falls back to a
+// deterministic palette pick (keeps the graph domain-agnostic — no hardcoded set).
 const GROUP_COLORS: Record<string, string> = {
   uae_legislation: '#10b981',      // emerald — federal/emirate laws
   uae_gov_services: '#3b82f6',     // blue — gov service pages
   document_embeddings: '#a855f7',  // purple — uploaded docs
   other: '#f59e0b',
 };
-const colorFor = (g: string) => GROUP_COLORS[g] || GROUP_COLORS.other;
+const PALETTE = ['#f59e0b', '#ef4444', '#06b6d4', '#8b5cf6', '#ec4899', '#84cc16', '#14b8a6', '#6366f1'];
+const colorFor = (g: string) => {
+  if (GROUP_COLORS[g]) return GROUP_COLORS[g];
+  let h = 0;
+  for (let i = 0; i < (g || '').length; i++) h = (h * 31 + g.charCodeAt(i)) >>> 0;
+  return PALETTE[h % PALETTE.length];
+};
 
 type GraphData = { nodes: any[]; links: any[]; node_count: number; edge_count: number };
 
@@ -110,7 +120,7 @@ export default function KnowledgeGraphPage() {
             {t('graph.title', { defaultValue: 'Knowledge Graph' })}
           </h1>
           <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-            {t('graph.subtitle', { defaultValue: 'UAE legal citation network — which laws reference which.' })}
+            {t('graph.subtitle', { defaultValue: 'How your sources reference each other, extracted from the corpus.' })}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -119,7 +129,7 @@ export default function KnowledgeGraphPage() {
             <Input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder={t('graph.search', { defaultValue: 'Highlight a law…' })}
+              placeholder={t('graph.search', { defaultValue: 'Highlight a source…' })}
               className="ps-8 w-56"
             />
           </div>
@@ -132,8 +142,8 @@ export default function KnowledgeGraphPage() {
 
       {data && (
         <div className="flex flex-wrap items-center gap-3 text-xs text-gray-500 dark:text-gray-400">
-          <Badge variant="secondary">{data.node_count} {t('graph.laws', { defaultValue: 'laws' })}</Badge>
-          <Badge variant="secondary">{data.edge_count} {t('graph.references', { defaultValue: 'references' })}</Badge>
+          <Badge variant="secondary">{data.node_count} {t('graph.nodes', { defaultValue: 'sources' })}</Badge>
+          <Badge variant="secondary">{data.edge_count} {t('graph.references', { defaultValue: 'relationships' })}</Badge>
           {groups.map((g) => (
             <span key={g} className="inline-flex items-center gap-1">
               <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ background: colorFor(g) }} />
@@ -159,7 +169,7 @@ export default function KnowledgeGraphPage() {
               height={dims.h}
               nodeId="id"
               nodeVal={(n: any) => n.val}
-              nodeLabel={(n: any) => `${n.id}  ·  cited ${n.refs}×`}
+              nodeLabel={(n: any) => `${n.id}  ·  referenced ${n.refs}×`}
               nodeCanvasObject={paintNode as any}
               linkColor={() => 'rgba(120,120,140,0.25)'}
               linkWidth={(l: any) => Math.min(4, Math.max(0.5, Math.log2((l.weight || 1) + 1)))}
@@ -185,7 +195,7 @@ export default function KnowledgeGraphPage() {
                   <span className="inline-block h-2 w-2 rounded-full" style={{ background: colorFor(selected.group) }} />
                   {selected.group}
                 </span>
-                <span>· {t('graph.citedTimes', { defaultValue: 'cited' })} {selected.refs}×</span>
+                <span>· {t('graph.citedTimes', { defaultValue: 'referenced' })} {selected.refs}×</span>
               </div>
             </div>
           )}

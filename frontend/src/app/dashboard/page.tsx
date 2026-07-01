@@ -658,15 +658,23 @@ export default function DashboardPage() {
       try {
         const [statsRes, graphRes] = await Promise.all([
           fetchWithAuth(apiConfig.getApiUrl('/api/v2/relationships/stats')),
-          fetchWithAuth(apiConfig.getApiUrl('/api/v2/relationships/graph-data')),
+          // Use the entity/source-level graph (not the source-table blob). Domain-agnostic:
+          // nodes = sources, edges = extracted relationships — works for any RAG data, not just law.
+          fetchWithAuth(apiConfig.getApiUrl('/api/v2/dashboard/graph?limit=80')),
         ]);
         if (statsRes.ok && isMounted) {
           const data = await safeJsonParse(statsRes);
           if (data) setRelationshipStats(data);
         }
         if (graphRes.ok && isMounted) {
-          const data = await safeJsonParse(graphRes);
-          if (data) setGraphData(data);
+          const d = await safeJsonParse(graphRes);
+          if (d && Array.isArray(d.nodes) && isMounted) {
+            // Map to the shape this card's ForceGraph render expects.
+            setGraphData({
+              nodes: d.nodes.map((n: any) => ({ id: n.id, label: n.label, entity_count: n.val })),
+              edges: (d.links || []).map((l: any) => ({ source: l.source, target: l.target, count: l.weight, type: 'references' })),
+            });
+          }
         }
       } catch (error) {
         // Silently fail - graph is optional
