@@ -517,11 +517,11 @@ export default function UsersPage() {
   }, []);
 
   return (
-    <div className="w-[90%] mx-auto p-6 space-y-6">
+    <div className="space-y-6 p-1">
       {/* Header */}
       <div>
-        <h1 className="text-xl font-semibold">{t('users.title')}</h1>
-        <p className="text-gray-600">{t('users.description')}</p>
+        <h1 className="text-2xl font-bold">{t('users.title')}</h1>
+        <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">{t('users.description')}</p>
       </div>
 
       {/* Stats Cards */}

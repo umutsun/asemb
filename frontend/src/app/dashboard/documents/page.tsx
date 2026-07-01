@@ -3619,7 +3619,7 @@ export default function DocumentManagerPage() {
             {/* Left Column - Upload & Physical Files */}
             <div className="xl:col-span-5 lg:col-span-5 flex flex-col gap-4 h-full">
               {/* Upload Area */}
-              <Card className="bg-white dark:bg-black border-gray-200 dark:border-gray-700 shadow-sm flex-shrink-0">
+              <Card className="bg-card/80 border-border shadow-sm flex-shrink-0">
                 <CardContent className="p-4">
                   <div className="grid grid-cols-2 gap-4">
                     {/* Left: Upload Area (50%) */}
@@ -3780,7 +3780,7 @@ export default function DocumentManagerPage() {
               </Card>
 
               {/* Physical Files List */}
-              <Card className="bg-white dark:bg-black border-gray-200 dark:border-gray-700 shadow-sm flex-1 flex flex-col">
+              <Card className="bg-card/80 border-border shadow-sm flex-1 flex flex-col">
                 <CardContent className="flex flex-col overflow-hidden p-4 pt-3 flex-1 min-h-0">
                   {/* Search & Filter */}
                   <div className="flex gap-2 mb-3" role="search" aria-label={t('documents.physicalFiles.searchFiles')}>
@@ -4072,7 +4072,7 @@ export default function DocumentManagerPage() {
             {/* Right Column - Database Files */}
             <div className="xl:col-span-7 lg:col-span-7 flex flex-col gap-4 h-full min-h-[650px]">
               {/* Search and Filter - Moved Above Table */}
-              <Card className="bg-white dark:bg-black border-gray-200 dark:border-gray-700 shadow-sm flex-shrink-0">
+              <Card className="bg-card/80 border-border shadow-sm flex-shrink-0">
                 <CardContent className="p-4">
                   <div className="flex flex-col sm:flex-row gap-2 sm:gap-4 items-start sm:items-center">
                     <div className="relative flex-1">
@@ -4103,7 +4103,7 @@ export default function DocumentManagerPage() {
                 </CardContent>
               </Card>
 
-              <Card className="bg-white dark:bg-black border-gray-200 dark:border-gray-700 shadow-sm flex flex-col flex-1">
+              <Card className="bg-card/80 border-border shadow-sm flex flex-col flex-1">
                 <CardContent className="p-4 pt-3 flex flex-col flex-1 min-h-0">
                   {/* Fixed Header */}
                   <div className="flex-shrink-0 border-b border-gray-100 dark:border-gray-700 -mx-4 px-4">

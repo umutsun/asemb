@@ -256,6 +256,15 @@ export default function KnowledgeGraphPage() {
     return (s === hoverId || t2 === hoverId) ? base + 1 : base;
   }, [hoverId]);
 
+  // Particles flowing along the links give a subtle, always-on "information flow" motion —
+  // one particle per link at idle, more on the hovered node's links.
+  const linkParticles = useCallback((l: any) => {
+    if (!hoverId) return 1;
+    const s = linkEnd(l.source), t2 = linkEnd(l.target);
+    return (s === hoverId || t2 === hoverId) ? 4 : 1;
+  }, [hoverId]);
+  const particleColor = useCallback(() => (isDarkRef.current ? 'rgba(125,211,252,0.9)' : 'rgba(37,99,235,0.75)'), []);
+
   const handleNodeHover = useCallback((n: any) => {
     setHoverId(n ? n.id : null);
     if (wrapRef.current) wrapRef.current.style.cursor = n ? 'pointer' : 'default';
@@ -333,6 +342,10 @@ export default function KnowledgeGraphPage() {
               linkWidth={linkWidth}
               linkDirectionalArrowLength={3}
               linkDirectionalArrowRelPos={1}
+              linkDirectionalParticles={linkParticles}
+              linkDirectionalParticleSpeed={0.004}
+              linkDirectionalParticleWidth={1.8}
+              linkDirectionalParticleColor={particleColor}
               onNodeClick={handleNodeClick}
               onBackgroundClick={handleBackgroundClick}
               onRenderFramePre={() => { labelRectsRef.current = []; }}
