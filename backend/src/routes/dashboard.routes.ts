@@ -20,6 +20,51 @@ function getMetricsService(): SystemMetricsService {
   return metricsServiceInstance;
 }
 
+// Knowledge Graph: law->law citation network from chunk_relationships (resolved via
+// unified_embeddings), aggregated by source law. Returns nodes + links for an
+// interactive force-directed view (GET /api/v2/dashboard/graph).
+router.get('/graph', async (req: Request, res: Response) => {
+  try {
+    const limit = Math.min(parseInt(String(req.query.limit ?? '600')) || 600, 2000);
+    const edgeRows = await lsembPool.query(
+      `SELECT src.source_name AS source, src.source_table AS source_tbl,
+              tgt.source_name AS target, tgt.source_table AS target_tbl,
+              count(*)::int AS weight
+       FROM chunk_relationships cr
+       JOIN unified_embeddings src ON src.id = cr.source_chunk_id
+       JOIN unified_embeddings tgt ON tgt.id = cr.target_chunk_id
+       WHERE src.source_name <> tgt.source_name
+       GROUP BY 1,2,3,4
+       ORDER BY weight DESC
+       LIMIT $1`,
+      [limit]
+    );
+    const nodeMap = new Map<string, { id: string; group: string; val: number; refs: number }>();
+    const bump = (id: string, group: string, w: number, isTarget: boolean) => {
+      let n = nodeMap.get(id);
+      if (!n) { n = { id, group: group || 'other', val: 0, refs: 0 }; nodeMap.set(id, n); }
+      n.val += w;
+      if (isTarget) n.refs += w;
+    };
+    const links = edgeRows.rows.map((r: any) => {
+      bump(r.source, r.source_tbl, r.weight, false);
+      bump(r.target, r.target_tbl, r.weight, true);
+      return { source: r.source, target: r.target, weight: r.weight };
+    });
+    const nodes = Array.from(nodeMap.values()).map((n) => ({
+      id: n.id,
+      label: n.id.length > 60 ? n.id.slice(0, 57) + '…' : n.id,
+      group: n.group,
+      val: Math.max(1, Math.round(Math.log2(n.val + 1))),
+      refs: n.refs,
+    }));
+    res.json({ nodes, links, node_count: nodes.length, edge_count: links.length });
+  } catch (e: any) {
+    console.error('[dashboard/graph]', e?.message);
+    res.status(500).json({ error: 'Failed to build knowledge graph' });
+  }
+});
+
 // Dashboard stats endpoint
 router.get('/stats', authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
   try {

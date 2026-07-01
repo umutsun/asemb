@@ -367,6 +367,7 @@ export default function Header() {
     ...(currentUser?.role === 'admin' ? [
       { href: '/dashboard', label: t('header.menu.dashboard'), icon: Home },
       { href: '/dashboard/overview', label: t('header.menu.overview'), icon: LayoutDashboard },
+      { href: '/dashboard/graph', label: t('header.menu.knowledgeGraph', { defaultValue: 'Knowledge Graph' }), icon: CircuitBoard },
       { href: '/dashboard/users', label: t('header.menu.users'), icon: Users },
       { href: '/dashboard/migrations', label: t('header.menu.migrations'), icon: Database },
       { href: '/dashboard/documents', label: t('header.menu.documents'), icon: FileText },
