@@ -180,14 +180,14 @@ export const ZenInput: React.FC<ZenInputProps> = ({
 
     // Validate file type
     if (file.type !== 'application/pdf') {
-      alert('Sadece PDF dosyaları desteklenir');
+      alert('Only PDF files are supported');
       return;
     }
 
     // Validate file size
     const fileSizeMB = file.size / (1024 * 1024);
     if (pdfSettings && fileSizeMB > pdfSettings.maxSizeMB) {
-      alert(`Dosya boyutu ${pdfSettings.maxSizeMB} MB'i geçemez`);
+      alert(`File size cannot exceed ${pdfSettings.maxSizeMB} MB`);
       return;
     }
 
@@ -247,7 +247,7 @@ export const ZenInput: React.FC<ZenInputProps> = ({
               <button
                 onClick={handleRemovePdf}
                 className="p-1 hover:bg-black/10 dark:hover:bg-white/10 rounded transition-colors"
-                title="PDF'i kaldır"
+                title="Remove PDF"
               >
                 <X className="h-3.5 w-3.5" />
               </button>
@@ -281,7 +281,7 @@ export const ZenInput: React.FC<ZenInputProps> = ({
                   ? 'text-cyan-600 dark:text-cyan-400 bg-cyan-100 dark:bg-cyan-500/20 cursor-not-allowed'
                   : 'text-slate-500 dark:text-slate-400 hover:text-cyan-600 dark:hover:text-cyan-400 hover:bg-cyan-100 dark:hover:bg-cyan-500/10'
               } disabled:opacity-50`}
-              title={pdfFile ? 'PDF eklendi' : 'PDF ekle'}
+              title={pdfFile ? 'PDF attached' : 'Attach PDF'}
             >
               <Paperclip className="h-5 w-5" />
             </button>
@@ -296,7 +296,7 @@ export const ZenInput: React.FC<ZenInputProps> = ({
                 ? 'text-cyan-600 dark:text-cyan-400 bg-cyan-100 dark:bg-cyan-500/20'
                 : 'text-slate-500 dark:text-slate-400 hover:text-cyan-600 dark:hover:text-cyan-400 hover:bg-cyan-100 dark:hover:bg-cyan-500/10'
             } disabled:opacity-50`}
-            title="Komutlar"
+            title="Commands"
           >
             <Command className="h-5 w-5" />
           </button>
@@ -315,10 +315,10 @@ export const ZenInput: React.FC<ZenInputProps> = ({
               } disabled:opacity-50`}
               title={
                 isRecording
-                  ? `Kaydı durdur (${recordingDuration}s)`
+                  ? `Stop recording (${recordingDuration}s)`
                   : isTranscribing
-                    ? 'Metne çevriliyor...'
-                    : 'Sesle mesaj gönder'
+                    ? 'Transcribing...'
+                    : 'Send a voice message'
               }
             >
               {isRecording ? (
@@ -338,11 +338,11 @@ export const ZenInput: React.FC<ZenInputProps> = ({
             onKeyDown={handleKeyDown}
             placeholder={
               isRecording
-                ? `Kayıt yapılıyor... (${recordingDuration}s)`
+                ? `Recording... (${recordingDuration}s)`
                 : isTranscribing
-                  ? 'Metne çevriliyor...'
+                  ? 'Transcribing...'
                   : pdfFile
-                    ? 'Bu PDF hakkında sorunuzu yazın...'
+                    ? 'Type your question about this PDF...'
                     : (placeholder || 'Ask anything...')
             }
             rows={1}

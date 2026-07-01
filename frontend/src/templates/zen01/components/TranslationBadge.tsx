@@ -43,7 +43,7 @@ export const TranslationBadge: React.FC<TranslationBadgeProps> = ({
     <button
       onClick={onToggle}
       className={`zen01-translation-badge ${isShowingTranslation ? 'active' : ''}`}
-      title={isShowingTranslation ? 'Orijinali göster' : 'Çeviriyi göster'}
+      title={isShowingTranslation ? 'Show original' : 'Show translation'}
     >
       {isShowingTranslation ? (
         <>
@@ -53,7 +53,7 @@ export const TranslationBadge: React.FC<TranslationBadgeProps> = ({
       ) : (
         <>
           <Languages className="h-3 w-3" />
-          <span className="zen01-translation-badge-lang">Orijinal</span>
+          <span className="zen01-translation-badge-lang">Original</span>
         </>
       )}
     </button>

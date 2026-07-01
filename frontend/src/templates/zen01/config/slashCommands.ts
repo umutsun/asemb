@@ -10,8 +10,8 @@ export const SLASH_COMMANDS: SlashCommand[] = [
   {
     id: 'translate',
     trigger: '/translate',
-    label: 'Çevir',
-    description: 'Mesajı çevir',
+    label: 'Translate',
+    description: 'Translate the message',
     icon: '',
     category: 'translation',
     hasSubmenu: true,
@@ -31,25 +31,25 @@ export const SLASH_COMMANDS: SlashCommand[] = [
   {
     id: 'history',
     trigger: '/history',
-    label: 'Geçmiş',
-    description: 'Konuşma geçmişini göster',
+    label: 'History',
+    description: 'Show conversation history',
     icon: '',
     category: 'navigation'
   },
   {
     id: 'new',
     trigger: '/new',
-    label: 'Yeni',
-    description: 'Yeni konuşma başlat',
+    label: 'New',
+    description: 'Start a new conversation',
     icon: '',
     category: 'navigation'
   },
-  // Suggestion command - opens panel with recent conversations
+  // Suggestion command - opens the suggested-questions panel
   {
     id: 'suggest',
     trigger: '/suggest',
-    label: 'Öneriler',
-    description: 'Son konuşmalara devam et',
+    label: 'Suggestions',
+    description: 'Show suggested questions',
     icon: '',
     category: 'suggestion'
   }

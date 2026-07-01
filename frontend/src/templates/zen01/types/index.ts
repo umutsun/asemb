@@ -21,7 +21,7 @@ export interface ZenSource {
     sayi?: string;
     madde_no?: string;
     madde?: string;
-    // Danıştay kararları
+    // Court decisions
     kararno?: string;
     karar_no?: string;
     esas_no?: string;
@@ -29,7 +29,7 @@ export interface ZenSource {
     karar?: string;
     esas?: string;
     daire?: string;
-    // Makaleler
+    // Articles
     dergi?: string;
     yazar?: string;
     author?: string;
@@ -233,8 +233,8 @@ export interface SlashCommandSubmenuItem {
 export interface SlashCommand {
   id: string;
   trigger: string;       // '/translate', '/history'
-  label: string;         // 'Çevir', 'Geçmiş'
-  description: string;   // 'Mesajı çevir', 'Konuşma geçmişini göster'
+  label: string;         // 'Translate', 'History'
+  description: string;   // 'Translate the message', 'Show conversation history'
   icon: string;          // Icon (empty string if none)
   category: 'translation' | 'navigation' | 'utility' | 'suggestion';
   targetLanguage?: string;
@@ -270,7 +270,7 @@ export const DEFAULT_RAG_SETTINGS: ZenRagSettings = {
   minResults: 7,
   maxResults: 20,
   similarityThreshold: 0.02,
-  minSourcesToShow: 7,  // minResults ile senkronize
+  minSourcesToShow: 7,  // kept in sync with minResults
   maxSourcesToShow: 15
 };
 

@@ -50,7 +50,7 @@ export function useConversationHistory() {
   const fetchConversations = useCallback(async (): Promise<Conversation[]> => {
     const token = localStorage.getItem('token');
     if (!token) {
-      setError('Oturum bulunamadı');
+      setError('Session not found');
       return [];
     }
 
@@ -74,7 +74,7 @@ export function useConversationHistory() {
       setConversations(convList);
       return convList;
     } catch (err) {
-      const errorMsg = err instanceof Error ? err.message : 'Konuşmalar yüklenemedi';
+      const errorMsg = err instanceof Error ? err.message : 'Failed to load conversations';
       setError(errorMsg);
       console.error('[useConversationHistory] Fetch error:', err);
       return [];
@@ -91,7 +91,7 @@ export function useConversationHistory() {
   ): Promise<ConversationFull | null> => {
     const token = localStorage.getItem('token');
     if (!token) {
-      setError('Oturum bulunamadı');
+      setError('Session not found');
       return null;
     }
 
@@ -124,7 +124,7 @@ export function useConversationHistory() {
   ): Promise<boolean> => {
     const token = localStorage.getItem('token');
     if (!token) {
-      setError('Oturum bulunamadı');
+      setError('Session not found');
       return false;
     }
 

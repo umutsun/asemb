@@ -18,70 +18,70 @@ import type { ZenHeaderProps } from '../types';
 // Zen/Tao wisdom quotes - expanded collection
 const zenQuotes = [
   // Lao Tzu (Tao Te Ching)
-  { text: "Bilge kişi konuşmaz, konuşan bilmez.", source: "Lao Tzu" },
-  { text: "Bin millik yolculuk tek bir adımla başlar.", source: "Lao Tzu" },
-  { text: "Su yumuşaktır ama kayaları oyar.", source: "Lao Tzu" },
-  { text: "Boşluk, doluluktan değerlidir.", source: "Lao Tzu" },
-  { text: "Sade ol, kendini tut, az iste.", source: "Lao Tzu" },
-  { text: "Doğa acele etmez, yine de her şey tamamlanır.", source: "Lao Tzu" },
-  { text: "En yumuşak şey, en sert şeyi yener.", source: "Lao Tzu" },
-  { text: "Kendini bilen aydınlanmıştır.", source: "Lao Tzu" },
-  { text: "Başkalarına karşı anlayışlı ol, kendine karşı sert.", source: "Lao Tzu" },
-  { text: "Büyük Tao akar, hem sola hem sağa.", source: "Lao Tzu" },
-  { text: "Az bilen çok konuşur, çok bilen az konuşur.", source: "Lao Tzu" },
-  { text: "Güçlü olan galip gelmez, galip gelen güçlüdür.", source: "Lao Tzu" },
-  { text: "Yapma, bırak olsun.", source: "Lao Tzu" },
-  { text: "En iyi lider, halkın varlığından habersiz olduğudur.", source: "Lao Tzu" },
-  { text: "Kendi ışığını sön, kaosla bir ol.", source: "Lao Tzu" },
+  { text: "Those who know do not speak; those who speak do not know.", source: "Lao Tzu" },
+  { text: "A journey of a thousand miles begins with a single step.", source: "Lao Tzu" },
+  { text: "Water is soft, yet it wears away stone.", source: "Lao Tzu" },
+  { text: "Emptiness is more valuable than fullness.", source: "Lao Tzu" },
+  { text: "Be simple, hold to your center, desire little.", source: "Lao Tzu" },
+  { text: "Nature does not hurry, yet everything is accomplished.", source: "Lao Tzu" },
+  { text: "The softest thing overcomes the hardest.", source: "Lao Tzu" },
+  { text: "One who knows himself is enlightened.", source: "Lao Tzu" },
+  { text: "Be understanding toward others, and firm with yourself.", source: "Lao Tzu" },
+  { text: "The great Tao flows, both to the left and to the right.", source: "Lao Tzu" },
+  { text: "Those who know little speak much; those who know much speak little.", source: "Lao Tzu" },
+  { text: "The strong do not prevail; those who prevail are strong.", source: "Lao Tzu" },
+  { text: "Do nothing, and let it be.", source: "Lao Tzu" },
+  { text: "The best leader is one whose people are unaware of his presence.", source: "Lao Tzu" },
+  { text: "Dim your own light, and become one with the chaos.", source: "Lao Tzu" },
 
   // Chuang Tzu (Zhuangzi)
-  { text: "Büyük bilgelik çocuk gibidir.", source: "Chuang Tzu" },
-  { text: "Mutluluk hafif bir şeydir; kim tutabilir?", source: "Chuang Tzu" },
-  { text: "Uyku halinde rüya olduğunu bilmezsin.", source: "Chuang Tzu" },
-  { text: "Balık suyu bilmez, insan havayı.", source: "Chuang Tzu" },
-  { text: "Faydasız ağaç uzun yaşar.", source: "Chuang Tzu" },
-  { text: "Kelebek mi insan rüyası, insan mı kelebek rüyası?", source: "Chuang Tzu" },
+  { text: "Great wisdom is like a child.", source: "Chuang Tzu" },
+  { text: "Happiness is a light thing; who can hold it?", source: "Chuang Tzu" },
+  { text: "While asleep, you do not know you are dreaming.", source: "Chuang Tzu" },
+  { text: "The fish knows not the water, nor man the air.", source: "Chuang Tzu" },
+  { text: "The useless tree lives long.", source: "Chuang Tzu" },
+  { text: "Is the butterfly the man's dream, or the man the butterfly's?", source: "Chuang Tzu" },
 
   // Zen Masters
-  { text: "Sessizlik, en güçlü çığlıktır.", source: "Zen Atasözü" },
-  { text: "Şimdi'den başka zaman yoktur.", source: "Zen Atasözü" },
-  { text: "Zihin durgun su gibi olmalı.", source: "Zen Atasözü" },
-  { text: "Nehir akmakla yorulmaz.", source: "Zen Atasözü" },
-  { text: "En büyük bilgelik basitliktir.", source: "Zen Atasözü" },
-  { text: "Yaprak düşer, ağaç kalır.", source: "Zen Atasözü" },
-  { text: "Rüzgar eser, söğüt eğilir ama kırılmaz.", source: "Zen Atasözü" },
-  { text: "Her an yeni bir başlangıçtır.", source: "Zen Atasözü" },
-  { text: "Aydınlanma, arayışı bıraktığında gelir.", source: "Zen Atasözü" },
-  { text: "Ay'ı işaret eden parmağa değil, Ay'a bak.", source: "Zen Atasözü" },
-  { text: "Dağ ne kadar yüksek olursa olsun, yol vardır.", source: "Zen Atasözü" },
-  { text: "Boş bardak doldurulabilir.", source: "Zen Atasözü" },
-  { text: "Odun taşı, su çek - işte mucize.", source: "Zen Atasözü" },
-  { text: "Düşen kar gibi ol: sessiz ama dönüştürücü.", source: "Zen Atasözü" },
-  { text: "Söz gümüşse, sükut altındır.", source: "Zen Atasözü" },
-  { text: "Köprüyü geçene kadar ayıya dayı deme.", source: "Zen Atasözü" },
-  { text: "Gerçek yol kapısız bir kapıdır.", source: "Mumon" },
-  { text: "Oturduğun yerde otur, yürüdüğün yerde yürü.", source: "Unmon" },
-  { text: "Bir el çırpınca ne ses çıkar?", source: "Hakuin" },
+  { text: "Silence is the most powerful cry.", source: "Zen Proverb" },
+  { text: "There is no time other than now.", source: "Zen Proverb" },
+  { text: "The mind should be like still water.", source: "Zen Proverb" },
+  { text: "The river never tires of flowing.", source: "Zen Proverb" },
+  { text: "The greatest wisdom is simplicity.", source: "Zen Proverb" },
+  { text: "The leaf falls, the tree remains.", source: "Zen Proverb" },
+  { text: "The wind blows, the willow bends but does not break.", source: "Zen Proverb" },
+  { text: "Every moment is a new beginning.", source: "Zen Proverb" },
+  { text: "Enlightenment comes when you stop searching.", source: "Zen Proverb" },
+  { text: "Look at the moon, not the finger pointing at it.", source: "Zen Proverb" },
+  { text: "However high the mountain, there is always a path.", source: "Zen Proverb" },
+  { text: "An empty cup can be filled.", source: "Zen Proverb" },
+  { text: "Carry wood, draw water - therein lies the miracle.", source: "Zen Proverb" },
+  { text: "Be like falling snow: silent yet transformative.", source: "Zen Proverb" },
+  { text: "If speech is silver, silence is golden.", source: "Zen Proverb" },
+  { text: "Do not count your chickens before they hatch.", source: "Zen Proverb" },
+  { text: "The true path is a gateless gate.", source: "Mumon" },
+  { text: "Sit where you sit, walk where you walk.", source: "Unmon" },
+  { text: "What is the sound of one hand clapping?", source: "Hakuin" },
 
   // Buddha
-  { text: "Zihin her şeydir. Ne düşünürsen o olursun.", source: "Buddha" },
-  { text: "Acı kaçınılmaz, ıstırap seçimdir.", source: "Buddha" },
-  { text: "Bırakmayı öğrendiğinde, huzur seni bulur.", source: "Buddha" },
-  { text: "Her sabah yeniden doğuyoruz.", source: "Buddha" },
-  { text: "Dünya korkuyla değil, sevgiyle değişir.", source: "Buddha" },
-  { text: "Kendi kurtuluşunu kendin gerçekleştir.", source: "Buddha" },
+  { text: "The mind is everything. What you think, you become.", source: "Buddha" },
+  { text: "Pain is inevitable, suffering is optional.", source: "Buddha" },
+  { text: "When you learn to let go, peace finds you.", source: "Buddha" },
+  { text: "Every morning we are born again.", source: "Buddha" },
+  { text: "The world changes not through fear, but through love.", source: "Buddha" },
+  { text: "Work out your own salvation.", source: "Buddha" },
 
   // Confucius
-  { text: "Öğrenip düşünmemek boşuna, düşünüp öğrenmemek tehlikelidir.", source: "Konfüçyüs" },
-  { text: "Her yerde üç öğretmenim var.", source: "Konfüçyüs" },
-  { text: "Bilmediğini bilmek, gerçek bilgeliktir.", source: "Konfüçyüs" },
+  { text: "Learning without thought is labor lost; thought without learning is perilous.", source: "Confucius" },
+  { text: "Wherever I go, I have three teachers.", source: "Confucius" },
+  { text: "To know that you do not know is true wisdom.", source: "Confucius" },
 
   // Japanese Proverbs
-  { text: "Yedi kere düş, sekiz kere kalk.", source: "Japon Atasözü" },
-  { text: "Acele işe şeytan karışır.", source: "Japon Atasözü" },
-  { text: "Ağacın gölgesinde bile değişim vardır.", source: "Japon Atasözü" },
-  { text: "Düşmeden yürümeyi öğrenen olmadı.", source: "Japon Atasözü" },
-  { text: "Bir adım atılmazsa yol bitmez.", source: "Japon Atasözü" },
+  { text: "Fall down seven times, stand up eight.", source: "Japanese Proverb" },
+  { text: "Haste makes waste.", source: "Japanese Proverb" },
+  { text: "Even in the shade of a tree, there is change.", source: "Japanese Proverb" },
+  { text: "No one has learned to walk without falling.", source: "Japanese Proverb" },
+  { text: "If no step is taken, the road never ends.", source: "Japanese Proverb" },
 ];
 
 /**
@@ -158,8 +158,8 @@ export const ZenHeader: React.FC<ZenHeaderProps> = ({
               hover:border-cyan-400/50 dark:hover:border-cyan-500/50
               transition-all duration-300 hover:scale-105 hover:shadow-lg
               group relative overflow-hidden"
-            aria-label={isDark ? 'Aydınlık mod' : 'Karanlık mod'}
-            title={isDark ? 'Aydınlık moda geç' : 'Karanlık moda geç'}
+            aria-label={isDark ? 'Light mode' : 'Dark mode'}
+            title={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
           >
             {/* Animated background glow */}
             <div className="absolute inset-0 bg-gradient-to-r from-cyan-500/0 via-cyan-500/10 to-purple-500/0
@@ -257,7 +257,7 @@ export const ZenHeader: React.FC<ZenHeaderProps> = ({
                   className="zen01-dropdown-item cursor-pointer"
                 >
                   <UserCircle className="h-4 w-4 mr-2" />
-                  Profil Düzenle
+                  Edit Profile
                 </DropdownMenuItem>
               </Link>
               <DropdownMenuSeparator className={isDark ? "bg-[#1e3a5f]/50" : "bg-slate-200"} />
@@ -266,7 +266,7 @@ export const ZenHeader: React.FC<ZenHeaderProps> = ({
                 className={`cursor-pointer ${isDark ? 'text-rose-400 hover:text-rose-300' : 'text-rose-600 hover:text-rose-700'}`}
               >
                 <LogOut className="h-4 w-4 mr-2" />
-                Çıkış Yap
+                Log Out
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>

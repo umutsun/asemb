@@ -104,7 +104,7 @@ function highlightKeywordsInText(text: string, keywords: string[]): React.ReactN
 
 /**
  * Clean LLM response by removing section labels that should be rendered by UI components
- * Removes: KONU:, ANAHTAR_TERIMLER:, DAYANAKLAR:, DEGERLENDIRME:, numbered format headers, Dipnotlar
+ * Removes: SUBJECT, KEY_TERMS, BASES, ASSESSMENT, numbered format headers, footnotes
  */
 /**
  * Clean citation/source title from database formatting issues
@@ -359,7 +359,7 @@ export const ZenMessage: React.FC<ZenMessageProps> = ({
                   <Bot className="h-3.5 w-3.5 text-white" />
                 </span>
                 <ZenTypingIndicator />
-                <span className="text-cyan-400/60 text-sm">Değerlendiriliyor...</span>
+                <span className="text-cyan-400/60 text-sm">Analyzing...</span>
               </div>
             ) : isUser ? (
               <div className="text-slate-700 dark:text-slate-200 leading-relaxed whitespace-pre-wrap">
@@ -618,7 +618,7 @@ export const ZenMessage: React.FC<ZenMessageProps> = ({
                         ? 'text-slate-400 dark:text-slate-500 cursor-wait'
                         : 'text-slate-400 dark:text-slate-500 hover:text-cyan-500 dark:hover:text-cyan-400 hover:bg-cyan-100 dark:hover:bg-cyan-500/10'
                   }`}
-                  title={isPlaying ? 'Durdur' : isTTSLoading ? 'Yükleniyor...' : 'Sesli dinle'}
+                  title={isPlaying ? 'Stop' : isTTSLoading ? 'Loading...' : 'Listen'}
                 >
                   {isTTSLoading ? (
                     <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -646,7 +646,7 @@ export const ZenMessage: React.FC<ZenMessageProps> = ({
         {!isUser && message.sourcesFetchFailed && !message.isStreaming && (
           <div className="zen01-sources-warning mt-3 p-2 rounded-lg bg-amber-500/10 border border-amber-500/20">
             <span className="text-xs text-amber-600 dark:text-amber-400">
-              ⚠️ Atıflar yüklenemedi. Lütfen sayfayı yenileyip tekrar deneyin.
+              ⚠️ Citations could not be loaded. Please refresh the page and try again.
             </span>
           </div>
         )}
@@ -656,72 +656,72 @@ export const ZenMessage: React.FC<ZenMessageProps> = ({
           <div className="zen01-sources mt-3">
             <div className="mb-2">
               <span className="text-xs font-medium text-cyan-600/70 dark:text-cyan-400/70">
-                Atıflar ({message.sources.length} kaynak)
+                Citations ({message.sources.length} sources)
               </span>
             </div>
             <div className="space-y-2">
               {visibleSources?.map((source: ZenSource, idx: number) => {
                 // Get source type info with hierarchy and marker color
                 const getSourceTypeInfo = (sourceTable?: string, metadata?: any) => {
-                  // Detailed type mapping with Turkish labels
+                  // Detailed type mapping with English labels
                   const typeMap: Record<string, { label: string; weight: number; markerClass: string }> = {
                     // Legal/Official documents (highest priority)
-                    'kanun': { label: 'Kanun/Mevzuat', weight: 100, markerClass: 'zen01-marker-purple' },
-                    'mevzuat': { label: 'Mevzuat', weight: 100, markerClass: 'zen01-marker-purple' },
-                    'teblig': { label: 'Tebliğ', weight: 95, markerClass: 'zen01-marker-blue' },
-                    'tebliğ': { label: 'Tebliğ', weight: 95, markerClass: 'zen01-marker-blue' },
-                    'yonetmelik': { label: 'Yönetmelik', weight: 95, markerClass: 'zen01-marker-blue' },
-                    'yönetmelik': { label: 'Yönetmelik', weight: 95, markerClass: 'zen01-marker-blue' },
-                    'sirkuler': { label: 'Sirküler', weight: 90, markerClass: 'zen01-marker-pink' },
-                    'sirkü': { label: 'Sirküler', weight: 90, markerClass: 'zen01-marker-pink' },
+                    'kanun': { label: 'Law/Legislation', weight: 100, markerClass: 'zen01-marker-purple' },
+                    'mevzuat': { label: 'Legislation', weight: 100, markerClass: 'zen01-marker-purple' },
+                    'teblig': { label: 'Communiqué', weight: 95, markerClass: 'zen01-marker-blue' },
+                    'tebliğ': { label: 'Communiqué', weight: 95, markerClass: 'zen01-marker-blue' },
+                    'yonetmelik': { label: 'Regulation', weight: 95, markerClass: 'zen01-marker-blue' },
+                    'yönetmelik': { label: 'Regulation', weight: 95, markerClass: 'zen01-marker-blue' },
+                    'sirkuler': { label: 'Circular', weight: 90, markerClass: 'zen01-marker-pink' },
+                    'sirkü': { label: 'Circular', weight: 90, markerClass: 'zen01-marker-pink' },
                     // Tax authority documents
-                    'ozelge': { label: 'GİB Özelgesi', weight: 75, markerClass: 'zen01-marker-yellow' },
-                    'özelge': { label: 'GİB Özelgesi', weight: 75, markerClass: 'zen01-marker-yellow' },
-                    'gib': { label: 'GİB Belgesi', weight: 75, markerClass: 'zen01-marker-yellow' },
-                    'mukteza': { label: 'Mukteza', weight: 75, markerClass: 'zen01-marker-yellow' },
-                    'genelyazi': { label: 'Genel Yazı', weight: 65, markerClass: 'zen01-marker-yellow' },
-                    'genelyazı': { label: 'Genel Yazı', weight: 65, markerClass: 'zen01-marker-yellow' },
+                    'ozelge': { label: 'Tax Ruling', weight: 75, markerClass: 'zen01-marker-yellow' },
+                    'özelge': { label: 'Tax Ruling', weight: 75, markerClass: 'zen01-marker-yellow' },
+                    'gib': { label: 'Tax Authority Document', weight: 75, markerClass: 'zen01-marker-yellow' },
+                    'mukteza': { label: 'Advance Ruling', weight: 75, markerClass: 'zen01-marker-yellow' },
+                    'genelyazi': { label: 'General Notice', weight: 65, markerClass: 'zen01-marker-yellow' },
+                    'genelyazı': { label: 'General Notice', weight: 65, markerClass: 'zen01-marker-yellow' },
                     // Court decisions
-                    'danistay': { label: 'Danıştay Kararı', weight: 70, markerClass: 'zen01-marker-orange' },
-                    'danıştay': { label: 'Danıştay Kararı', weight: 70, markerClass: 'zen01-marker-orange' },
-                    'danistaykararlari': { label: 'Danıştay Kararı', weight: 70, markerClass: 'zen01-marker-orange' },
-                    'yargitay': { label: 'Yargıtay Kararı', weight: 70, markerClass: 'zen01-marker-orange' },
-                    'yargıtay': { label: 'Yargıtay Kararı', weight: 70, markerClass: 'zen01-marker-orange' },
-                    'karar': { label: 'Mahkeme Kararı', weight: 70, markerClass: 'zen01-marker-orange' },
+                    'danistay': { label: 'Council of State Decision', weight: 70, markerClass: 'zen01-marker-orange' },
+                    'danıştay': { label: 'Council of State Decision', weight: 70, markerClass: 'zen01-marker-orange' },
+                    'danistaykararlari': { label: 'Council of State Decision', weight: 70, markerClass: 'zen01-marker-orange' },
+                    'yargitay': { label: 'Court of Cassation Decision', weight: 70, markerClass: 'zen01-marker-orange' },
+                    'yargıtay': { label: 'Court of Cassation Decision', weight: 70, markerClass: 'zen01-marker-orange' },
+                    'karar': { label: 'Court Decision', weight: 70, markerClass: 'zen01-marker-orange' },
                     // Articles and publications
-                    'makale': { label: 'Makale', weight: 50, markerClass: 'zen01-marker-green' },
-                    'yayin': { label: 'Yayın', weight: 50, markerClass: 'zen01-marker-green' },
-                    'yayın': { label: 'Yayın', weight: 50, markerClass: 'zen01-marker-green' },
-                    'dergi': { label: 'Dergi Makalesi', weight: 50, markerClass: 'zen01-marker-green' },
+                    'makale': { label: 'Article', weight: 50, markerClass: 'zen01-marker-green' },
+                    'yayin': { label: 'Publication', weight: 50, markerClass: 'zen01-marker-green' },
+                    'yayın': { label: 'Publication', weight: 50, markerClass: 'zen01-marker-green' },
+                    'dergi': { label: 'Journal Article', weight: 50, markerClass: 'zen01-marker-green' },
                     // Q&A and guides
-                    'sorucevap': { label: 'Soru-Cevap', weight: 50, markerClass: 'zen01-marker-green' },
-                    'sss': { label: 'SSS', weight: 50, markerClass: 'zen01-marker-green' },
-                    'rehber': { label: 'Rehber', weight: 55, markerClass: 'zen01-marker-green' },
-                    'kilavuz': { label: 'Kılavuz', weight: 55, markerClass: 'zen01-marker-green' },
-                    'kılavuz': { label: 'Kılavuz', weight: 55, markerClass: 'zen01-marker-green' },
+                    'sorucevap': { label: 'Q&A', weight: 50, markerClass: 'zen01-marker-green' },
+                    'sss': { label: 'FAQ', weight: 50, markerClass: 'zen01-marker-green' },
+                    'rehber': { label: 'Guide', weight: 55, markerClass: 'zen01-marker-green' },
+                    'kilavuz': { label: 'Manual', weight: 55, markerClass: 'zen01-marker-green' },
+                    'kılavuz': { label: 'Manual', weight: 55, markerClass: 'zen01-marker-green' },
                     // Legal assessments
-                    'hukdkk': { label: 'Hukuki Değerlendirme', weight: 60, markerClass: 'zen01-marker-blue' },
-                    'hukuki': { label: 'Hukuki Görüş', weight: 60, markerClass: 'zen01-marker-blue' },
+                    'hukdkk': { label: 'Legal Assessment', weight: 60, markerClass: 'zen01-marker-blue' },
+                    'hukuki': { label: 'Legal Opinion', weight: 60, markerClass: 'zen01-marker-blue' },
                     // Documents and files
-                    'documents': { label: 'Doküman', weight: 40, markerClass: 'zen01-marker-slate' },
-                    'document': { label: 'Doküman', weight: 40, markerClass: 'zen01-marker-slate' },
-                    'dokuman': { label: 'Doküman', weight: 40, markerClass: 'zen01-marker-slate' },
-                    'doküman': { label: 'Doküman', weight: 40, markerClass: 'zen01-marker-slate' },
-                    'pdf': { label: 'PDF Belgesi', weight: 40, markerClass: 'zen01-marker-slate' },
-                    'belge': { label: 'Belge', weight: 40, markerClass: 'zen01-marker-slate' },
+                    'documents': { label: 'Document', weight: 40, markerClass: 'zen01-marker-slate' },
+                    'document': { label: 'Document', weight: 40, markerClass: 'zen01-marker-slate' },
+                    'dokuman': { label: 'Document', weight: 40, markerClass: 'zen01-marker-slate' },
+                    'doküman': { label: 'Document', weight: 40, markerClass: 'zen01-marker-slate' },
+                    'pdf': { label: 'PDF Document', weight: 40, markerClass: 'zen01-marker-slate' },
+                    'belge': { label: 'Document', weight: 40, markerClass: 'zen01-marker-slate' },
                     // Unified embeddings (detect from content/metadata)
-                    'unified': { label: 'Arşiv Belgesi', weight: 35, markerClass: 'zen01-marker-slate' },
-                    'unifiedembeddings': { label: 'Arşiv Belgesi', weight: 35, markerClass: 'zen01-marker-slate' },
-                    'embeddings': { label: 'Veri Kaynağı', weight: 30, markerClass: 'zen01-marker-slate' },
+                    'unified': { label: 'Archive Document', weight: 35, markerClass: 'zen01-marker-slate' },
+                    'unifiedembeddings': { label: 'Archive Document', weight: 35, markerClass: 'zen01-marker-slate' },
+                    'embeddings': { label: 'Data Source', weight: 30, markerClass: 'zen01-marker-slate' },
                     // Calendar/schedule items
-                    'pratik': { label: 'Pratik Bilgi', weight: 45, markerClass: 'zen01-marker-amber' },
-                    'takvim': { label: 'Vergi Takvimi', weight: 45, markerClass: 'zen01-marker-amber' },
-                    'hatirlatma': { label: 'Hatırlatma', weight: 45, markerClass: 'zen01-marker-amber' },
-                    'hatırlatma': { label: 'Hatırlatma', weight: 45, markerClass: 'zen01-marker-amber' }
+                    'pratik': { label: 'Practical Info', weight: 45, markerClass: 'zen01-marker-amber' },
+                    'takvim': { label: 'Tax Calendar', weight: 45, markerClass: 'zen01-marker-amber' },
+                    'hatirlatma': { label: 'Reminder', weight: 45, markerClass: 'zen01-marker-amber' },
+                    'hatırlatma': { label: 'Reminder', weight: 45, markerClass: 'zen01-marker-amber' }
                   };
 
-                  // Default fallback - more descriptive than "Kaynak"
-                  const defaultInfo = { label: 'Belge', weight: 0, markerClass: 'zen01-marker-slate' };
+                  // Default fallback - more descriptive than "Source"
+                  const defaultInfo = { label: 'Document', weight: 0, markerClass: 'zen01-marker-slate' };
 
                   if (!sourceTable) {
                     // Try to detect from metadata
@@ -841,7 +841,7 @@ export const ZenMessage: React.FC<ZenMessageProps> = ({
                       onClick: () => onSourceClick(source, message.sources || [])
                     })}
                   >
-                    {/* Header Row: [1] + Type + Daire + Karar + Yıl */}
+                    {/* Header Row: [1] + Type + Chamber + Decision + Year */}
                     <div className="flex items-center gap-2 flex-wrap mb-1.5">
                       <span className="text-xs font-semibold text-cyan-500 dark:text-cyan-400">
                         [{idx + 1}]
@@ -881,7 +881,7 @@ export const ZenMessage: React.FC<ZenMessageProps> = ({
                 onClick={() => setShowAllSources(!showAllSources)}
                 className="mt-2 text-xs text-cyan-600/70 dark:text-cyan-400/70 hover:text-cyan-700 dark:hover:text-cyan-300 transition-colors"
               >
-                {showAllSources ? 'Daha az göster' : `${message.sources.length - minSourcesToShow} kaynak daha göster`}
+                {showAllSources ? 'Show less' : `Show ${message.sources.length - minSourcesToShow} more sources`}
               </button>
             )}
           </div>

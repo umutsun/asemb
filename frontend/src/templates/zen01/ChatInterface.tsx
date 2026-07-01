@@ -134,7 +134,7 @@ export default function ChatInterface() {
     minResults: 7,
     maxResults: 20,
     similarityThreshold: 0.02,
-    minSourcesToShow: 7,  // Dinamik: minResults ile senkronize
+    minSourcesToShow: 7,  // Dynamic: kept in sync with minResults
     maxSourcesToShow: 15
   });
   const [llmSettings, setLlmSettings] = useState<ZenLlmSettings>({
@@ -349,7 +349,7 @@ export default function ChatInterface() {
           minResults: minResultsValue,
           maxResults: settingsData.ragSettings?.maxResults || 20,
           similarityThreshold: settingsData.ragSettings?.similarityThreshold || 0.02,
-          // minSourcesToShow = minResults (dinamik olarak ayarlanır)
+          // minSourcesToShow = minResults (set dynamically)
           minSourcesToShow: settingsData.ragSettings?.minSourcesToShow || minResultsValue,
           maxSourcesToShow: settingsData.ragSettings?.maxSourcesToShow || 15
         };
@@ -716,8 +716,8 @@ export default function ChatInterface() {
 
         if (response.status === 429 && errorData.code === 'QUERY_LIMIT_EXCEEDED') {
           const subscriptionMessage = user?.role === 'admin'
-            ? t('chat.errors.adminLimit', 'Admin kullanicilarsınız sınırsız erisiminiz olmalidir.')
-            : t('chat.errors.queryLimit', 'Aylik soru limitinizi doldurdunuz.');
+            ? t('chat.errors.adminLimit', 'As an admin user, you should have unlimited access.')
+            : t('chat.errors.queryLimit', 'You have reached your monthly question limit.');
 
           setMessages(prev => prev.map(msg =>
             msg.id === messageId
@@ -883,7 +883,7 @@ export default function ChatInterface() {
           msg.id === messageId
             ? {
               ...msg,
-              content: data.message?.content || data.response || data.message || t('chat.errors.general', 'Bir hata olustu.'),
+              content: data.message?.content || data.response || data.message || t('chat.errors.general', 'An error occurred.'),
               isStreaming: false,
               sources: data.fastMode ? [] : data.sources,
               relatedTopics: data.relatedTopics,
@@ -898,12 +898,12 @@ export default function ChatInterface() {
     } catch (error) {
       console.error('Chat error:', error);
       const errorMessage = error instanceof Error ? error.message : '';
-      let userFriendlyMessage = t('chat.errors.general', 'Bir hata olustu.');
+      let userFriendlyMessage = t('chat.errors.general', 'An error occurred.');
 
       if (errorMessage.includes(': 429') || errorMessage.includes('QUERY_LIMIT_EXCEEDED')) {
         userFriendlyMessage = user?.role === 'admin'
-          ? t('chat.errors.adminLimit', 'Admin kullanicilarsınız.')
-          : t('chat.errors.queryLimit', 'Aylik soru limitinizi doldurdunuz.');
+          ? t('chat.errors.adminLimit', 'As an admin user, you should have unlimited access.')
+          : t('chat.errors.queryLimit', 'You have reached your monthly question limit.');
       }
 
       setMessages(prev => prev.map(msg =>
@@ -986,8 +986,8 @@ export default function ChatInterface() {
 
       if (!lastAssistantMsg) {
         toast({
-          title: 'Çeviri yapılamadı',
-          description: 'Çevrilecek mesaj bulunamadı',
+          title: 'Translation failed',
+          description: 'No message found to translate',
           variant: 'destructive'
         });
         return;
@@ -996,8 +996,8 @@ export default function ChatInterface() {
       // Check for token
       if (!token) {
         toast({
-          title: 'Çeviri yapılamadı',
-          description: 'Oturum bulunamadı, lütfen tekrar giriş yapın',
+          title: 'Translation failed',
+          description: 'Session not found, please sign in again',
           variant: 'destructive'
         });
         return;
@@ -1060,15 +1060,15 @@ export default function ChatInterface() {
         });
 
         toast({
-          title: 'Çeviri tamamlandı',
-          description: `Mesaj ${command.label} diline çevrildi`
+          title: 'Translation complete',
+          description: `Message translated to ${command.label}`
         });
 
       } catch (error) {
         console.error('Translation error:', error);
         toast({
-          title: 'Çeviri başarısız',
-          description: 'Lütfen tekrar deneyin',
+          title: 'Translation failed',
+          description: 'Please try again',
           variant: 'destructive'
         });
       } finally {
@@ -1108,8 +1108,8 @@ export default function ChatInterface() {
     }
 
     toast({
-      title: 'Yeni konuşma',
-      description: 'Yeni bir konuşma başlatıldı'
+      title: 'New conversation',
+      description: 'A new conversation has been started'
     });
   };
 
@@ -1134,13 +1134,13 @@ export default function ChatInterface() {
       setIsHistoryOpen(false);
 
       toast({
-        title: 'Konuşma yüklendi',
-        description: `${conversation.title || 'Adsız konuşma'}`
+        title: 'Conversation loaded',
+        description: `${conversation.title || 'Untitled conversation'}`
       });
     } else {
       toast({
-        title: 'Yükleme başarısız',
-        description: 'Konuşma yüklenemedi',
+        title: 'Loading failed',
+        description: 'Could not load conversation',
         variant: 'destructive'
       });
     }
@@ -1155,13 +1155,13 @@ export default function ChatInterface() {
         handleNewConversation();
       }
       toast({
-        title: 'Konuşma silindi',
-        description: 'Konuşma başarıyla silindi'
+        title: 'Conversation deleted',
+        description: 'Conversation deleted successfully'
       });
     } else {
       toast({
-        title: 'Silme başarısız',
-        description: 'Konuşma silinemedi',
+        title: 'Deletion failed',
+        description: 'Could not delete conversation',
         variant: 'destructive'
       });
     }
@@ -1250,7 +1250,7 @@ export default function ChatInterface() {
           onPdfSelect={setPdfFile}
           voiceSettings={voiceSettings}
           onSlashCommand={handleSlashCommand}
-          recentConversations={conversations.slice(0, 12).map(c => ({ id: c.id, title: c.title || 'Adsız konuşma' }))}
+          recentConversations={conversations.slice(0, 12).map(c => ({ id: c.id, title: c.title || 'Untitled conversation' }))}
           historyPanel={
             <ZenHistoryPanel
               isOpen={isHistoryOpen}

@@ -112,11 +112,11 @@ export const ZenSuggestPanel: React.FC<ZenSuggestPanelProps> = ({
           {isLoading ? (
             <div className="zen01-suggest-loading">
               <Loader2 className="h-5 w-5 animate-spin text-cyan-500" />
-              <span className="text-xs text-slate-400 mt-2">Öneriler yükleniyor...</span>
+              <span className="text-xs text-slate-400 mt-2">{t('chat.loadingSuggestions', 'Loading suggestions...')}</span>
             </div>
           ) : filteredSuggestions.length === 0 ? (
             <div className="zen01-suggest-empty">
-              {searchQuery ? 'Sonuç bulunamadı' : 'Henüz öneri yok'}
+              {searchQuery ? t('chat.noResults', 'No results') : t('chat.noSuggestions', 'No suggestions yet')}
             </div>
           ) : (
             filteredSuggestions.map((suggestion, index) => (

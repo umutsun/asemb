@@ -1267,7 +1267,8 @@
   right: 0;
   margin-bottom: 0.5rem;
   max-height: 420px;
-  background: var(--zen-surface-hover);
+  /* Near-opaque so chat text behind the panel does not bleed through (readability). */
+  background: rgba(13, 22, 43, 0.98);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
   border: 1px solid var(--zen-glass-border);
@@ -1534,7 +1535,8 @@
   right: 0;
   margin-bottom: 0.5rem;
   max-height: 380px;
-  background: var(--zen-surface-hover);
+  /* Near-opaque so chat text behind the panel does not bleed through (readability). */
+  background: rgba(13, 22, 43, 0.98);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
   border: 1px solid var(--zen-glass-border);

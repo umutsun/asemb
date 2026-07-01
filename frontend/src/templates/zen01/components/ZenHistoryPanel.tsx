@@ -29,10 +29,10 @@ function groupConversationsByDate(conversations: Conversation[]) {
   thisWeek.setDate(thisWeek.getDate() - 7);
 
   const groups: Record<string, Conversation[]> = {
-    'Bugün': [],
-    'Dün': [],
-    'Bu Hafta': [],
-    'Daha Önce': []
+    'Today': [],
+    'Yesterday': [],
+    'This Week': [],
+    'Earlier': []
   };
 
   conversations.forEach(conv => {
@@ -40,13 +40,13 @@ function groupConversationsByDate(conversations: Conversation[]) {
     const convDay = new Date(convDate.getFullYear(), convDate.getMonth(), convDate.getDate());
 
     if (convDay >= today) {
-      groups['Bugün'].push(conv);
+      groups['Today'].push(conv);
     } else if (convDay >= yesterday) {
-      groups['Dün'].push(conv);
+      groups['Yesterday'].push(conv);
     } else if (convDay >= thisWeek) {
-      groups['Bu Hafta'].push(conv);
+      groups['This Week'].push(conv);
     } else {
-      groups['Daha Önce'].push(conv);
+      groups['Earlier'].push(conv);
     }
   });
 
@@ -63,9 +63,9 @@ function formatTime(dateStr: string): string {
   const convDay = new Date(date.getFullYear(), date.getMonth(), date.getDate());
 
   if (convDay >= today) {
-    return date.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' });
+    return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
   } else {
-    return date.toLocaleDateString('tr-TR', { day: 'numeric', month: 'short' });
+    return date.toLocaleDateString('en-US', { day: 'numeric', month: 'short' });
   }
 }
 
@@ -184,7 +184,7 @@ export const ZenHistoryPanel: React.FC<ZenHistoryPanelProps> = ({
           <input
             ref={searchRef}
             type="text"
-            placeholder="Konuşma ara..."
+            placeholder="Search conversations..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="zen01-history-search-input"
@@ -210,7 +210,7 @@ export const ZenHistoryPanel: React.FC<ZenHistoryPanelProps> = ({
             </div>
           ) : filteredConversations.length === 0 ? (
             <div className="zen01-history-empty-minimal">
-              {searchQuery ? 'Sonuç bulunamadı' : 'Henüz konuşma yok'}
+              {searchQuery ? 'No results found' : 'No conversations yet'}
             </div>
           ) : (
             groupedConversations.map(([group, convs]) => (
@@ -229,7 +229,7 @@ export const ZenHistoryPanel: React.FC<ZenHistoryPanelProps> = ({
                   >
                     <div className="zen01-history-item-content">
                       <span className="zen01-history-item-title">
-                        {conv.title || 'Adsız konuşma'}
+                        {conv.title || 'Untitled conversation'}
                       </span>
                       <span className="zen01-history-item-time">
                         {formatTime(conv.updated_at || conv.created_at)}
@@ -241,7 +241,7 @@ export const ZenHistoryPanel: React.FC<ZenHistoryPanelProps> = ({
                           onClick={(e) => handleDeleteClick(e, conv.id)}
                           className="zen01-history-confirm-yes"
                         >
-                          Sil
+                          Delete
                         </button>
                         <button
                           onClick={handleCancelDelete}
@@ -254,7 +254,7 @@ export const ZenHistoryPanel: React.FC<ZenHistoryPanelProps> = ({
                       <button
                         onClick={(e) => handleDeleteClick(e, conv.id)}
                         className="zen01-history-item-delete"
-                        title="Sil"
+                        title="Delete"
                       >
                         <Trash2 className="h-3 w-3" />
                       </button>
