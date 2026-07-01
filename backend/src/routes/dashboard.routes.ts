@@ -1632,7 +1632,8 @@ router.get('/metrics', async (req: Request, res: Response) => {
         documents: metrics.database.documents,
         embeddings: metrics.database.embeddings,
         size: metrics.database.size,
-        tables: metrics.database.tables
+        tables: metrics.database.tables,
+        by_category: embedByCategory
       },
       redis: {
         connected: metrics.redis.connected,
