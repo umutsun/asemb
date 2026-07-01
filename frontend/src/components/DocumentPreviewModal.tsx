@@ -300,6 +300,26 @@ export default function DocumentPreviewModal({
       return;
     }
 
+    // The list often passes a lightweight document object without `content`. Fetch the
+    // full record first: back-fill / text-extracted docs store their text in the DB even
+    // when no physical file exists (analyze-batch would fail for those with
+    // "Failed to analyze document"). Only fall through to analyze/OCR if there's no content.
+    try {
+      const preResp = await fetch(`/api/v2/documents/${document.id}`, { headers: getAuthHeaders() });
+      if (preResp.ok) {
+        const preData = await preResp.json();
+        if (preData?.content && preData.content.trim().length > 0) {
+          debug.log('[PDF Init] Loaded stored content from DB, length:', preData.content.length);
+          setPdfExtractedText(preData.content);
+          setPdfIsScanned(false);
+          await detectTemplate(preData.content);
+          return;
+        }
+      }
+    } catch (e) {
+      console.warn('[PDF Init] content prefetch failed, will analyze:', e);
+    }
+
     // No content - need to check if scanned or text-based
     debug.log('[PDF Init] No content, calling analyze-batch API...');
     setPdfAnalyzing(true);
