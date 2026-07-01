@@ -3,6 +3,7 @@
 import React, { useMemo, useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Search, X, Sparkles, Loader2 } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 
 interface ZenSuggestPanelProps {
   isOpen: boolean;
@@ -22,6 +23,7 @@ export const ZenSuggestPanel: React.FC<ZenSuggestPanelProps> = ({
   isLoading,
   onSelectSuggestion,
 }) => {
+  const { t } = useTranslation();
   const [searchQuery, setSearchQuery] = useState('');
   const panelRef = useRef<HTMLDivElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
@@ -92,7 +94,7 @@ export const ZenSuggestPanel: React.FC<ZenSuggestPanelProps> = ({
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Önerilerde ara..."
+            placeholder={t('chat.searchSuggestions', 'Search suggestions...')}
             className="zen01-history-search-input"
           />
           {searchQuery && (

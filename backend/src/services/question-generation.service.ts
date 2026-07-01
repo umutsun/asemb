@@ -588,23 +588,19 @@ class QuestionGenerationService {
         LIMIT 6
       `);
 
-      // Map table names to Turkish display names
-      const tableDisplayNames: Record<string, string> = {
-        'csv_danistaykararlari': 'Danıştay Kararları',
-        'csv_ozelge': 'Özelgeler (Vergi Görüşleri)',
-        'csv_sorucevap': 'Soru-Cevap Arşivi',
-        'csv_makale_arsiv_2022': 'Vergi Makaleleri (2022)',
-        'csv_makale_arsiv_2021': 'Vergi Makaleleri (2021)',
-        'csv_makale_arsiv_2023': 'Vergi Makaleleri (2023)',
-        'csv_makale_arsiv_2024': 'Vergi Makaleleri (2024)',
-        'csv_maliansiklopedi': 'Mali Ansiklopedi',
-        'documents': 'Yüklenen Belgeler'
-      };
+      // Derive a readable, domain-neutral display name from the raw table name
+      // (Hard Rule #2/#3: no hardcoded, tenant/language-specific labels here).
+      const humanize = (t: string) =>
+        (t || '')
+          .replace(/^csv_/, '')
+          .replace(/_/g, ' ')
+          .replace(/\b\w/g, c => c.toUpperCase())
+          .trim();
 
       return result.rows.map(row => ({
         table: row.source_table,
         count: parseInt(row.cnt),
-        displayName: tableDisplayNames[row.source_table] || row.source_table
+        displayName: humanize(row.source_table)
       }));
     } catch (error) {
       console.error('Error fetching data source stats:', error);
@@ -621,39 +617,34 @@ class QuestionGenerationService {
     categories?: string[];
     sampleContent?: string;
     dataSourceStats?: { table: string; count: number; displayName: string }[];
+    language?: string;
   }, count: number = 15): Promise<string[]> {
-    console.log(`[QuestionGen] generateLLMQuestionsEnriched called`);
+    const language = (context.language || 'en').toLowerCase();
+    const langName = this.languageName(language);
+    console.log(`[QuestionGen] generateLLMQuestionsEnriched called (lang=${language})`);
     try {
-      // Build rich context description
-      let contextDesc = `Bu sistem aşağıdaki vergi ve hukuk kaynaklarına erişim sağlar:\n\n`;
+      // Build a domain-neutral context description from the real data sources
+      // (no hardcoded domain/vocabulary — Hard Rule #2/#3).
+      let contextDesc = `This assistant answers questions grounded in the following knowledge sources:\n\n`;
 
       if (context.dataSourceStats && context.dataSourceStats.length > 0) {
         context.dataSourceStats.forEach(source => {
-          contextDesc += `• ${source.displayName}: ${source.count.toLocaleString('tr-TR')} kayıt\n`;
+          contextDesc += `• ${source.displayName}: ${source.count.toLocaleString('en-US')} records\n`;
         });
       }
 
-      const prompt = `Sen Türkiye'nin önde gelen vergi danışmanlık platformunun soru öneri asistanısın.
+      const prompt = `You are the suggested-questions assistant for a retrieval-augmented knowledge assistant.
 
 ${contextDesc}
+Propose ${count} specific, professional example questions a user could ask this system, based ONLY on the domains and sources listed above. Infer the subject matter from the source names — do not assume any particular country or field.
 
-Kullanıcılar bu kapsamlı veritabanını kullanarak vergi sorunlarına cevap arıyor.
+Each question must:
+- Be specific and answerable from these sources (not generic small-talk).
+- Cover diverse angles (definitions, procedures, conditions/requirements, comparisons, references).
+- Be written entirely in ${langName}.
+- Be a single, well-formed question, no numbering or commentary.
 
-Lütfen GERÇEK VERGİ SORUNLARINA dayalı ${count} adet ETKİLEYİCİ ve PROFESYONEL soru öner:
-
-Soru türleri (karışık olmalı):
-1. DANIŞTAY KARARLARI: "Danıştay hangi durumlarda KDV iadesini reddetti?", "Vergi kaçakçılığında emsal kararlar nelerdir?"
-2. ÖZELGELER: "Gayrimenkul satışında tapu harcı hesaplaması nasıl yapılır?", "E-fatura zorunluluğu hangi mükellefleri kapsıyor?"
-3. PRATİK SORULAR: "Limited şirket kar dağıtımında vergi avantajları nelerdir?", "Serbest meslek kazançlarında indirilecek giderler nelerdir?"
-4. GÜNCEL KONULAR: "2024 yılı vergi takvimi nasıl?", "Enflasyon düzeltmesi nasıl uygulanır?"
-
-Her soru:
-- Spesifik ve profesyonel olmalı (genel değil)
-- Gerçek bir vergi sorununun çözümüne yönelik olmalı
-- Türkiye vergi mevzuatına uygun olmalı
-- Türkçe ve düzgün formatta olmalı
-
-SADECE soruları listele, her satırda bir soru:`;
+Output ONLY the questions, one per line.`;
 
       console.log(`[QuestionGen] Calling LLM with enriched prompt...`);
       const result = await this.llmManager.generateChatResponse(prompt, {
@@ -667,8 +658,28 @@ SADECE soruları listele, her satırda bir soru:`;
       return questions;
     } catch (error) {
       console.error('[QuestionGen] Error generating enriched questions:', error);
-      // Fallback to original method
-      return this.generateLLMQuestions(context, count);
+      // No Turkish/hardcoded fallback — return empty so callers keep other tiers.
+      return [];
+    }
+  }
+
+  /**
+   * Detect the dominant language of a question (Arabic script / Turkish-specific
+   * letters+words / else English). Kept simple and self-contained.
+   */
+  private detectLanguage(text: string): 'ar' | 'tr' | 'en' {
+    if (!text) return 'en';
+    if (/[؀-ۿ]/.test(text)) return 'ar';
+    if (/[ğışİ]/.test(text) || /\b(nedir|nasıl|nelerdir|midir|mıdır|hangi|için|kaçtır)\b/i.test(text)) return 'tr';
+    return 'en';
+  }
+
+  /** Human-readable language name for LLM instructions. */
+  private languageName(code: string): string {
+    switch ((code || 'en').toLowerCase()) {
+      case 'ar': return 'Arabic (Modern Standard Arabic)';
+      case 'tr': return 'Turkish';
+      default: return 'English';
     }
   }
 
@@ -899,7 +910,7 @@ Sadece soruları listele, her satırda bir soru. Numaralandırma veya açıklama
   /**
    * Add a user question to the pool if it's quality
    */
-  async addToUserQuestionPool(question: string, source: string = 'user_chat'): Promise<boolean> {
+  async addToUserQuestionPool(question: string, source: string = 'user_chat', language?: string): Promise<boolean> {
     try {
       const qualityCheck = this.isQualityQuestion(question);
 
@@ -910,22 +921,29 @@ Sadece soruları listele, her satırda bir soru. Numaralandırma veya açıklama
 
       const trimmed = question.trim();
       const hash = crypto.createHash('md5').update(trimmed.toLowerCase()).digest('hex');
+      // Detect the real language instead of hardcoding 'tr' (Hard Rule #3),
+      // so the suggestion pool can be filtered by the active answer language.
+      const lang = (language || this.detectLanguage(trimmed)).toLowerCase();
 
       // Insert or ignore if exists
       await lsembPool.query(`
         INSERT INTO user_question_pool (question, question_hash, source, quality_score, language)
-        VALUES ($1, $2, $3, $4, 'tr')
+        VALUES ($1, $2, $3, $4, $5)
         ON CONFLICT (question_hash) DO UPDATE SET
           usage_count = user_question_pool.usage_count,
           updated_at = CURRENT_TIMESTAMP
-      `, [trimmed, hash, source, qualityCheck.score]);
+      `, [trimmed, hash, source, qualityCheck.score, lang]);
 
       console.log(`[QuestionPool] Added: "${trimmed.substring(0, 50)}..." (score: ${qualityCheck.score})`);
 
-      // Invalidate Redis cache to include new question
+      // Invalidate Redis cache to include new question (both the welcome-pool and
+      // the per-language simple-suggestions pools used by the /suggest panel).
       try {
         const { redis } = await import('../config/redis');
-        const keys = await redis.keys('suggestions:*');
+        const keys = [
+          ...(await redis.keys('suggestions:*')),
+          ...(await redis.keys('simple_suggestions:*')),
+        ];
         if (keys.length > 0) {
           await redis.del(...keys);
           console.log(`[QuestionPool] Cleared ${keys.length} suggestion cache keys`);
@@ -944,19 +962,26 @@ Sadece soruları listele, her satırda bir soru. Numaralandırma veya açıklama
   /**
    * Get questions from user pool for suggestions
    */
-  async getUserPoolQuestions(limit: number = 20): Promise<string[]> {
+  async getUserPoolQuestions(limit: number = 20, language?: string): Promise<string[]> {
     try {
+      const params: any[] = [limit];
+      let langClause = '';
+      if (language) {
+        langClause = 'AND language = $2';
+        params.push(language.toLowerCase());
+      }
       const result = await lsembPool.query(`
         SELECT question
         FROM user_question_pool
         WHERE is_active = true
           AND quality_score >= 0.5
+          ${langClause}
         ORDER BY
           quality_score DESC,
           click_count DESC,
           created_at DESC
         LIMIT $1
-      `, [limit]);
+      `, params);
 
       return result.rows.map(row => row.question);
     } catch (error) {
@@ -1011,12 +1036,14 @@ Sadece soruları listele, her satırda bir soru. Numaralandırma veya açıklama
    *
    * All questions are verified by LLM for quality and relevance
    */
-  async generateSimpleSuggestions(schemaName: string, count: number = 25): Promise<string[]> {
-    console.log(`[Suggestions] generateSimpleSuggestions called for schema: ${schemaName}, count: ${count}`);
+  async generateSimpleSuggestions(schemaName: string, count: number = 25, language: string = 'en'): Promise<string[]> {
+    const lang = (language || 'en').toLowerCase();
+    console.log(`[Suggestions] generateSimpleSuggestions called for schema: ${schemaName}, count: ${count}, lang: ${lang}`);
 
     try {
       const { redis } = await import('../config/redis');
-      const redisKey = `simple_suggestions:${schemaName}`;
+      // Cache per language so switching the answer language yields the right pool.
+      const redisKey = `simple_suggestions:${schemaName}:${lang}`;
 
       // Try Redis cache first
       const cached = await redis.get(redisKey);
@@ -1036,8 +1063,8 @@ Sadece soruları listele, her satırda bir soru. Numaralandırma veya açıklama
         console.log(`[Suggestions] Added ${schemaQuestions.length} schema questions`);
       }
 
-      // Tier 2: User pool questions
-      const userPoolQuestions = await this.getUserPoolQuestions(20);
+      // Tier 2: User pool questions (only in the active answer language)
+      const userPoolQuestions = await this.getUserPoolQuestions(20, lang);
       if (userPoolQuestions.length > 0) {
         // Add user questions that aren't already in schema questions
         const schemaSet = new Set(schemaQuestions.map(q => q.toLowerCase().trim()));
@@ -1058,7 +1085,8 @@ Sadece soruları listele, her satırda bir soru. Numaralandırma veya açıklama
           const dataSourceStats = await this.getDataSourceStats();
           const llmQuestions = await this.generateLLMQuestionsEnriched({
             schemaName,
-            dataSourceStats
+            dataSourceStats,
+            language: lang
           }, llmCount);
 
           // Filter out duplicates

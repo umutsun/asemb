@@ -408,10 +408,29 @@ router.get('/api/v2/chat/suggestions', authenticateToken, async (req: Authentica
       }
     }
 
-    // Generate suggestions using simplified 2-tier system
-    const suggestions = await questionGenerationService.generateSimpleSuggestions(schemaName, suggestionCount);
+    // Resolve the effective suggestion language from settings so suggestions match
+    // the demo's chosen answer language (response_language, or autoDefaultLanguage
+    // when set to 'auto'). Defaults to English. (Hard Rule #1: settings-driven.)
+    let suggestionLang = 'en';
+    try {
+      const langRes = await dbConfig.query(
+        `SELECT key, value FROM settings WHERE key IN ('response_language', 'ragSettings.autoDefaultLanguage')`
+      );
+      const m: Record<string, string> = {};
+      for (const r of langRes.rows) {
+        m[r.key] = typeof r.value === 'string' ? r.value.replace(/^"|"$/g, '') : String(r.value ?? '');
+      }
+      const resp = (m['response_language'] || 'auto').toLowerCase();
+      suggestionLang = (resp === 'auto' || !resp) ? (m['ragSettings.autoDefaultLanguage'] || 'en').toLowerCase() : resp;
+      if (!['en', 'ar', 'tr'].includes(suggestionLang)) suggestionLang = 'en';
+    } catch (e) {
+      // default 'en'
+    }
 
-    console.log(`[Suggestions] Returning ${suggestions.length} suggestions for schema: ${schemaName}`);
+    // Generate suggestions using the tiered, language-aware system
+    const suggestions = await questionGenerationService.generateSimpleSuggestions(schemaName, suggestionCount, suggestionLang);
+
+    console.log(`[Suggestions] Returning ${suggestions.length} suggestions for schema: ${schemaName} (lang=${suggestionLang})`);
     res.json({ suggestions });
   } catch (error: any) {
     console.error('Get suggestions error:', error);

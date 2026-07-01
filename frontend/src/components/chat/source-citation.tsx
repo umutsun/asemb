@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Source } from '@/types/chat';
 import { ChevronDown, ChevronUp, Plus, MessageSquareText } from 'lucide-react';
 import { stripHtml } from '@/utils/html-utils';
@@ -18,8 +19,13 @@ interface SourceCitationProps {
  * Uses Turkish morphological suffix patterns to split concatenated words.
  * Works with both uppercase and lowercase text (case insensitive).
  */
-function cleanCitationText(text: string): string {
+function cleanCitationText(text: string, lng?: string): string {
   if (!text) return '';
+
+  // The suffix/morphology rules below are Turkish-specific and can corrupt
+  // legitimate English (primary) or Arabic (secondary) titles. Only run them for
+  // Turkish; otherwise just trim. Default (no lng) preserves original behavior.
+  if (lng && lng !== 'tr') return text.trim();
 
   let result = text;
 
@@ -100,114 +106,116 @@ export function SourceCitation({ sources, onLoadMore, hasMore = false, showLoadM
   if (!sources || sources.length === 0) return null;
 
   const [showAllSources, setShowAllSources] = useState(false);
+  const { t, i18n } = useTranslation();
   const initialSourcesToShow = 7;
   const sourcesToDisplay = showAllSources ? sources : sources.slice(0, initialSourcesToShow);
 
-  // Helper to map source table to display name with hierarchy and marker color
+  // Helper to map source table to display name with hierarchy and marker color.
+  // Labels are i18n keys (sourceTypes.*) resolved via t() so they localize (EN/AR/...).
   const getSourceTypeInfo = (sourceTable?: string, category?: string) => {
-    if (!sourceTable && !category) return { label: 'Source', weight: 0, markerClass: 'marker-cyan' };
+    const fallback = { labelKey: 'sourceTypes.source', weight: 0, markerClass: 'marker-cyan' };
+
+    // Source type hierarchy with weights and marker colors
+    const typeMap: Record<string, { labelKey: string; weight: number; markerClass: string }> = {
+      'kanun': { labelKey: 'sourceTypes.law', weight: 100, markerClass: 'marker-purple' },
+      'teblig': { labelKey: 'sourceTypes.notice', weight: 95, markerClass: 'marker-cyan' },
+      'tebliğ': { labelKey: 'sourceTypes.notice', weight: 95, markerClass: 'marker-cyan' },
+      'yonetmelik': { labelKey: 'sourceTypes.regulation', weight: 95, markerClass: 'marker-cyan' },
+      'sirkuler': { labelKey: 'sourceTypes.circular', weight: 90, markerClass: 'marker-pink' },
+      'ozelge': { labelKey: 'sourceTypes.taxRuling', weight: 75, markerClass: 'marker-yellow' },
+      'danistay': { labelKey: 'sourceTypes.councilDecision', weight: 70, markerClass: 'marker-orange' },
+      'danistaykararlari': { labelKey: 'sourceTypes.councilDecision', weight: 70, markerClass: 'marker-orange' },
+      'makale': { labelKey: 'sourceTypes.article', weight: 50, markerClass: 'marker-green' },
+      'sorucevap': { labelKey: 'sourceTypes.qa', weight: 50, markerClass: 'marker-green' },
+      'hukdkk': { labelKey: 'sourceTypes.legalAssessment', weight: 60, markerClass: 'marker-cyan' },
+      'genelyazi': { labelKey: 'sourceTypes.generalLetter', weight: 65, markerClass: 'marker-yellow' },
+      'genelyazı': { labelKey: 'sourceTypes.generalLetter', weight: 65, markerClass: 'marker-yellow' },
+      // Multimodal cross-modal (CLIP) media results
+      'mediaembeddings': { labelKey: 'sourceTypes.media', weight: 55, markerClass: 'marker-pink' }
+    };
+
+    const resolve = (entry: { labelKey: string; weight: number; markerClass: string }) =>
+      ({ label: t(entry.labelKey), weight: entry.weight, markerClass: entry.markerClass });
+
+    if (!sourceTable && !category) return resolve(fallback);
 
     const sourceStr = (sourceTable || category || '').toLowerCase()
       .replace(/^csv_/, '')
       .replace(/_/g, '')
       .replace(/arsiv.*/, '');  // "makale_arsiv_2021" -> "makale"
 
-    // Source type hierarchy with weights and marker colors
-    const typeMap: Record<string, { label: string; weight: number; markerClass: string }> = {
-      'kanun': { label: 'Law/Legislation', weight: 100, markerClass: 'marker-purple' },
-      'teblig': { label: 'Notice/Regulation', weight: 95, markerClass: 'marker-cyan' },
-      'tebliğ': { label: 'Notice/Regulation', weight: 95, markerClass: 'marker-cyan' },
-      'yonetmelik': { label: 'Regulation', weight: 95, markerClass: 'marker-cyan' },
-      'sirkuler': { label: 'Circular', weight: 90, markerClass: 'marker-pink' },
-      'ozelge': { label: 'Tax Ruling', weight: 75, markerClass: 'marker-yellow' },
-      'danistay': { label: 'Council of State Decision', weight: 70, markerClass: 'marker-orange' },
-      'danistaykararlari': { label: 'Council of State Decision', weight: 70, markerClass: 'marker-orange' },
-      'makale': { label: 'Article', weight: 50, markerClass: 'marker-green' },
-      'sorucevap': { label: 'Q&A', weight: 50, markerClass: 'marker-green' },
-      'hukdkk': { label: 'Legal Assessment', weight: 60, markerClass: 'marker-cyan' },
-      'genelyazi': { label: 'General Letter', weight: 65, markerClass: 'marker-yellow' },
-      'genelyazı': { label: 'General Letter', weight: 65, markerClass: 'marker-yellow' }
-    };
-
     // Try exact match first
     if (typeMap[sourceStr]) {
-      return typeMap[sourceStr];
+      return resolve(typeMap[sourceStr]);
     }
 
     // Try partial match
     for (const [key, value] of Object.entries(typeMap)) {
       if (sourceStr.includes(key) || key.includes(sourceStr)) {
-        return value;
+        return resolve(value);
       }
     }
 
     // Fallback
-    return { label: 'Source', weight: 0, markerClass: 'marker-cyan' };
+    return resolve(fallback);
   };
 
-  // Generate a follow-up question based on the excerpt
+  // Generate a follow-up question from a source excerpt. Language-neutral: it
+  // recognises signal words in English (primary) as well as Turkish, and always
+  // produces a clean English question (Hard Rule #3). No Turkish-only logic.
   const generateFollowUpQuestion = (excerpt: string, title: string): string => {
-    const excerptText = excerpt.toLowerCase();
-    const hasPercentage = excerptText.includes('%');
-    const hasCondition = excerptText.includes('şart') || excerptText.includes('koşul') || excerptText.includes('gerektirir');
-    const hasException = excerptText.includes('muaf') || excerptText.includes('istisna');
+    const text = excerpt.toLowerCase();
+    const hasPercentage = /\d+(?:\.\d+)?\s*%/.test(excerpt) || /\b(rate|per ?cent|yüzde)\b/.test(text);
+    const hasCondition = /(condition|require|requirement|eligib|criteria|şart|koşul|gerek)/.test(text);
+    const hasException = /(exempt|exception|exclu|waiver|muaf|istisna)/.test(text);
+    const hasDeadline = /(deadline|due date|within\s+\d|period|süre|tarih)/.test(text);
 
-    const sentences = excerpt.split('.').filter(s => s.trim().length > 20);
+    const sentences = excerpt.split(/[.!?]/).map(s => s.trim()).filter(s => s.length > 20);
+    const stop = new Set([
+      'this', 'that', 'with', 'from', 'which', 'under', 'shall', 'their', 'there', 'about',
+      'the', 'and', 'for', 'are', 'was', 'were', 'have', 'has', 'been',
+      'için', 'hakkında', 'ile', 'göre', 'kadar', 'üzerinde', 'olan', 'olarak'
+    ]);
 
-    if (sentences.length > 0) {
-      const firstSentence = sentences[0].trim();
+    const keyTerm = (): string => {
+      const src = (sentences[0] || title || '').replace(/["'()]/g, ' ');
+      const words = src
+        .split(/\s+/)
+        .map(w => w.replace(/[^\p{L}\p{N}-]/gu, ''))
+        .filter(w => w.length > 4 && !stop.has(w.toLowerCase()));
+      return words.slice(0, 3).join(' ');
+    };
 
-      if (hasPercentage) {
-        const percentageMatch = excerptText.match(/\d+%?/);
-        if (percentageMatch) {
-          return `What are the conditions for applying the ${percentageMatch[0]} rate?`;
-        }
-      }
-
-      if (hasCondition) {
-        const keyWords = firstSentence.split(' ').filter(w => w.length > 5).slice(0, 2);
-        if (keyWords.length > 0) {
-          return `What are the requirements for ${keyWords[0]}?`;
-        }
-      }
-
-      if (hasException) {
-        return 'What are the exceptions in this case?';
-      }
-
-      const words = firstSentence.split(' ');
-      const subjectWords = [];
-
-      for (let i = 3; i < words.length; i++) {
-        const word = words[i].toLowerCase().replace(/[^\w]/g, '');
-        if (word.length > 4 && !['için', 'hakkında', 'ile', 'göre', 'kadar', 'üzerinde', 'olan', 'olarak'].includes(word)) {
-          subjectWords.push(word);
-          if (subjectWords.length >= 2) break;
-        }
-      }
-
-      if (subjectWords.length > 0) {
-        const subject = subjectWords.join(' ').charAt(0).toUpperCase() + subjectWords.join(' ').slice(1);
-        return `More details about ${subject}`;
-      }
+    if (hasPercentage) {
+      const pm = excerpt.match(/\d+(?:\.\d+)?\s*%/);
+      return pm
+        ? `What are the conditions for applying the ${pm[0].replace(/\s+/g, '')} rate?`
+        : 'How is the applicable rate determined here?';
+    }
+    if (hasException) return 'What exemptions or exceptions apply in this case?';
+    if (hasCondition) {
+      const k = keyTerm();
+      return k ? `What are the requirements for ${k}?` : 'What are the requirements in this case?';
+    }
+    if (hasDeadline) {
+      const k = keyTerm();
+      return k ? `What are the deadlines related to ${k}?` : 'What deadlines apply here?';
     }
 
-    if (title) {
-      const titleWords = title.split(' ').filter(w => w.length > 4);
-      if (titleWords.length > 0) {
-        const mainWord = titleWords[0].replace(/[^\w]/g, '');
-        return `What is ${mainWord.charAt(0).toUpperCase() + mainWord.slice(1)}?`;
-      }
-    }
+    const k = keyTerm();
+    if (k) return `Can you explain more about ${k}?`;
 
-    return 'More information about this topic';
+    const titleWord = (title || '').replace(/["'()]/g, ' ').split(/\s+/).find(w => w.length > 4);
+    if (titleWord) return `What does ${titleWord.replace(/[^\p{L}\p{N}-]/gu, '')} cover?`;
+
+    return 'Can you give more details on this?';
   };
 
   return (
     <div className="mt-4 pt-3 border-t border-white/5">
       <div className="flex items-center gap-2 mb-2">
         <span className="text-[11px] font-medium text-gray-400">
-          Citations ({sources.length} sources)
+          {t('citationPanel.label', { count: sources.length })}
         </span>
       </div>
       <div className="space-y-1">
@@ -218,9 +226,9 @@ export function SourceCitation({ sources, onLoadMore, hasMore = false, showLoadM
 
           // First try metadata fields (baslik, konusu)
           if (source.metadata?.baslik) {
-            displayTitle = cleanCitationText(stripHtml(source.metadata.baslik));
+            displayTitle = cleanCitationText(stripHtml(source.metadata.baslik), i18n.language);
           } else if (source.metadata?.konusu) {
-            displayTitle = cleanCitationText(stripHtml(source.metadata.konusu));
+            displayTitle = cleanCitationText(stripHtml(source.metadata.konusu), i18n.language);
           } else {
             // Fall back to citation/title
             const rawTitle = stripHtml(source.citation || source.title || '');
@@ -246,7 +254,7 @@ export function SourceCitation({ sources, onLoadMore, hasMore = false, showLoadM
           }
 
           // Clean up title - fix concatenated text + general cleanup
-          displayTitle = cleanCitationText(displayTitle)
+          displayTitle = cleanCitationText(displayTitle, i18n.language)
             .replace(/Danıştay Kararları$/i, '')
             .replace(/^\s*[-•]\s*/, '')
             .trim() || 'Source';
@@ -285,6 +293,19 @@ export function SourceCitation({ sources, onLoadMore, hasMore = false, showLoadM
                 <p className="text-sm text-gray-200 leading-snug line-clamp-2 mb-2">
                   {displayTitle}
                 </p>
+
+                {/* Media thumbnail (cross-modal results). Renders only when the backend
+                    supplies a servable thumbnail_url; safe no-op otherwise. */}
+                {(source.metadata?.media_type === 'image' || source.metadata?.media_type === 'video')
+                  && source.metadata?.thumbnail_url && (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={String(source.metadata.thumbnail_url)}
+                    alt={displayTitle}
+                    className="w-full max-w-[180px] h-auto rounded-md border border-white/10 mb-2 object-cover"
+                    loading="lazy"
+                  />
+                )}
 
                 {/* Metadata - Show all relevant fields */}
                 {source.metadata && Object.keys(source.metadata).length > 0 && (
@@ -325,7 +346,7 @@ export function SourceCitation({ sources, onLoadMore, hasMore = false, showLoadM
                 {/* Excerpt - fixed display with follow-up button */}
                 {(() => {
                   if (!source.excerpt) return null;
-                  const excerpt = cleanCitationText(stripHtml(source.excerpt));
+                  const excerpt = cleanCitationText(stripHtml(source.excerpt), i18n.language);
                   // Only show if different from title
                   if (excerpt && excerpt.length > 20 && !displayTitle.includes(excerpt.slice(0, 50)) && !excerpt.includes(displayTitle.slice(0, 50))) {
                     return (
@@ -343,10 +364,10 @@ export function SourceCitation({ sources, onLoadMore, hasMore = false, showLoadM
                               onExcerptClick(question);
                             }}
                             className="flex items-center gap-1 mt-1.5 text-[10px] text-purple-400 hover:text-purple-300 transition-colors"
-                            title="Ask a question about this topic"
+                            title={t('citationPanel.askQuestionTooltip')}
                           >
                             <MessageSquareText className="w-3 h-3" />
-                            Ask question
+                            {t('citationPanel.askQuestion')}
                           </button>
                         )}
                       </div>
@@ -414,7 +435,7 @@ export function SourceCitation({ sources, onLoadMore, hasMore = false, showLoadM
               className="flex items-center gap-2 mx-auto text-xs px-3 py-1.5 text-gray-400 hover:text-gray-300 transition-colors"
             >
               <ChevronDown className="w-3 h-3" />
-              {sources.length - initialSourcesToShow} more sources
+              {t('citationPanel.moreSources', { count: sources.length - initialSourcesToShow })}
             </button>
           ) : (
             <button
@@ -422,7 +443,7 @@ export function SourceCitation({ sources, onLoadMore, hasMore = false, showLoadM
               className="flex items-center gap-2 mx-auto text-xs px-3 py-1.5 text-gray-400 hover:text-gray-300 transition-colors"
             >
               <ChevronUp className="w-3 h-3" />
-              Show less
+              {t('citationPanel.showLess')}
             </button>
           )}
         </div>
@@ -436,7 +457,7 @@ export function SourceCitation({ sources, onLoadMore, hasMore = false, showLoadM
             className="flex items-center gap-2 mx-auto text-xs px-3 py-1.5 text-purple-400 hover:text-purple-300 transition-colors"
           >
             <Plus className="w-3 h-3" />
-            Load more sources
+            {t('citationPanel.loadMore')}
           </button>
         </div>
       )}

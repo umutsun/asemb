@@ -64,10 +64,10 @@ const ModernWelcome = memo(function ModernWelcome({
                 </motion.div>
 
                 <h2 className="text-xl sm:text-2xl md:text-3xl font-semibold tracking-tight mb-2 sm:mb-3 modern-text">
-                    {chatbotSettings.greeting || t('chat.greeting', 'Merhaba')}, {displayName}
+                    {chatbotSettings.greeting || t('chat.greeting', 'Welcome')}, {displayName}
                 </h2>
                 <p className="modern-text-secondary max-w-md mx-auto text-sm leading-relaxed">
-                    {chatbotSettings.welcomeMessage || t('chat.welcomeMessage', 'Size nasıl yardımcı olabilirim?')}
+                    {chatbotSettings.welcomeMessage || t('chat.welcomeMessage', 'How can I help you?')}
                 </p>
             </motion.div>
 

@@ -20,10 +20,10 @@ export const ZenWelcome: React.FC<ZenWelcomeProps> = ({
     <div className="zen01-welcome zen01-slide-up">
       {/* Animated Title */}
       <h1 className="zen01-welcome-title">
-        {chatbotSettings.greeting || t('chat.greeting', 'Merhaba')}, {displayName}
+        {chatbotSettings.greeting || t('chat.greeting', 'Welcome')}, {displayName}
       </h1>
       <p className="zen01-welcome-subtitle text-slate-600 dark:text-slate-400">
-        {chatbotSettings.welcomeMessage || t('chat.welcomeMessage', 'Size nasıl yardımcı olabilirim?')}
+        {chatbotSettings.welcomeMessage || t('chat.welcomeMessage', 'How can I help you?')}
       </p>
     </div>
   );
