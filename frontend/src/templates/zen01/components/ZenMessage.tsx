@@ -713,6 +713,11 @@ export const ZenMessage: React.FC<ZenMessageProps> = ({
                     'unified': { label: 'Archive Document', weight: 35, markerClass: 'zen01-marker-slate' },
                     'unifiedembeddings': { label: 'Archive Document', weight: 35, markerClass: 'zen01-marker-slate' },
                     'embeddings': { label: 'Data Source', weight: 30, markerClass: 'zen01-marker-slate' },
+                    // UAE corpus source tables (domain-agnostic RAG data)
+                    'uaelegislation': { label: 'Legislation', weight: 100, markerClass: 'zen01-marker-purple' },
+                    'uaegovservices': { label: 'Government Service', weight: 60, markerClass: 'zen01-marker-blue' },
+                    'documentembeddings': { label: 'Document', weight: 40, markerClass: 'zen01-marker-slate' },
+                    'webpage': { label: 'Web Page', weight: 40, markerClass: 'zen01-marker-blue' },
                     // Calendar/schedule items
                     'pratik': { label: 'Practical Info', weight: 45, markerClass: 'zen01-marker-amber' },
                     'takvim': { label: 'Tax Calendar', weight: 45, markerClass: 'zen01-marker-amber' },
@@ -803,10 +808,18 @@ export const ZenMessage: React.FC<ZenMessageProps> = ({
 
                   // Get content for the body
                   const raw = source.summary || source.excerpt || source.content || '';
-                  const cleaned = cleanCitationTitle(raw)
+                  let cleaned = cleanCitationTitle(raw)
                     .replace(/^(KONU|İLGİ|SORU|CEVAP|Dilekçenizde|konusu|VERGİ\s*Sİ\s*KANUNU[^.]*\.)[:.\s]*/gi, '')
                     .replace(/\.{2,}/g, '.')
                     .trim();
+                  // Chunk boundaries sometimes cut mid-word (e.g. "iability Company ..." from
+                  // "Liability"); when the excerpt starts with a lowercase fragment, drop it so
+                  // the citation reads from a clean word/sentence start. (ASCII-only: leaves
+                  // Arabic and other scripts untouched.)
+                  if (/^[a-z]/.test(cleaned)) {
+                    const sp = cleaned.indexOf(' ');
+                    if (sp > 0 && sp <= 16) cleaned = cleaned.slice(sp + 1).trimStart();
+                  }
 
                   // If konu is good and different from content, prefix it
                   let combined = '';
@@ -831,6 +844,17 @@ export const ZenMessage: React.FC<ZenMessageProps> = ({
                 };
 
                 const description = getDescription();
+
+                // Source name / origin — show WHERE the citation came from (law name,
+                // document title, or the domain it was crawled from), not just a type badge.
+                const sourceName = cleanCitationTitle(String(
+                  meta?.source_name || meta?.law_name || meta?.title || meta?.baslik
+                    || (source as any).title || (source as any).citation || ''
+                )).replace(/\.pdf$/i, '').replace(/\s*[-–]\s*ID:\s*\d+.*$/i, '').replace(/_/g, ' ').trim();
+                let originLabel = sourceName;
+                if (!originLabel && meta?.url) {
+                  try { originLabel = new URL(meta.url).hostname.replace(/^www\./, ''); } catch { /* ignore */ }
+                }
 
                 return (
                   <div
@@ -865,6 +889,13 @@ export const ZenMessage: React.FC<ZenMessageProps> = ({
                         </span>
                       )}
                     </div>
+
+                    {/* Source name / origin (law name, document title, or crawl domain) */}
+                    {originLabel && originLabel.length > 2 && (
+                      <p className="text-[11px] font-medium text-slate-700 dark:text-slate-200 mb-1 line-clamp-1" title={originLabel}>
+                        {originLabel}
+                      </p>
+                    )}
 
                     {/* Single clean description paragraph */}
                     {description && description.length > 15 && (
