@@ -10,7 +10,7 @@ Redis DB from REDIS_DB env (set by the backend that spawns this).
 """
 import os, sys, re, json, time, hashlib, unicodedata
 from collections import deque
-from urllib.parse import urljoin, urldefrag
+from urllib.parse import urljoin, urldefrag, urlparse
 
 import requests
 from bs4 import BeautifulSoup
@@ -25,8 +25,20 @@ DELAY_S = float(os.getenv("CRAWL_DELAY_S", "0.8"))
 UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
       "(KHTML, like Gecko) Chrome/124.0 Safari/537.36")
 
-PREFIXES = ("https://u.ae/en/", "https://u.ae/ar/")
 SKIP = re.compile(r"/(search|help|sitemap|contact|feedback|login|register|rss|share|media-hub)", re.I)
+
+
+def scope_for(seed):
+    """Derive the crawl scope from the seed URL so this crawler works for ANY site
+    (u.ae, mof.gov.ae, dmcc.ae, dda.gov.ae, dfsa.ae, ...), not just u.ae."""
+    p = urlparse(seed)
+    if p.scheme in ("http", "https") and p.netloc:
+        return (f"{p.scheme}://{p.netloc}/",), [seed]
+    # fallback: the original u.ae behavior
+    return ("https://u.ae/en/", "https://u.ae/ar/"), [
+        "https://u.ae/en/information-and-services",
+        "https://u.ae/ar/information-and-services",
+    ]
 
 
 def slugify(url):
@@ -61,16 +73,15 @@ def main():
     print(f"[uae_gov] start seed={seed} crawler={crawler_name} redis_db={REDIS_DB} max={MAX_PAGES}", flush=True)
 
     sess = requests.Session(); sess.headers.update({"User-Agent": UA})
-    seeds = [seed] if seed.startswith(PREFIXES) else [
-        "https://u.ae/en/information-and-services",
-        "https://u.ae/ar/information-and-services",
-    ]
+    prefixes, seeds = scope_for(seed)
+    site = urlparse(seeds[0]).netloc
+    print(f"[crawler] scope={prefixes} seeds={seeds}", flush=True)
     visited, queued, saved = set(), set(seeds), 0
     q = deque(seeds)
     r.set(f"crawl4ai:{crawler_name}:_state", json.dumps({"status": "running", "startedAt": time.strftime("%Y-%m-%dT%H:%M:%SZ")}))
     while q and saved < MAX_PAGES:
         url = q.popleft()
-        if url in visited or SKIP.search(url) or not url.startswith(PREFIXES):
+        if url in visited or SKIP.search(url) or not url.startswith(prefixes):
             continue
         visited.add(url)
         try:
@@ -81,15 +92,15 @@ def main():
         except Exception as e:
             print(f"  skip {url}: {type(e).__name__}", flush=True); continue
         if len(text) >= MIN_CHARS:
-            lang = "ar" if url.startswith("https://u.ae/ar/") else "en"
+            lang = "ar" if "/ar/" in url or "/ar" == urlparse(url).path.rstrip("/")[-3:] else "en"
             item = {"title": title[:200], "content": text, "url": url,
                     "scrapedAt": time.strftime("%Y-%m-%dT%H:%M:%SZ"),
-                    "metadata": {"lang": lang, "source": "u.ae", "length": len(text)}}
+                    "metadata": {"lang": lang, "source": site, "length": len(text)}}
             r.set(f"crawl4ai:{crawler_name}:{slugify(url)}", json.dumps(item, ensure_ascii=False))
             saved += 1
             print(f"[{saved}] {len(text)}c {title[:60]}", flush=True)
         for l in links:
-            if l.startswith(PREFIXES) and l not in visited and l not in queued and not SKIP.search(l):
+            if l.startswith(prefixes) and l not in visited and l not in queued and not SKIP.search(l):
                 queued.add(l); q.append(l)
         time.sleep(DELAY_S)
     r.set(f"crawl4ai:{crawler_name}:_state", json.dumps({"status": "completed", "items": saved, "finishedAt": time.strftime("%Y-%m-%dT%H:%M:%SZ")}))
