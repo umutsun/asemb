@@ -65,6 +65,29 @@ router.get('/graph', async (req: Request, res: Response) => {
   }
 });
 
+// Source coverage: the corpus grouped by ORIGIN DOMAIN (from metadata.url), with the
+// number of distinct laws/documents + chunks + language split. Accurate + live — meant
+// to replace stale hand-made chunk-count tables. (GET /api/v2/dashboard/source-coverage)
+router.get('/source-coverage', async (_req: Request, res: Response) => {
+  try {
+    const r = await lsembPool.query(`
+      SELECT COALESCE(NULLIF(split_part(split_part(metadata->>'url','://',2),'/',1), ''), source_table) AS domain,
+             count(DISTINCT source_name)::int AS laws,
+             count(*)::int AS chunks,
+             count(*) FILTER (WHERE metadata->>'lang'='ar')::int AS ar,
+             count(*) FILTER (WHERE metadata->>'lang'='en')::int AS en,
+             max(updated_at) AS last_updated
+      FROM unified_embeddings
+      GROUP BY 1
+      ORDER BY chunks DESC`);
+    const total_chunks = r.rows.reduce((s: number, x: any) => s + Number(x.chunks), 0);
+    res.json({ total_chunks, total_domains: r.rows.length, domains: r.rows });
+  } catch (e: any) {
+    console.error('[dashboard/source-coverage]', e?.message);
+    res.status(500).json({ error: 'Failed to build source coverage' });
+  }
+});
+
 // Dashboard stats endpoint
 router.get('/stats', authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
   try {

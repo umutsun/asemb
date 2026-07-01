@@ -74,9 +74,10 @@ export default function DataOverviewPage() {
   const [kg, setKg] = useState<Loaded<any>>({ data: null, ok: false });
   const [progress, setProgress] = useState<Loaded<any>>({ data: null, ok: false });
   const [health, setHealth] = useState<Loaded<any>>({ data: null, ok: false });
+  const [coverage, setCoverage] = useState<Loaded<any>>({ data: null, ok: false });
 
   const load = useCallback(async () => {
-    const [c, d, cr, sc, k, pr, h] = await Promise.all([
+    const [c, d, cr, sc, k, pr, h, cov] = await Promise.all([
       getJson(`${base}/api/v2/embeddings/stats`),
       getJson(`${base}/api/v2/documents/stats`),
       getJson(`${base}/api/v2/crawler/crawler-directories`),
@@ -84,8 +85,9 @@ export default function DataOverviewPage() {
       getJson(`${base}/api/v2/relationships/stats`),
       getJson(`${base}/api/v2/embeddings/progress`),
       getJson(`${base}/api/data-health/report`),
+      getJson(`${base}/api/v2/dashboard/source-coverage`),
     ]);
-    setCorpus(c); setDocs(d); setCrawl(cr); setScrapers(sc); setKg(k); setProgress(pr); setHealth(h);
+    setCorpus(c); setDocs(d); setCrawl(cr); setScrapers(sc); setKg(k); setProgress(pr); setHealth(h); setCoverage(cov);
   }, []);
 
   useEffect(() => {
@@ -246,6 +248,51 @@ export default function DataOverviewPage() {
                   </div>
                 );
               })}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Source coverage — by ORIGIN DOMAIN, distinct laws (live, accurate) */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Globe className="h-5 w-5 text-cyan-600" />
+            {t('overview.sourceCoverage', { defaultValue: 'Source coverage' })}
+          </CardTitle>
+          <CardDescription>
+            {t('overview.sourceCoverageHelp', {
+              defaultValue: 'Where the corpus comes from — distinct laws/pages + chunks per origin domain (live).',
+            })}
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {!coverage.ok || !Array.isArray(coverage.data?.domains) ? (
+            <p className="text-sm text-gray-500">{t('overview.unavailable', { defaultValue: 'Unavailable' })}</p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="text-start text-gray-500 dark:text-gray-400 border-b border-gray-200 dark:border-gray-700">
+                    <th className="text-start font-medium py-1.5">{t('overview.domain', { defaultValue: 'Source domain' })}</th>
+                    <th className="text-end font-medium py-1.5">{t('overview.laws', { defaultValue: 'Laws/pages' })}</th>
+                    <th className="text-end font-medium py-1.5">{t('overview.chunks', { defaultValue: 'Chunks' })}</th>
+                    <th className="text-end font-medium py-1.5">EN</th>
+                    <th className="text-end font-medium py-1.5">AR</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {coverage.data.domains.map((d: any) => (
+                    <tr key={d.domain} className="border-b border-gray-100 dark:border-gray-800">
+                      <td className="py-1.5 font-medium">{d.domain}</td>
+                      <td className="py-1.5 text-end">{fmt(d.laws)}</td>
+                      <td className="py-1.5 text-end text-gray-500 dark:text-gray-400">{fmt(d.chunks)}</td>
+                      <td className="py-1.5 text-end text-gray-500 dark:text-gray-400">{fmt(d.en)}</td>
+                      <td className="py-1.5 text-end text-gray-500 dark:text-gray-400">{fmt(d.ar)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           )}
         </CardContent>
