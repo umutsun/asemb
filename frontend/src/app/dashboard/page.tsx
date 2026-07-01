@@ -1836,6 +1836,12 @@ export default function DashboardPage() {
                   <Badge variant="outline" className="text-xs bg-violet-500/10 text-violet-600 dark:text-violet-400 border-violet-500/30">
                     {relationshipStats.extraction_coverage_pct}% coverage
                   </Badge>
+                  <a
+                    href="/dashboard/graph"
+                    className="text-xs px-2.5 py-1 rounded-full bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 border border-cyan-500/30 hover:bg-cyan-500/20 transition-colors"
+                  >
+                    Open full graph →
+                  </a>
                 </div>
               </div>
             </CardHeader>
@@ -1901,8 +1907,6 @@ export default function DashboardPage() {
                       linkDirectionalArrowRelPos={1}
                       backgroundColor="transparent"
                       nodeCanvasObject={(node: any, ctx: CanvasRenderingContext2D, globalScale: number) => {
-                        const label = node.label || node.id;
-                        const fontSize = Math.max(10 / globalScale, 3);
                         const r = Math.sqrt(node.val || 3) * 2;
                         // Node circle
                         ctx.beginPath();
@@ -1912,16 +1916,22 @@ export default function DashboardPage() {
                         ctx.strokeStyle = '#818cf8';
                         ctx.lineWidth = 0.5;
                         ctx.stroke();
-                        // Label
-                        ctx.font = `${fontSize}px Inter, sans-serif`;
-                        ctx.fillStyle = '#94a3b8';
-                        ctx.textAlign = 'center';
-                        ctx.textBaseline = 'top';
-                        ctx.fillText(label, node.x, node.y + r + 2);
+                        // Only label the larger hub nodes (or when zoomed in) — labelling every
+                        // node produced an unreadable hairball of overlapping text.
+                        if (r >= 6 || globalScale > 1.6) {
+                          const raw = String(node.label || node.id);
+                          const label = raw.length > 26 ? raw.slice(0, 24) + '…' : raw;
+                          const fontSize = Math.max(11 / globalScale, 3.5);
+                          ctx.font = `${fontSize}px Inter, sans-serif`;
+                          ctx.fillStyle = '#cbd5e1';
+                          ctx.textAlign = 'center';
+                          ctx.textBaseline = 'top';
+                          ctx.fillText(label, node.x, node.y + r + 2);
+                        }
                       }}
                       cooldownTicks={80}
-                      enableZoomInteraction={false}
-                      enablePanInteraction={false}
+                      enableZoomInteraction={true}
+                      enablePanInteraction={true}
                     />
                   ) : (
                     <div className="flex flex-col items-center justify-center h-full text-sm text-gray-500 dark:text-slate-400 gap-2">

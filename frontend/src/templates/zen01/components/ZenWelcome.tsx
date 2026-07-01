@@ -11,16 +11,14 @@ import type { ZenWelcomeProps } from '../types';
  */
 export const ZenWelcome: React.FC<ZenWelcomeProps> = ({
   chatbotSettings,
-  user,
 }) => {
   const { t } = useTranslation();
-  const displayName = user?.name?.split(' ')[0] || user?.email?.split('@')[0] || 'User';
 
   return (
     <div className="zen01-welcome zen01-slide-up">
       {/* Animated Title */}
       <h1 className="zen01-welcome-title">
-        {chatbotSettings.greeting || t('chat.greeting', 'Welcome')}, {displayName}
+        {chatbotSettings.greeting || t('chat.greeting', 'Welcome')}
       </h1>
       <p className="zen01-welcome-subtitle text-slate-600 dark:text-slate-400">
         {chatbotSettings.welcomeMessage || t('chat.welcomeMessage', 'How can I help you?')}
