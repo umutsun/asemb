@@ -124,32 +124,34 @@
   }
 
   .dark {
-    --background: 0 0% 3.9%;
+    /* Glassmorphic navy surface palette (matches #0a1628 / #0d1f3c / #1e3a5f) instead of a
+       flat black — every shadcn Card/popover/input picks these up via the tokens. */
+    --background: 216 60% 9%;
     --foreground: 0 0% 98%;
 
-    --card: 0 0% 3.9%;
+    --card: 217 60% 13%;
     --card-foreground: 0 0% 98%;
 
-    --popover: 0 0% 3.9%;
+    --popover: 217 60% 13%;
     --popover-foreground: 0 0% 98%;
 
     --primary: 0 0% 98%;
     --primary-foreground: 0 0% 9%;
 
-    --secondary: 0 0% 14.9%;
+    --secondary: 216 40% 18%;
     --secondary-foreground: 0 0% 98%;
 
-    --muted: 0 0% 14.9%;
-    --muted-foreground: 0 0% 63.9%;
+    --muted: 216 36% 18%;
+    --muted-foreground: 214 20% 68%;
 
-    --accent: 0 0% 14.9%;
+    --accent: 216 42% 20%;
     --accent-foreground: 0 0% 98%;
 
     --destructive: 0 62.8% 30.6%;
     --destructive-foreground: 0 0% 98%;
 
-    --border: 0 0% 14.9%;
-    --input: 0 0% 14.9%;
+    --border: 214 44% 22%;
+    --input: 214 44% 22%;
     --ring: 0 0% 83.1%;
   }
 }
