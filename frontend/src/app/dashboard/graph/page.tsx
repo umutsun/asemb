@@ -67,6 +67,18 @@ export default function KnowledgeGraphPage() {
   const wrapRef = useRef<HTMLDivElement>(null);
   const fgRef = useRef<any>(null);
   const [dims, setDims] = useState({ w: 800, h: 600 });
+  // Label bounding boxes drawn this frame (reset each frame) — used to hide labels that would
+  // overlap one already drawn, so the graph never turns into a pile of unreadable text.
+  const labelRectsRef = useRef<number[][]>([]);
+  // Track the active (light/dark) theme so canvas labels stay readable in both.
+  const isDarkRef = useRef(false);
+  useEffect(() => {
+    const sync = () => { isDarkRef.current = document.documentElement.classList.contains('dark'); };
+    sync();
+    const obs = new MutationObserver(sync);
+    obs.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
+    return () => obs.disconnect();
+  }, []);
 
   const load = useCallback(async () => {
     setLoading(true); setErr(null);
@@ -141,13 +153,15 @@ export default function KnowledgeGraphPage() {
     const cx = (g: string) => (groups.length <= 1 ? 0 : Math.cos((2 * Math.PI * (gi.get(g) ?? 0)) / groups.length) * R);
     const cy = (g: string) => (groups.length <= 1 ? 0 : Math.sin((2 * Math.PI * (gi.get(g) ?? 0)) / groups.length) * R);
     try {
-      fg.d3Force('x', forceX((n: any) => cx(n.group)).strength(0.12));
-      fg.d3Force('y', forceY((n: any) => cy(n.group)).strength(0.12));
-      // Bigger collision radius + stronger repulsion so nodes (and their labels) spread out
-      // instead of piling into an unreadable central blob.
-      fg.d3Force('collide', forceCollide((n: any) => 8 + (n.val || 1) * 2));
+      // Gentle group centering + strong repulsion + link distance so connected communities
+      // pull apart into visible clusters instead of collapsing into one central hairball.
+      fg.d3Force('x', forceX((n: any) => cx(n.group)).strength(0.05));
+      fg.d3Force('y', forceY((n: any) => cy(n.group)).strength(0.05));
+      fg.d3Force('collide', forceCollide((n: any) => 14 + (n.val || 1) * 2));
       const charge = fg.d3Force('charge');
-      if (charge) charge.strength(-140);
+      if (charge) charge.strength(-320);
+      const link = fg.d3Force('link');
+      if (link && typeof link.distance === 'function') link.distance(70);
       fg.d3ReheatSimulation?.();
     } catch { /* forces are best-effort */ }
   }, [data, groups, dims]);
@@ -155,9 +169,11 @@ export default function KnowledgeGraphPage() {
   const highlight = query.trim().toLowerCase();
 
   const paintNode = useCallback((node: any, ctx: CanvasRenderingContext2D, scale: number) => {
+    const dark = isDarkRef.current;
     const r = 2 + (node.val || 1);
     const isHit = highlight && String(node.id).toLowerCase().includes(highlight);
     const dimmed = (!!neighbors && !neighbors.has(node.id)) || (!!highlight && !isHit);
+    const focused = node.id === hoverId || (selected && selected.id === node.id);
 
     ctx.globalAlpha = dimmed ? 0.12 : 1;
     ctx.beginPath();
@@ -165,32 +181,49 @@ export default function KnowledgeGraphPage() {
     ctx.fillStyle = colorFor(node.group);
     ctx.fill();
 
-    if (!dimmed && (isHit || node.id === hoverId || (selected && selected.id === node.id))) {
-      ctx.strokeStyle = '#f9fafb';
+    if (!dimmed && (isHit || focused)) {
+      ctx.strokeStyle = dark ? '#f9fafb' : '#0f172a';
       ctx.lineWidth = 1.5 / scale;
       ctx.stroke();
     }
 
-    // Labels: hubs always; the hovered node; search hits; or when zoomed in. We deliberately
-    // do NOT label every neighbour of the hovered node — a high-degree hub (80+ connections)
-    // would carpet the view with overlapping text. Neighbours are still conveyed by the link
-    // highlighting + dimming of everything else.
-    const showLabel =
-      !dimmed &&
-      (hubIds.has(node.id) || node.id === hoverId || isHit || scale > 2.2);
-    if (showLabel) {
-      ctx.globalAlpha = 1;
-      const label = String(node.label || node.id).slice(0, 34);
-      ctx.font = `${Math.max(3.5, 11 / scale)}px sans-serif`;
-      ctx.textAlign = 'left';
-      ctx.textBaseline = 'middle';
-      // Dark halo so the label stays legible over links and neighbouring nodes.
-      ctx.lineWidth = 3 / scale;
-      ctx.strokeStyle = 'rgba(2,6,23,0.85)';
-      ctx.strokeText(label, node.x + r + 3, node.y);
-      ctx.fillStyle = '#e2e8f0';
-      ctx.fillText(label, node.x + r + 3, node.y);
-    }
+    // Labels are landmarks only: top hubs, the hovered/selected node, and search hits — NOT
+    // "every node when zoomed" (that piled overlapping text). A per-frame collision test then
+    // hides any label that would overlap one already drawn (the focused node always wins).
+    if (dimmed || !(hubIds.has(node.id) || focused || isHit)) { ctx.globalAlpha = 1; return; }
+
+    const label = String(node.label || node.id).slice(0, 32);
+    const fontSize = Math.max(5, 11 / scale);
+    ctx.font = `${fontSize}px Inter, sans-serif`;
+    const padX = 4 / scale, padY = 2.5 / scale;
+    const lx = node.x + r + 4 / scale;
+    const ly = node.y;
+    const tw = ctx.measureText(label).width;
+    const rect = [lx - padX, ly - fontSize / 2 - padY, tw + padX * 2, fontSize + padY * 2];
+    const hits = (a: number[], b: number[]) =>
+      a[0] < b[0] + b[2] && a[0] + a[2] > b[0] && a[1] < b[1] + b[3] && a[1] + a[3] > b[1];
+    if (!focused && labelRectsRef.current.some((rc) => hits(rect, rc))) { ctx.globalAlpha = 1; return; }
+    labelRectsRef.current.push(rect);
+
+    // Theme-aware rounded chip behind the text so it is readable on any background.
+    const [bx, by, bw, bh] = rect;
+    const rr = 3 / scale;
+    ctx.globalAlpha = focused ? 0.98 : 0.85;
+    ctx.fillStyle = dark ? 'rgba(15,23,42,0.92)' : 'rgba(255,255,255,0.95)';
+    ctx.beginPath();
+    ctx.moveTo(bx + rr, by);
+    ctx.arcTo(bx + bw, by, bx + bw, by + bh, rr);
+    ctx.arcTo(bx + bw, by + bh, bx, by + bh, rr);
+    ctx.arcTo(bx, by + bh, bx, by, rr);
+    ctx.arcTo(bx, by, bx + bw, by, rr);
+    ctx.closePath();
+    ctx.fill();
+
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = dark ? '#e2e8f0' : '#0f172a';
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(label, lx, ly);
     ctx.globalAlpha = 1;
   }, [highlight, neighbors, hoverId, hubIds, selected]);
 
@@ -237,7 +270,7 @@ export default function KnowledgeGraphPage() {
   const handleBackgroundClick = useCallback(() => setSelected(null), []);
 
   return (
-    <div className="space-y-4 p-1">
+    <div className="space-y-6 p-1">
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
           <h1 className="text-2xl font-bold">
@@ -302,8 +335,10 @@ export default function KnowledgeGraphPage() {
               linkDirectionalArrowRelPos={1}
               onNodeClick={handleNodeClick}
               onBackgroundClick={handleBackgroundClick}
-              cooldownTicks={140}
-              warmupTicks={60}
+              onRenderFramePre={() => { labelRectsRef.current = []; }}
+              onEngineStop={() => fgRef.current?.zoomToFit(400, 60)}
+              cooldownTicks={160}
+              warmupTicks={80}
             />
           ) : (
             <div className="flex items-center justify-center h-[70vh] text-sm text-gray-500">

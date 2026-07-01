@@ -15,6 +15,9 @@ import {
 } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useTranslation } from 'react-i18next';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+import { prepareMarkdown } from '@/lib/chat-markdown';
 
 interface Source {
     title?: string;
@@ -149,17 +152,16 @@ const ModernMessageItem = memo(function ModernMessageItem({
                             <Skeleton className="h-3 w-4/5 bg-slate-200 dark:bg-slate-700" />
                             <Skeleton className="h-3 w-3/5 bg-slate-200 dark:bg-slate-700" />
                         </div>
-                    ) : (
-                        <div className="prose prose-slate dark:prose-invert prose-sm max-w-none">
-                            <p
-                                className="whitespace-pre-wrap leading-relaxed text-sm sm:text-base"
-                                dangerouslySetInnerHTML={{
-                                    __html: message.content
-                                        .replace(/\*\*\[([0-9,\s]+)\]\*\*/g, '<strong class="text-violet-600 dark:text-violet-300 font-semibold">[$1]</strong>')
-                                        .replace(/\n/g, '<br/>')
-                                }}
-                            />
+                    ) : message.role === 'assistant' ? (
+                        <div className="prose prose-slate dark:prose-invert prose-sm max-w-none text-sm sm:text-base leading-relaxed prose-strong:text-violet-700 dark:prose-strong:text-violet-300 prose-headings:text-slate-800 dark:prose-headings:text-slate-100 prose-p:my-2 prose-li:my-0.5">
+                            <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                                {prepareMarkdown(message.content)}
+                            </ReactMarkdown>
                         </div>
+                    ) : (
+                        <p className="whitespace-pre-wrap leading-relaxed text-sm sm:text-base">
+                            {message.content}
+                        </p>
                     )}
 
                     {/* Action Buttons - Show on hover for assistant messages */}

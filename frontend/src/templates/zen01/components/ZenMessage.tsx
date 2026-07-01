@@ -195,6 +195,11 @@ function cleanLLMResponse(content: string): string {
 function preprocessMarkdown(content: string): string {
   let result = content;
 
+  // Repair mangled bold list markers: "**1--   **Title**" -> "1. Title" (they otherwise
+  // render as literal asterisks because the ** pairs are unbalanced).
+  result = result.replace(/\*\*\s*(\d{1,2})\s*-{1,3}\s*\*\*\s*/g, '$1. ');
+  result = result.replace(/\*\*\s*(\d{1,2})\s*-{1,3}\s+/g, '$1. ');
+
   // ═══ STEP 1: Fix broken bold headers (language-agnostic) ═══
   // "**2.\nHeader:**" → "**2. Header:**"
   result = result.replace(/\*\*(\d)\.\s*\n\s*/g, '**$1. ');
@@ -248,6 +253,12 @@ function preprocessMarkdown(content: string): string {
 
   // ═══ STEP 7: Clean up ═══
   result = result.replace(/\n{3,}/g, '\n\n');
+
+  // Balance an orphaned trailing bold marker (odd count of **) so a stray ** doesn't
+  // disable bold rendering for the rest of the answer.
+  if (((result.match(/\*\*/g) || []).length % 2) === 1) {
+    result = result.replace(/\*\*([^*]*)$/, '$1');
+  }
 
   return result;
 }
