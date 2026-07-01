@@ -1560,6 +1560,41 @@ router.get('/metrics', async (req: Request, res: Response) => {
       console.error('Error fetching live stats:', err);
     }
 
+    // Embeddings breakdown by source category (cached; /metrics polls frequently).
+    // Domain-agnostic bucketing from unified_embeddings: documents (uploaded files),
+    // scraped/web (crawled pages), and the rest as the ingested corpus ("migrated").
+    let embedByCategory: any = null;
+    try {
+      const cachedCat = await redis.get('dashboard:embedByCategory');
+      if (cachedCat) {
+        embedByCategory = JSON.parse(cachedCat);
+      } else {
+        const [ue, msg] = await Promise.all([
+          lsembPool.query(`
+            SELECT
+              COUNT(*) FILTER (WHERE source_table ILIKE '%document%') AS doc_emb,
+              COUNT(DISTINCT source_name) FILTER (WHERE source_table ILIKE '%document%') AS doc_docs,
+              COUNT(*) FILTER (WHERE source_type IN ('webpage','scraped','crawl') OR source_table ~* '(gov|crawl|scrape|web)') AS scr_emb,
+              COUNT(DISTINCT source_name) FILTER (WHERE source_type IN ('webpage','scraped','crawl') OR source_table ~* '(gov|crawl|scrape|web)') AS scr_data,
+              COUNT(*) FILTER (WHERE source_table NOT ILIKE '%document%' AND NOT (source_type IN ('webpage','scraped','crawl') OR source_table ~* '(gov|crawl|scrape|web)')) AS mig_emb,
+              COUNT(DISTINCT source_name) FILTER (WHERE source_table NOT ILIKE '%document%' AND NOT (source_type IN ('webpage','scraped','crawl') OR source_table ~* '(gov|crawl|scrape|web)')) AS mig_rows
+            FROM unified_embeddings
+          `),
+          lsembPool.query('SELECT COUNT(*) AS c FROM messages')
+        ]);
+        const r: any = ue.rows[0] || {};
+        embedByCategory = {
+          migrated: { rows: parseInt(r.mig_rows || 0), embeddings: parseInt(r.mig_emb || 0) },
+          documents: { documents: parseInt(r.doc_docs || 0), embeddings: parseInt(r.doc_emb || 0) },
+          scraped: { data: parseInt(r.scr_data || 0), embeddings: parseInt(r.scr_emb || 0) },
+          messages: { messages: parseInt(msg.rows[0]?.c || 0), embeddings: 0 }
+        };
+        await redis.setex('dashboard:embedByCategory', 60, JSON.stringify(embedByCategory));
+      }
+    } catch (err) {
+      console.error('embedByCategory error:', err);
+    }
+
     const dashboardData = {
       systemMetrics: {
         cpu: metrics.cpu.usage,

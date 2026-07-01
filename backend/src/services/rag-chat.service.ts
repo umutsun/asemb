@@ -2297,25 +2297,27 @@ ${questionLabel}: ${message}`;
         console.log(`🛡️ [v12.39] VALID_FOLLOWUP: "${message.substring(0, 40)}..." with context ${followUpResult.lawCodeContext} - bypassing ambiguity check`);
       }
 
+      // Whether a short/single-word query should short-circuit to a clarification BEFORE
+      // retrieval. Default false: a one-word topical query (e.g. "sugar", "VAT", "visa")
+      // flows into semantic search; clarification only happens later if retrieval is empty.
+      // Legacy single-domain tenants can set this true to restore the old "ask first" behavior.
+      const clarifyOnShortQuery =
+        (settingsMap.get('ragSettings.clarifyOnShortQuery') || 'false').toString().toLowerCase() === 'true';
+
       const earlyAmbiguityCheck = {
         justNumbers: /^\d+$/.test(message.trim()) || /^(\d+\s*\/\s*\d+)$/.test(message.trim()),
         vagueQuestion: /^(ne|nasıl|nedir|neden|kim)\s*\??$/i.test(message.trim()) && !isValidFollowUp,  // v12.39: Exception for valid follow-ups
-        tooShortNoQuestion: earlyWordCount < 2 && !message.includes('?') && !isDeadlineComparisonPattern && !isValidFollowUp,  // v12.35: Exception for deadline comparisons, v12.39: follow-ups
-        singleToken: message.trim().split(/\s+/).length === 1 && !/\?$/.test(message.trim()) && !isValidFollowUp  // v12.39: Exception for valid follow-ups
+        // Short/single-word queries only force clarification when explicitly enabled (see clarifyOnShortQuery).
+        tooShortNoQuestion: clarifyOnShortQuery && earlyWordCount < 2 && !message.includes('?') && !isDeadlineComparisonPattern && !isValidFollowUp,  // v12.35: Exception for deadline comparisons, v12.39: follow-ups
+        singleToken: clarifyOnShortQuery && message.trim().split(/\s+/).length === 1 && !/\?$/.test(message.trim()) && !isValidFollowUp  // v12.39: Exception for valid follow-ups
       };
       const isEarlyAmbiguous = Object.values(earlyAmbiguityCheck).some(v => v);
 
       // --- EARLY OUT-OF-SCOPE CHECK ---
-      // Domain terms from config (vergi, KDV, beyanname, etc.)
-      const earlyDomainTerms = [
-        ...domainConfig.keyTerms.map(t => t.toLowerCase()),
-        // Fallback tax terms if config is empty
-        ...(domainConfig.keyTerms.length === 0 ? [
-          'vergi', 'kdv', 'beyanname', 'mükellef', 'fatura', 'matrah', 'stopaj',
-          'tevkifat', 'muafiyet', 'istisna', 'kanun', 'madde', 'tebliğ', 'özelge',
-          'levha', 'vuk', 'gvk', 'kvk', 'damga', 'ötv', 'emlak'
-        ] : [])
-      ];
+      // Domain vocabulary is purely schema-driven (settings -> active schema llmConfig.keyTerms).
+      // No hardcoded fallback: an empty list simply means scope is decided by the generic,
+      // language-neutral OUT_OF_SCOPE_PATTERNS below rather than a single domain's vocabulary.
+      const earlyDomainTerms = domainConfig.keyTerms.map(t => t.toLowerCase());
       const hasDomainTerm = earlyDomainTerms.some(term => earlyQueryLower.includes(term));
 
       // Domain mode: TAX_ONLY (default) vs GENERAL_LAW
@@ -2378,7 +2380,7 @@ ${questionLabel}: ${message}`;
 
         // Save messages
         await this.saveMessage(convId, 'user', message);
-        const clarificationResult = this.generateClarificationResponse(message, responseLanguage);
+        const clarificationResult = this.generateClarificationResponse(message, effectiveAnswerLang, domainConfig, settingsMap.get('ragSettings.clarificationTemplate'));
         await this.saveMessage(convId, 'assistant', clarificationResult.text, [], activeModel);
 
         return {
@@ -2390,7 +2392,7 @@ ${questionLabel}: ${message}`;
           conversationId: convId,
           provider: 'system',
           model: 'deterministic',
-          providerDisplayName: 'Sistem',
+          providerDisplayName: 'System',
           language: responseLanguage,
           fallbackUsed: false,
           fastMode: false,
@@ -2414,9 +2416,18 @@ ${questionLabel}: ${message}`;
 
         // Save messages
         await this.saveMessage(convId, 'user', message);
-        const outOfScopeResponse = responseLanguage === 'tr'
-          ? 'Bu soru Vergilex kapsamı dışındadır. Türk vergi mevzuatı ile ilgili sorularınızda yardımcı olabilirim.'
-          : 'This question is outside Vergilex scope. I can help with questions about Turkish tax legislation.';
+        // Domain-neutral, localized, settings-overridable. Configure a tenant-specific message
+        // via ragSettings.outOfScopeMessage (string, or {en,ar,tr} object).
+        const outOfScopeDefaults: Record<string, string> = {
+          en: 'This question is outside the scope of the available sources. I can help with questions covered by the knowledge base.',
+          ar: 'هذا السؤال خارج نطاق المصادر المتاحة. يمكنني المساعدة في الأسئلة التي تغطيها قاعدة المعرفة.',
+          tr: 'Bu soru mevcut kaynakların kapsamı dışındadır. Bilgi tabanının kapsadığı sorularda yardımcı olabilirim.'
+        };
+        const outOfScopeResponse = this.resolveLocalizedSetting(
+          settingsMap.get('ragSettings.outOfScopeMessage'),
+          effectiveAnswerLang,
+          outOfScopeDefaults
+        );
         await this.saveMessage(convId, 'assistant', outOfScopeResponse, [], activeModel);
 
         return {
@@ -2427,7 +2438,7 @@ ${questionLabel}: ${message}`;
           conversationId: convId,
           provider: 'system',
           model: 'deterministic',
-          providerDisplayName: 'Sistem',
+          providerDisplayName: 'System',
           language: responseLanguage,
           fallbackUsed: false,
           fastMode: false,
@@ -3248,7 +3259,7 @@ Lütfen "beyanname" veya "ödeme" yazarak belirtin.`;
           conversationId: convId,
           provider: 'system',
           model: 'deterministic',
-          providerDisplayName: 'Sistem',
+          providerDisplayName: 'System',
           language: responseLanguage,
           fallbackUsed: false,
           fastMode: false,
@@ -4226,10 +4237,14 @@ Yani beyanname ile ödeme arasında **2 günlük** bir fark vardır.`;
         console.log(`🛡️ [v12.32] DEADLINE_COMPARISON_EXEMPTION: Skipping strong ambiguity for "24 vs 26" query`);
       }
 
+      // "Too short" only forces clarification-over-results when clarifyOnShortQuery is enabled.
+      // Default (false): a short/single-word query still runs retrieval and returns FOUND when
+      // there are results; it only falls through to NEEDS_CLARIFICATION when retrieval is empty
+      // (RULE 3 below via `needsClarification`). justNumbers/vagueQuestion stay genuinely ambiguous.
       const isStrongAmbiguity = !isDeadlineComparisonQuery && (
         needsClarificationPatterns.justNumbers ||
         needsClarificationPatterns.vagueQuestion ||
-        (needsClarificationPatterns.tooShort && !message.includes('?'))
+        (clarifyOnShortQuery && needsClarificationPatterns.tooShort && !message.includes('?'))
       );
 
       if (isStrongAmbiguity) {
@@ -4404,7 +4419,7 @@ Yani beyanname ile ödeme arasında **2 günlük** bir fark vardır.`;
       } else if (responseType === 'NEEDS_CLARIFICATION') {
         // B) NEEDS_CLARIFICATION: Ask for clarification, sources=[], no misleading results
         console.log(`🤔 NEEDS_CLARIFICATION: Applying contract - ask clarification, no sources`);
-        const clarificationResult = this.generateClarificationResponse(message, responseLanguage);
+        const clarificationResult = this.generateClarificationResponse(message, effectiveAnswerLang, domainConfig, settingsMap.get('ragSettings.clarificationTemplate'));
         response.content = clarificationResult.text;
         (response as any).suggestedQuestions = clarificationResult.suggestions;
         // sources will be cleared in finalSources below
@@ -4532,7 +4547,7 @@ Yani beyanname ile ödeme arasında **2 günlük** bir fark vardır.`;
           fastModeResponse = 'Bu soru Vergilex kapsamı dışındadır (Türk vergi mevzuatı ile ilgili değil).';
           fastModeFinalSources = [];
         } else if (responseType === 'NEEDS_CLARIFICATION') {
-          const clarificationResult = this.generateClarificationResponse(message, responseLanguage);
+          const clarificationResult = this.generateClarificationResponse(message, effectiveAnswerLang, domainConfig, settingsMap.get('ragSettings.clarificationTemplate'));
           fastModeResponse = clarificationResult.text;
           fastModeSuggestedQuestions = clarificationResult.suggestions;
           fastModeFinalSources = [];
@@ -5413,7 +5428,7 @@ Yani beyanname ile ödeme arasında **2 günlük** bir fark vardır.`;
           message,
           response.content,
           finalSources,
-          options.language || 'tr'
+          effectiveAnswerLang
         );
       } catch (followUpError) {
         console.error('[FOLLOW-UP] Failed to generate follow-up questions:', followUpError);
@@ -5557,145 +5572,139 @@ Yani beyanname ile ödeme arasında **2 günlük** bir fark vardır.`;
   }
 
   /**
-   * 🤔 GENERATE CLARIFICATION RESPONSE (Google-style "Did you mean?")
-   * Creates a response asking user to clarify their question
-   * Uses smart detection for typos, partial terms, and number-based queries
-   * Returns both text response and clickable suggestion cards
-   * sources=[] to avoid misleading results
+   * Resolve a localized, settings-overridable string.
+   * `raw` may be a plain string (applies to every language), a JSON object
+   * `{ en, ar, tr, ... }`, or null/undefined. Falls back to `defaults[lang]` then `defaults.en`.
    */
-  private generateClarificationResponse(query: string, language: string = 'tr'): { text: string; suggestions: string[] } {
+  private resolveLocalizedSetting(
+    raw: string | null | undefined,
+    lang: string,
+    defaults: Record<string, string>
+  ): string {
+    const pick = (obj: Record<string, any>): string | undefined =>
+      (obj && (obj[lang] || obj.en)) || undefined;
+
+    if (raw != null && raw !== '') {
+      if (typeof raw === 'string') {
+        const trimmed = raw.trim();
+        if (trimmed.startsWith('{')) {
+          try {
+            const v = pick(JSON.parse(trimmed));
+            if (v) return v;
+          } catch { /* not JSON -> treat as a plain string below */ }
+        }
+        return raw; // plain string applies to all languages
+      }
+      if (typeof raw === 'object') {
+        const v = pick(raw as Record<string, any>);
+        if (v) return v;
+      }
+    }
+    return defaults[lang] || defaults.en;
+  }
+
+  /**
+   * 🤔 GENERATE CLARIFICATION RESPONSE ("Did you mean?")
+   * Asks the user to clarify a query we cannot answer yet.
+   *
+   * Language- and domain-driven (CLAUDE.md Hard Rules #1/#2/#3):
+   * - All wrapper text is localized for the active answer language (en/ar/tr) with a single
+   *   in-code default, overridable per tenant via `ragSettings.clarificationTemplate` (passed
+   *   as `templatesRaw`).
+   * - Suggestion content is derived from the active schema (`domainConfig.topicEntities` /
+   *   `keyTerms`) — never hardcoded domain vocabulary. With no schema topics, a generic
+   *   "add more detail" prompt is used.
+   * Returns both the markdown text and clickable suggestion cards. sources=[] upstream.
+   */
+  private generateClarificationResponse(
+    query: string,
+    language: string = 'en',
+    domainConfig?: { topicEntities?: TopicEntity[]; keyTerms?: string[] },
+    templatesRaw?: string
+  ): { text: string; suggestions: string[] } {
+    const lang = (language === 'tr' || language === 'ar') ? language : 'en';
+
+    // Single-place localized defaults; overridable per tenant via ragSettings.clarificationTemplate.
+    const defaults: Record<string, {
+      header: string; headerDidYouMean: string; tip: string; prompts: string[];
+      askAbout: (t: string) => string;
+    }> = {
+      en: {
+        header: '❓ **I need a bit more detail to answer your question**',
+        headerDidYouMean: '🔍 **Did you mean?**',
+        tip: '_💡 Tip: Click one of the suggestions below or type your own question._',
+        prompts: [
+          'Could you add more detail or rephrase your question?',
+          'Which specific topic or document are you asking about?',
+        ],
+        askAbout: (t) => `Are you asking about ${t}?`,
+      },
+      ar: {
+        header: '❓ **أحتاج إلى مزيد من التفاصيل للإجابة على سؤالك**',
+        headerDidYouMean: '🔍 **هل تقصد؟**',
+        tip: '_💡 نصيحة: اضغط على أحد الاقتراحات أدناه أو اكتب سؤالك الخاص._',
+        prompts: [
+          'هل يمكنك إضافة مزيد من التفاصيل أو إعادة صياغة سؤالك؟',
+          'ما الموضوع أو المستند المحدد الذي تسأل عنه؟',
+        ],
+        askAbout: (t) => `هل تسأل عن ${t}؟`,
+      },
+      tr: {
+        header: '❓ **Sorunuzu yanıtlamam için biraz daha ayrıntı gerekiyor**',
+        headerDidYouMean: '🔍 **Bunu mu demek istediniz?**',
+        tip: '_💡 İpucu: Aşağıdaki önerilerden birini tıklayabilir veya kendi sorunuzu yazabilirsiniz._',
+        prompts: [
+          'Sorunuzu biraz daha ayrıntılandırabilir veya yeniden ifade edebilir misiniz?',
+          'Hangi konu veya belge hakkında soru soruyorsunuz?',
+        ],
+        askAbout: (t) => `${t} hakkında mı soruyorsunuz?`,
+      },
+    };
+
+    // Merge tenant overrides (per-language object) onto the in-code defaults.
+    let overrides: any;
+    if (templatesRaw) {
+      try { overrides = typeof templatesRaw === 'string' ? JSON.parse(templatesRaw) : templatesRaw; }
+      catch { /* invalid JSON -> ignore, use defaults */ }
+    }
+    const base = defaults[lang];
+    const ov = (overrides && typeof overrides === 'object') ? (overrides[lang] || overrides.en) : undefined;
+    const tip: string = (ov && ov.tip) || base.tip;
+    const genericPrompts: string[] = (ov && Array.isArray(ov.prompts) && ov.prompts.length) ? ov.prompts : base.prompts;
+
+    // Data-driven topic hints from the active schema (no hardcoded domain vocabulary).
+    const entities = (domainConfig?.topicEntities || [])
+      .map(e => (e && e.entity ? String(e.entity).trim() : ''))
+      .filter(Boolean);
+    const terms = (domainConfig?.keyTerms || []).map(t => String(t).trim()).filter(Boolean);
+    const topics = Array.from(new Set([...entities, ...terms]));
+
     const queryLower = query.toLowerCase().trim();
-    const didYouMean: string[] = [];
-    const clarifyQuestions: string[] = [];
+    const matched = topics.filter(t => {
+      const tl = t.toLowerCase();
+      return tl.includes(queryLower) || queryLower.includes(tl);
+    });
+    const hintSource = (matched.length ? matched : topics).slice(0, 3);
+    const topicHints = hintSource.map(t => base.askAbout(t));
 
-    // ========================================
-    // 🔢 NUMBER-BASED QUERIES (Law/Article numbers)
-    // ========================================
-    const numberMatch = query.match(/^(\d{3,5})$/);
-    if (numberMatch) {
-      const num = numberMatch[1];
-      // Known tax law numbers
-      const knownLaws: Record<string, string> = {
-        '213': 'Vergi Usul Kanunu (VUK)',
-        '193': 'Gelir Vergisi Kanunu (GVK)',
-        '5520': 'Kurumlar Vergisi Kanunu (KVK)',
-        '3065': 'Katma Değer Vergisi Kanunu (KDVK)',
-        '6111': '6111 sayılı Torba Kanun (Vergi affı)',
-        '7143': '7143 sayılı Yapılandırma Kanunu',
-        '7256': '7256 sayılı Yapılandırma Kanunu',
-        '7326': '7326 sayılı Matrah Artırımı Kanunu',
-        '488': 'Damga Vergisi Kanunu',
-        '4760': 'Özel Tüketim Vergisi Kanunu (ÖTV)',
-      };
+    const header = topicHints.length > 0
+      ? ((ov && ov.headerDidYouMean) || base.headerDidYouMean)
+      : ((ov && ov.header) || base.header);
 
-      if (knownLaws[num]) {
-        didYouMean.push(`"${knownLaws[num]}" hakkında mı soruyorsunuz?`);
-        didYouMean.push(`${num} sayılı kanunun hangi maddesi?`);
-      } else {
-        didYouMean.push(`${num} sayılı bir kanun mu?`);
-        didYouMean.push(`${num} numaralı bir madde veya tebliğ mi?`);
-      }
-    }
+    // Topic hints first, then generic prompts. Cap at 4.
+    const allSuggestions = [...topicHints, ...genericPrompts].slice(0, 4);
 
-    // ========================================
-    // 🔤 TYPO DETECTION & CORRECTION
-    // ========================================
-    const typoCorrections: Array<{ pattern: RegExp; correction: string; suggestion: string }> = [
-      { pattern: /\bverg[iı]?\b/i, correction: 'vergi', suggestion: 'Vergi ile ilgili ne öğrenmek istiyorsunuz?' },
-      { pattern: /\bkdv\b/i, correction: 'KDV', suggestion: 'KDV oranı, KDV iadesi, veya KDV beyannamesi mi?' },
-      { pattern: /\bbeyan\b/i, correction: 'beyanname', suggestion: 'Hangi beyanname? (KDV, Muhtasar, Gelir, Kurumlar)' },
-      { pattern: /\blevh?a\b/i, correction: 'vergi levhası', suggestion: 'Vergi levhası asma zorunluluğu mu, tasdiki mi?' },
-      { pattern: /\bfatur\b/i, correction: 'fatura', suggestion: 'E-fatura mı, kağıt fatura mı, fatura düzenleme mi?' },
-      { pattern: /\btevk[iı]f\b/i, correction: 'tevkifat', suggestion: 'KDV tevkifatı mı, gelir vergisi tevkifatı mı?' },
-      { pattern: /\bstop[aı]j\b/i, correction: 'stopaj', suggestion: 'Stopaj oranı mı, stopaj iadesi mi?' },
-      { pattern: /\bmuaf[iı]?y?e?t?\b/i, correction: 'muafiyet', suggestion: 'Hangi vergiden muafiyet? (KDV, Damga, Gelir)' },
-      { pattern: /\b[iı]st[iı]sna\b/i, correction: 'istisna', suggestion: 'Hangi vergi istisnası?' },
-      { pattern: /\bmatra[hğ]?\b/i, correction: 'matrah', suggestion: 'Matrah artırımı mı, matrah hesabı mı?' },
-    ];
-
-    for (const { pattern, suggestion } of typoCorrections) {
-      if (pattern.test(queryLower) && !didYouMean.includes(suggestion)) {
-        clarifyQuestions.push(suggestion);
-      }
-    }
-
-    // ========================================
-    // 📝 SINGLE WORD QUERIES
-    // ========================================
-    if (queryLower.split(/\s+/).length === 1 && !numberMatch) {
-      const singleWordExpansions: Record<string, string[]> = {
-        'vergi': ['Vergi türleri nelerdir?', 'Gelir vergisi beyannamesi ne zaman verilir?', 'KDV oranı nedir?'],
-        'kdv': ['KDV oranı nedir?', 'KDV iadesi nasıl alınır?', 'KDV beyannamesi ne zaman verilir?'],
-        'fatura': ['E-fatura zorunluluğu', 'Fatura düzenleme süresi', 'Fatura iptal prosedürü'],
-        'beyanname': ['KDV beyannamesi', 'Muhtasar beyanname', 'Yıllık gelir vergisi beyannamesi'],
-        'levha': ['Vergi levhası asma zorunluluğu', 'Vergi levhası fotokopisi asılabilir mi?'],
-        'stopaj': ['Stopaj oranları', 'Stopaj kesintisi nasıl yapılır?'],
-        'tevkifat': ['KDV tevkifat oranları', 'Tevkifat uygulaması'],
-        'iade': ['KDV iadesi', 'Gelir vergisi iadesi', 'ÖTV iadesi'],
-      };
-
-      const expansions = singleWordExpansions[queryLower];
-      if (expansions) {
-        didYouMean.push(...expansions.slice(0, 3));
-      }
-    }
-
-    // ========================================
-    // 🤷 VAGUE QUESTIONS
-    // ========================================
-    if (/^(ne|nasıl|nedir|neden|kim|hangi)\s*\??$/i.test(query)) {
-      clarifyQuestions.push(
-        'Hangi konu hakkında bilgi istiyorsunuz?',
-        'Vergi türü belirtir misiniz? (KDV, Gelir, Kurumlar, Damga)',
-        'Belirli bir işlem veya belge hakkında mı?'
-      );
-    }
-
-    // ========================================
-    // 📋 BUILD RESPONSE
-    // ========================================
-    const allSuggestions = [...didYouMean, ...clarifyQuestions];
-
-    // Fallback if no specific suggestions
-    if (allSuggestions.length === 0) {
-      allSuggestions.push(
-        'Hangi vergi türü? (KDV, Gelir Vergisi, Kurumlar Vergisi)',
-        'Belirli bir mevzuat veya tebliğ numarası var mı?',
-        'Ne tür bir işlem? (beyanname, iade, muafiyet, tevkifat)'
-      );
-    }
-
-    const limitedSuggestions = allSuggestions.slice(0, 4);
-
-    // Format suggestions as clickable questions (ensure they end with ?)
-    const clickableSuggestions = limitedSuggestions.map(s => {
-      // Clean up and format as a proper question
+    const endsWithQuestion = (s: string) => s.endsWith('?') || s.endsWith('؟');
+    const clickableSuggestions = allSuggestions.map(s => {
       const cleaned = s.replace(/^\d+\.\s*/, '').trim();
-      // If it's a question already, keep it; otherwise add ?
-      return cleaned.endsWith('?') ? cleaned : `${cleaned}?`;
+      return endsWithQuestion(cleaned) ? cleaned : `${cleaned}${lang === 'ar' ? '؟' : '?'}`;
     });
 
-    if (language === 'tr') {
-      const header = didYouMean.length > 0
-        ? `🔍 **Bunu mu demek istediniz?**`
-        : `❓ **Sorunuzu anlamam için daha fazla bilgi gerekiyor**`;
+    const text = `${header}\n\n` +
+      allSuggestions.map((s, i) => `${i + 1}. ${s}`).join('\n') +
+      `\n\n${tip}`;
 
-      const text = `${header}\n\n` +
-        limitedSuggestions.map((s, i) => `${i + 1}. ${s}`).join('\n') +
-        `\n\n_💡 İpucu: Aşağıdaki önerilerden birini tıklayabilir veya kendi sorunuzu yazabilirsiniz._`;
-
-      return { text, suggestions: clickableSuggestions };
-    } else {
-      const header = didYouMean.length > 0
-        ? `🔍 **Did you mean?**`
-        : `❓ **I need more information to understand your question**`;
-
-      const text = `${header}\n\n` +
-        limitedSuggestions.map((s, i) => `${i + 1}. ${s}`).join('\n') +
-        `\n\n_💡 Tip: Click one of the suggestions below or type your own question._`;
-
-      return { text, suggestions: clickableSuggestions };
-    }
+    return { text, suggestions: clickableSuggestions };
   }
 
   /**
@@ -8394,8 +8403,8 @@ Please verify the article number or check official sources.`;
         // ========================================
         // 🔒 EVIDENCE-FIRST CONTRACT
         // ========================================
-        // "ALINTI yoksa kesin hüküm yok" - bu tek kural seti
-        // Sistem asla "bilgi yok" demesin; kaynakları göstersin
+        // "No definitive ruling without a citation" - this is the single rule set
+        // The system must never say "no information"; it should show the sources
         console.log('[FORMAT] 🔒 EVIDENCE-FIRST: No quote found (bestScore=' + bestScore + ') - applying contract');
 
         // ========================================
@@ -10566,7 +10575,12 @@ DÜZELTILMIŞ METİN:`;
 
       // 1. First try schema-based pattern matching
       const patternQuestions = await this.generatePatternBasedQuestions(userQuestion, sources);
-      if (patternQuestions.length >= 2) {
+      // Schema questionPatterns may be authored in another language (e.g. legacy Turkish
+      // templates on this tenant). Only use them when they match the answer language, so
+      // an English answer never gets Turkish follow-ups. (Turkish-script heuristic.)
+      const looksTurkish = (s: string) => /[çğışöüİ]/.test(s);
+      const patternLangOk = language === 'tr' ? true : !patternQuestions.some(looksTurkish);
+      if (patternQuestions.length >= 2 && patternLangOk) {
         console.log(`[FOLLOW-UP] Using ${patternQuestions.length} pattern-based questions`);
         return patternQuestions.slice(0, 3);
       }
