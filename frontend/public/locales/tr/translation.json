@@ -38,6 +38,10 @@
   "authorization": "Yetkilendirme",
   "characters": "Karakter",
   "chat": {
+    "citation": {
+      "goToSource": "Kaynağa git",
+      "openPdf": "PDF'i aç"
+    },
     "clearChat": "مسح الدردشة",
     "connected": "متصل",
     "disconnected": "منقطع",

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -387,6 +387,48 @@ export default function DashboardPage() {
   const [graphData, setGraphData] = useState<any>(null);
   const graphContainerRef = useRef<HTMLDivElement>(null);
   const [graphWidth, setGraphWidth] = useState(0);
+
+  // Memoize the graph data + accessors for the dashboard KG card. Passing a fresh
+  // { nodes, links } object (or new accessor closures) on every render made ForceGraph2D
+  // re-ingest the data and re-run the whole force simulation — so any unrelated dashboard
+  // re-render (stats polling, AnimatedNumber, resize) made the card "constantly refresh".
+  // Stable references => it simulates once and settles.
+  const kgGraphData = useMemo(() => {
+    if (!graphData?.nodes || !graphData?.edges) return { nodes: [], links: [] };
+    const edges = graphData.edges;
+    return {
+      nodes: graphData.nodes
+        .filter((n: any) => edges.some((e: any) => e.source === n.id || e.target === n.id))
+        .map((n: any) => ({ id: n.id, label: n.label, val: Math.max(n.entity_count || 1, 3) })),
+      links: edges.map((e: any) => ({ source: e.source, target: e.target, value: e.count, type: e.type })),
+    };
+  }, [graphData]);
+
+  const kgNodeLabel = useCallback((node: any) => `${node.label}\n${node.val} entities`, []);
+  const kgLinkColor = useCallback(() => 'rgba(99, 102, 241, 0.35)', []);
+  const kgLinkWidth = useCallback((link: any) => Math.max(1, Math.log2((link as any).value || 1)), []);
+  const kgPaintNode = useCallback((node: any, ctx: CanvasRenderingContext2D, globalScale: number) => {
+    const r = Math.sqrt(node.val || 3) * 2;
+    ctx.beginPath();
+    ctx.arc(node.x, node.y, r, 0, 2 * Math.PI);
+    ctx.fillStyle = '#6366f1';
+    ctx.fill();
+    ctx.strokeStyle = '#818cf8';
+    ctx.lineWidth = 0.5;
+    ctx.stroke();
+    // Only label the larger hub nodes (or when zoomed in) — labelling every node produced
+    // an unreadable hairball of overlapping text.
+    if (r >= 6 || globalScale > 1.6) {
+      const raw = String(node.label || node.id);
+      const label = raw.length > 26 ? raw.slice(0, 24) + '…' : raw;
+      const fontSize = Math.max(11 / globalScale, 3.5);
+      ctx.font = `${fontSize}px Inter, sans-serif`;
+      ctx.fillStyle = '#cbd5e1';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'top';
+      ctx.fillText(label, node.x, node.y + r + 2);
+    }
+  }, []);
 
   // SSE connection status
   const [sseConnected, setSseConnected] = useState(false);
@@ -1892,45 +1934,19 @@ export default function DashboardPage() {
                 <div ref={graphContainerRef} className="lg:col-span-2 rounded-xl border border-gray-200/60 dark:border-[#1e3a5f]/50 overflow-hidden bg-gradient-to-br from-slate-50/50 to-gray-50/50 dark:from-[#0a1628]/60 dark:to-[#0d1f3c]/60" style={{ height: 320 }}>
                   {graphData && graphData.edges && graphData.edges.length > 0 && graphWidth > 0 ? (
                     <ForceGraph2D
-                      graphData={{
-                        nodes: graphData.nodes
-                          .filter((n: any) => graphData.edges.some((e: any) => e.source === n.id || e.target === n.id))
-                          .map((n: any) => ({ id: n.id, label: n.label, val: Math.max(n.entity_count || 1, 3) })),
-                        links: graphData.edges.map((e: any) => ({ source: e.source, target: e.target, value: e.count, type: e.type })),
-                      }}
+                      graphData={kgGraphData}
                       width={graphWidth}
                       height={320}
-                      nodeLabel={(node: any) => `${node.label}\n${node.val} entities`}
+                      nodeLabel={kgNodeLabel}
                       nodeRelSize={4}
-                      linkColor={() => 'rgba(99, 102, 241, 0.35)'}
-                      linkWidth={(link: any) => Math.max(1, Math.log2((link as any).value || 1))}
+                      linkColor={kgLinkColor}
+                      linkWidth={kgLinkWidth}
                       linkDirectionalArrowLength={4}
                       linkDirectionalArrowRelPos={1}
                       backgroundColor="transparent"
-                      nodeCanvasObject={(node: any, ctx: CanvasRenderingContext2D, globalScale: number) => {
-                        const r = Math.sqrt(node.val || 3) * 2;
-                        // Node circle
-                        ctx.beginPath();
-                        ctx.arc(node.x, node.y, r, 0, 2 * Math.PI);
-                        ctx.fillStyle = '#6366f1';
-                        ctx.fill();
-                        ctx.strokeStyle = '#818cf8';
-                        ctx.lineWidth = 0.5;
-                        ctx.stroke();
-                        // Only label the larger hub nodes (or when zoomed in) — labelling every
-                        // node produced an unreadable hairball of overlapping text.
-                        if (r >= 6 || globalScale > 1.6) {
-                          const raw = String(node.label || node.id);
-                          const label = raw.length > 26 ? raw.slice(0, 24) + '…' : raw;
-                          const fontSize = Math.max(11 / globalScale, 3.5);
-                          ctx.font = `${fontSize}px Inter, sans-serif`;
-                          ctx.fillStyle = '#cbd5e1';
-                          ctx.textAlign = 'center';
-                          ctx.textBaseline = 'top';
-                          ctx.fillText(label, node.x, node.y + r + 2);
-                        }
-                      }}
+                      nodeCanvasObject={kgPaintNode}
                       cooldownTicks={80}
+                      warmupTicks={40}
                       enableZoomInteraction={true}
                       enablePanInteraction={true}
                     />

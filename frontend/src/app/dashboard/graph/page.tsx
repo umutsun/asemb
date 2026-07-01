@@ -20,7 +20,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Spinner } from '@/components/ui/spinner';
-import { RefreshCw, Share2, Search } from 'lucide-react';
+import { RefreshCw, Search } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { fetchWithAuth } from '@/lib/auth-fetch';
 import config from '@/config/api.config';
@@ -136,16 +136,18 @@ export default function KnowledgeGraphPage() {
   useEffect(() => {
     const fg = fgRef.current;
     if (!fg || !data || groups.length === 0) return;
-    const R = Math.min(dims.w, dims.h) * 0.32;
+    const R = Math.min(dims.w, dims.h) * 0.42;
     const gi = new Map(groups.map((g, i) => [g, i]));
     const cx = (g: string) => (groups.length <= 1 ? 0 : Math.cos((2 * Math.PI * (gi.get(g) ?? 0)) / groups.length) * R);
     const cy = (g: string) => (groups.length <= 1 ? 0 : Math.sin((2 * Math.PI * (gi.get(g) ?? 0)) / groups.length) * R);
     try {
-      fg.d3Force('x', forceX((n: any) => cx(n.group)).strength(0.14));
-      fg.d3Force('y', forceY((n: any) => cy(n.group)).strength(0.14));
-      fg.d3Force('collide', forceCollide((n: any) => 2 + (n.val || 1) + 1.5));
+      fg.d3Force('x', forceX((n: any) => cx(n.group)).strength(0.12));
+      fg.d3Force('y', forceY((n: any) => cy(n.group)).strength(0.12));
+      // Bigger collision radius + stronger repulsion so nodes (and their labels) spread out
+      // instead of piling into an unreadable central blob.
+      fg.d3Force('collide', forceCollide((n: any) => 8 + (n.val || 1) * 2));
       const charge = fg.d3Force('charge');
-      if (charge) charge.strength(-45);
+      if (charge) charge.strength(-140);
       fg.d3ReheatSimulation?.();
     } catch { /* forces are best-effort */ }
   }, [data, groups, dims]);
@@ -169,16 +171,25 @@ export default function KnowledgeGraphPage() {
       ctx.stroke();
     }
 
-    // Labels: hubs always; hovered node + its neighbours; search hits; or when
-    // zoomed in. Dimmed nodes never draw labels (keeps it uncluttered).
+    // Labels: hubs always; the hovered node; search hits; or when zoomed in. We deliberately
+    // do NOT label every neighbour of the hovered node — a high-degree hub (80+ connections)
+    // would carpet the view with overlapping text. Neighbours are still conveyed by the link
+    // highlighting + dimming of everything else.
     const showLabel =
       !dimmed &&
-      (hubIds.has(node.id) || node.id === hoverId || isHit || scale > 2.2 || (!!neighbors && neighbors.has(node.id)));
+      (hubIds.has(node.id) || node.id === hoverId || isHit || scale > 2.2);
     if (showLabel) {
       ctx.globalAlpha = 1;
+      const label = String(node.label || node.id).slice(0, 34);
       ctx.font = `${Math.max(3.5, 11 / scale)}px sans-serif`;
-      ctx.fillStyle = '#cbd5e1';
-      ctx.fillText(String(node.label || node.id).slice(0, 34), node.x + r + 2, node.y + 3);
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'middle';
+      // Dark halo so the label stays legible over links and neighbouring nodes.
+      ctx.lineWidth = 3 / scale;
+      ctx.strokeStyle = 'rgba(2,6,23,0.85)';
+      ctx.strokeText(label, node.x + r + 3, node.y);
+      ctx.fillStyle = '#e2e8f0';
+      ctx.fillText(label, node.x + r + 3, node.y);
     }
     ctx.globalAlpha = 1;
   }, [highlight, neighbors, hoverId, hubIds, selected]);
@@ -229,8 +240,7 @@ export default function KnowledgeGraphPage() {
     <div className="space-y-4 p-1">
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
-          <h1 className="text-2xl font-bold flex items-center gap-2">
-            <Share2 className="h-6 w-6 text-purple-600" />
+          <h1 className="text-2xl font-bold">
             {t('graph.title', { defaultValue: 'Knowledge Graph' })}
           </h1>
           <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">

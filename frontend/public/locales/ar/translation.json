@@ -38,6 +38,10 @@
   "authorization": "authorization",
   "characters": "characters",
   "chat": {
+    "citation": {
+      "goToSource": "الانتقال إلى المصدر",
+      "openPdf": "فتح ملف PDF"
+    },
     "clearChat": "مسح الدردشة",
     "connected": "متصل",
     "disconnected": "منقطع",

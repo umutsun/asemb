@@ -2,7 +2,8 @@
 
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
-import { User, Bot, Clock, Volume2, Pause, Loader2 } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
+import { User, Bot, Clock, Volume2, Pause, Loader2, ExternalLink, FileText } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { ZenTypingIndicator } from './ZenTypingIndicator';
@@ -270,6 +271,7 @@ export const ZenMessage: React.FC<ZenMessageProps> = ({
   onToggleTranslation,  // Callback to toggle translation
 }) => {
   const isUser = message.role === 'user';
+  const { t } = useTranslation();
   const [showAllSources, setShowAllSources] = useState(false);
 
   // Debug: Log component version on mount
@@ -337,10 +339,59 @@ export const ZenMessage: React.FC<ZenMessageProps> = ({
       play(plainText);
     }
   };
+  // Dedup duplicate laws in the citation list. The same law can arrive twice — e.g. a clean
+  // uae_legislation ingest AND an uploaded-PDF document_embeddings copy — and used to render
+  // as two cards. We collapse them into one group, preferring the clean uae_legislation copy,
+  // but keep every original source index so inline [n] refs in the answer still resolve (the
+  // backend numbered them against the original, un-deduped order).
+  const sourceGroups = React.useMemo(() => {
+    const all = message.sources || [];
+    const keyOf = (s: ZenSource): string => {
+      const m = (s.metadata || {}) as Record<string, unknown>;
+      let name = String(
+        m.source_name || m.law_name || m.law || m.title || m.baslik
+          || (s as { title?: string }).title || ''
+      ).toLowerCase()
+        .replace(/\.pdf$/i, '')
+        .replace(/\s*[-–]\s*id:\s*\d+.*$/i, '')
+        .replace(/_/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+      if (!name && typeof m.url === 'string') {
+        try { name = new URL(m.url).hostname.replace(/^www\./, ''); } catch { /* ignore */ }
+      }
+      if (!name) {
+        name = String(s.content || s.excerpt || '').toLowerCase().replace(/\s+/g, ' ').trim().slice(0, 60);
+      }
+      return name;
+    };
+    const isLegis = (s: ZenSource) => String(s.sourceTable || '').toLowerCase().includes('legislation');
+    const scoreOf = (s: ZenSource) => (s.score ?? (s as { relevanceScore?: number }).relevanceScore ?? 0);
+
+    const groups: { primary: ZenSource; primaryIndex: number; indices: number[] }[] = [];
+    const byKey = new Map<string, number>();
+    all.forEach((s, i) => {
+      const k = keyOf(s);
+      const gi = k ? byKey.get(k) : undefined;
+      if (!k || gi === undefined) {
+        if (k) byKey.set(k, groups.length);
+        groups.push({ primary: s, primaryIndex: i, indices: [i] });
+        return;
+      }
+      const g = groups[gi];
+      g.indices.push(i);
+      // Prefer uae_legislation; then higher score; otherwise keep the earliest (already primary).
+      const better = (isLegis(s) && !isLegis(g.primary))
+        || (isLegis(s) === isLegis(g.primary) && scoreOf(s) > scoreOf(g.primary));
+      if (better) { g.primary = s; g.primaryIndex = i; }
+    });
+    return groups;
+  }, [message.sources]);
+
   // Show sources based on settings (dynamic from ragSettings.minSourcesToShow)
-  const visibleSources = showAllSources
-    ? message.sources
-    : message.sources?.slice(0, minSourcesToShow);
+  const visibleGroups = showAllSources
+    ? sourceGroups
+    : sourceGroups.slice(0, minSourcesToShow);
 
   return (
     <motion.div
@@ -656,11 +707,16 @@ export const ZenMessage: React.FC<ZenMessageProps> = ({
           <div className="zen01-sources mt-3">
             <div className="mb-2">
               <span className="text-xs font-medium text-cyan-600/70 dark:text-cyan-400/70">
-                Citations ({message.sources.length} sources)
+                Citations ({sourceGroups.length} sources)
               </span>
             </div>
             <div className="space-y-2">
-              {visibleSources?.map((source: ZenSource, idx: number) => {
+              {visibleGroups?.map((group) => {
+                // The primary source of this deduped group; `idx` is its ORIGINAL index in
+                // message.sources so the badge/anchor still match the backend's inline [n] refs.
+                const source: ZenSource = group.primary;
+                const idx = group.primaryIndex;
+                const aliasIndices = group.indices.filter((n) => n !== idx);
                 // Get source type info with hierarchy and marker color
                 const getSourceTypeInfo = (sourceTable?: string, metadata?: any) => {
                   // Detailed type mapping with English labels
@@ -812,13 +868,19 @@ export const ZenMessage: React.FC<ZenMessageProps> = ({
                     .replace(/^(KONU|İLGİ|SORU|CEVAP|Dilekçenizde|konusu|VERGİ\s*Sİ\s*KANUNU[^.]*\.)[:.\s]*/gi, '')
                     .replace(/\.{2,}/g, '.')
                     .trim();
-                  // Chunk boundaries sometimes cut mid-word (e.g. "iability Company ..." from
-                  // "Liability"); when the excerpt starts with a lowercase fragment, drop it so
-                  // the citation reads from a clean word/sentence start. (ASCII-only: leaves
-                  // Arabic and other scripts untouched.)
+                  // Chunk boundaries can cut mid-word/mid-sentence (e.g. "iability Company ..."
+                  // from "Liability"). If the excerpt starts with a lowercase Latin fragment,
+                  // jump to the first real sentence start nearby; failing that, drop the short
+                  // leading partial word. (Arabic/other scripts have no case, so they're left
+                  // as-is; the chunker fix prevents mid-word starts for newly-embedded content.)
                   if (/^[a-z]/.test(cleaned)) {
-                    const sp = cleaned.indexOf(' ');
-                    if (sp > 0 && sp <= 16) cleaned = cleaned.slice(sp + 1).trimStart();
+                    const firstSentence = cleaned.search(/[.?!؟]\s+\S/);
+                    if (firstSentence > 0 && firstSentence <= 120) {
+                      cleaned = cleaned.slice(firstSentence + 1).trimStart();
+                    } else {
+                      const sp = cleaned.indexOf(' ');
+                      if (sp > 0 && sp <= 16) cleaned = cleaned.slice(sp + 1).trimStart();
+                    }
                   }
 
                   // If konu is good and different from content, prefix it
@@ -831,14 +893,28 @@ export const ZenMessage: React.FC<ZenMessageProps> = ({
                     combined = cleaned;
                   }
 
-                  // Truncate to 300 chars at sentence boundary
+                  // End on a full sentence. Terminators: . ? ! and the Arabic question mark ؟.
+                  const lastSentenceEnd = (str: string): number => {
+                    for (let k = str.length - 1; k >= 0; k--) {
+                      const c = str[k];
+                      if (c === '.' || c === '?' || c === '!' || c === '؟') return k;
+                    }
+                    return -1;
+                  };
+                  // Truncate to ~300 chars, ending on a full sentence when one is close enough.
                   if (combined.length > 300) {
                     const truncated = combined.substring(0, 300);
-                    const lastPeriod = truncated.lastIndexOf('.');
-                    if (lastPeriod > 150) {
-                      return truncated.substring(0, lastPeriod + 1);
+                    const end = lastSentenceEnd(truncated);
+                    if (end > 150) {
+                      return truncated.substring(0, end + 1);
                     }
-                    return truncated.trim() + '...';
+                    return truncated.trim() + '…';
+                  }
+                  // Not truncated but ends mid-sentence (a chunk cut): trim back to the last full
+                  // sentence, as long as that keeps most of the text.
+                  const endIdx = lastSentenceEnd(combined);
+                  if (endIdx !== -1 && endIdx < combined.length - 1 && endIdx > combined.length * 0.6) {
+                    return combined.substring(0, endIdx + 1);
                   }
                   return combined;
                 };
@@ -856,6 +932,13 @@ export const ZenMessage: React.FC<ZenMessageProps> = ({
                   try { originLabel = new URL(meta.url).hostname.replace(/^www\./, ''); } catch { /* ignore */ }
                 }
 
+                // "Go to source" link — the original document (law PDF, gov page, crawl origin).
+                const sourceUrl = String(
+                  meta?.url || meta?.source_url || (source as any).url || ''
+                ).trim();
+                const isPdf = /\.pdf($|\?)/i.test(sourceUrl)
+                  || String(meta?.file_type || '').toLowerCase() === 'pdf';
+
                 return (
                   <div
                     key={idx}
@@ -865,6 +948,11 @@ export const ZenMessage: React.FC<ZenMessageProps> = ({
                       onClick: () => onSourceClick(source, message.sources || [])
                     })}
                   >
+                    {/* Hidden anchors for duplicate laws merged into this card, so inline [n]
+                        references to those merged sources still scroll here. */}
+                    {aliasIndices.map((n) => (
+                      <span key={`alias-${n}`} id={`citation-${message.id}-${n + 1}`} aria-hidden className="block h-0 w-0" />
+                    ))}
                     {/* Header Row: [1] + Type + Chamber + Decision + Year */}
                     <div className="flex items-center gap-2 flex-wrap mb-1.5">
                       <span className="text-xs font-semibold text-cyan-500 dark:text-cyan-400">
@@ -903,16 +991,32 @@ export const ZenMessage: React.FC<ZenMessageProps> = ({
                         {description}
                       </p>
                     )}
+
+                    {/* Go to source — opens the original law PDF / page in a new tab.
+                        stopPropagation so it doesn't also trigger the card's onSourceClick. */}
+                    {sourceUrl && (
+                      <a
+                        href={sourceUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        onClick={(e) => e.stopPropagation()}
+                        title={sourceUrl}
+                        className="inline-flex items-center gap-1 mt-1.5 text-[11px] font-medium text-cyan-600 dark:text-cyan-400 hover:text-cyan-700 dark:hover:text-cyan-300 hover:underline"
+                      >
+                        {isPdf ? <FileText className="w-3 h-3" /> : <ExternalLink className="w-3 h-3" />}
+                        {isPdf ? t('chat.citation.openPdf', 'Open PDF') : t('chat.citation.goToSource', 'Go to source')}
+                      </a>
+                    )}
                   </div>
                 );
               })}
             </div>
-            {message.sources.length > minSourcesToShow && (
+            {sourceGroups.length > minSourcesToShow && (
               <button
                 onClick={() => setShowAllSources(!showAllSources)}
                 className="mt-2 text-xs text-cyan-600/70 dark:text-cyan-400/70 hover:text-cyan-700 dark:hover:text-cyan-300 transition-colors"
               >
-                {showAllSources ? 'Show less' : `Show ${message.sources.length - minSourcesToShow} more sources`}
+                {showAllSources ? 'Show less' : `Show ${sourceGroups.length - minSourcesToShow} more sources`}
               </button>
             )}
           </div>

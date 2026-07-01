@@ -308,11 +308,16 @@ export default function DocumentPreviewModal({
       const preResp = await fetch(`/api/v2/documents/${document.id}`, { headers: getAuthHeaders() });
       if (preResp.ok) {
         const preData = await preResp.json();
-        if (preData?.content && preData.content.trim().length > 0) {
-          debug.log('[PDF Init] Loaded stored content from DB, length:', preData.content.length);
-          setPdfExtractedText(preData.content);
+        // GET /api/v2/documents/:id returns { document: { content } } — read the nested
+        // field. Older code read preData.content (always undefined), so stored text was
+        // never used and the modal fell through to a failing analyze-batch → "Failed to
+        // analyze document" for DB-ingested PDFs that have no physical file_path.
+        const storedContent: string | undefined = preData?.document?.content ?? preData?.content;
+        if (storedContent && storedContent.trim().length > 0) {
+          debug.log('[PDF Init] Loaded stored content from DB, length:', storedContent.length);
+          setPdfExtractedText(storedContent);
           setPdfIsScanned(false);
-          await detectTemplate(preData.content);
+          await detectTemplate(storedContent);
           return;
         }
       }
@@ -353,9 +358,10 @@ export default function DocumentPreviewModal({
             });
             if (docResponse.ok) {
               const docData = await docResponse.json();
-              if (docData.content && docData.content.trim().length > 0) {
-                setPdfExtractedText(docData.content);
-                await detectTemplate(docData.content);
+              const extracted: string | undefined = docData?.document?.content ?? docData?.content;
+              if (extracted && extracted.trim().length > 0) {
+                setPdfExtractedText(extracted);
+                await detectTemplate(extracted);
               } else {
                 // No content - start text extraction (not OCR)
                 debug.log('[PDF Init] No content found, extracting text...');

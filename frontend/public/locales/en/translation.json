@@ -4066,6 +4066,10 @@
     }
   },
   "chat": {
+    "citation": {
+      "goToSource": "Go to source",
+      "openPdf": "Open PDF"
+    },
     "source": {
       "default": "Default",
       "table": {
