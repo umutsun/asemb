@@ -527,7 +527,8 @@ export default function DashboardPage() {
           if (data.database) {
             setEmbeddingStats(prev => ({
               ...prev,
-              total_embeddings: data.database.embeddings || 0
+              total_embeddings: data.database.embeddings || 0,
+              by_category: data.database.by_category || prev?.by_category
             }));
             setDocumentStats(prev => ({
               ...prev,
