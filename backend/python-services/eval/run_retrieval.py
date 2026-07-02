@@ -94,8 +94,10 @@ async def _attach_source_names(pool, results: List[Dict[str, Any]]) -> None:
             r["source_name"] = names[str(r.get("id"))]
 
 
-async def run(golden_path: Path, only: Optional[str], lang: Optional[str], k_override: Optional[int]) -> int:
-    code, _artifact = await run_scored(golden_path, only, lang, k_override)
+async def run(golden_path: Path, only: Optional[str], lang: Optional[str], k_override: Optional[int],
+              fts_lang_filter: Optional[bool] = None) -> int:
+    code, _artifact = await run_scored(golden_path, only, lang, k_override,
+                                       fts_lang_filter=fts_lang_filter)
     return code
 
 
@@ -105,6 +107,7 @@ async def run_scored(
     lang: Optional[str],
     k_override: Optional[int],
     persist: bool = True,
+    fts_lang_filter: Optional[bool] = None,
 ) -> tuple:
     """Core retrieval eval. Returns (exit_code, artifact) so orchestrators
     (eval.run_all) can reuse the metrics; `persist=False` skips the eval_runs
@@ -134,6 +137,17 @@ async def run_scored(
     await init_db()
     pool = await get_db()
     service = SemanticSearchService()
+
+    # In-memory A/B override: pre-load the settings cache and flip the BM25
+    # language filter for THIS process only — the tenant's settings row is
+    # never touched (enable it in the DB only after the A/B shows a win).
+    if fts_lang_filter is not None:
+        loaded = await service.get_rag_settings()
+        loaded.fts_lang_filter_enabled = fts_lang_filter
+        # Pin the mutated settings for this process so a mid-run cache-TTL
+        # expiry cannot silently reset the override.
+        service._settings_cache_ttl = 10 ** 9
+        print(f"[A/B] fts_lang_filter_enabled overridden in-memory: {fts_lang_filter}")
 
     rows: List[Dict[str, Any]] = []
     meta_cov_hits = 0
@@ -275,6 +289,9 @@ def main() -> int:
     p.add_argument("--only", help="Run a single item by id")
     p.add_argument("--lang", choices=("en", "ar"), help="Filter to one language")
     p.add_argument("--k", type=int, help="Override evalSettings.retrievalK")
+    p.add_argument("--fts-lang-filter", choices=("on", "off"),
+                   help="A/B override for ragSettings.ftsLangFilterEnabled, in-memory only "
+                        "(the tenant settings row is not touched)")
     args = p.parse_args()
 
     async def _run() -> int:
@@ -288,7 +305,8 @@ def main() -> int:
         if not golden_path.exists():
             sys.stderr.write(f"Golden set not found: {golden_path} — run `python -m eval.seed_golden` first.\n")
             return 2
-        return await run(golden_path, args.only, args.lang, args.k)
+        fts_override = None if args.fts_lang_filter is None else args.fts_lang_filter == "on"
+        return await run(golden_path, args.only, args.lang, args.k, fts_lang_filter=fts_override)
 
     return asyncio.run(_run())
 
