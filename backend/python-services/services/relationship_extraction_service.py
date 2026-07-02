@@ -1234,16 +1234,21 @@ Rules:
 
                 # 3. Law-level fallback: the cited law exists but the exact
                 #    article is not indexed (or no article was extracted).
+                #    target_law_code may already BE a structured law_key
+                #    (same-law rows store the source's key verbatim).
                 if not target_id and law_level_fallback:
                     parsed = parse_law_name(law_code or "", patterns)
-                    if parsed.get("law_key"):
+                    law_key = parsed.get("law_key") or (
+                        law_code if law_code and re.match(r"^[a-z_]+:\d+:\d{4}$", law_code) else None
+                    )
+                    if law_key:
                         target_id = await conn.fetchval("""
                             SELECT id FROM unified_embeddings
                             WHERE metadata->>'law_key' = $1
                             ORDER BY (metadata->>'lang' = $2) DESC,
                                      (metadata->>'article_index')::int NULLS LAST
                             LIMIT 1
-                        """, parsed["law_key"], source_lang or '')
+                        """, law_key, source_lang or '')
                         if target_id:
                             resolution = 'law_level'
 
