@@ -39,6 +39,9 @@ const GROUP_COLORS: Record<string, string> = {
   other: '#f59e0b',
 };
 const PALETTE = ['#f59e0b', '#ef4444', '#06b6d4', '#8b5cf6', '#ec4899', '#84cc16', '#14b8a6', '#6366f1'];
+// Distinct hues for detected communities/clusters (cycled).
+const COMMUNITY_COLORS = ['#10b981', '#3b82f6', '#a855f7', '#f59e0b', '#ef4444', '#06b6d4', '#ec4899', '#84cc16', '#14b8a6', '#6366f1', '#f97316', '#eab308'];
+const communityColor = (cid: number) => COMMUNITY_COLORS[cid % COMMUNITY_COLORS.length];
 const colorFor = (g: string) => {
   if (GROUP_COLORS[g]) return GROUP_COLORS[g];
   let h = 0;
@@ -134,6 +137,35 @@ export default function KnowledgeGraphPage() {
     return { adjacency: adj, hubIds };
   }, [data]);
 
+  // Lightweight community detection (deterministic label propagation) so clusters are
+  // visually distinct. Returns node.id -> community index, plus the community count.
+  const { communities, communityCount } = useMemo(() => {
+    const ids: string[] = (data?.nodes || []).map((n: any) => n.id);
+    const label = new Map<string, string>();
+    ids.forEach((id) => label.set(id, id));
+    for (let iter = 0; iter < 10; iter++) {
+      let changed = false;
+      for (const id of ids) {
+        const nbrs = adjacency.get(id);
+        if (!nbrs || nbrs.size === 0) continue;
+        const counts = new Map<string, number>();
+        nbrs.forEach((nb) => counts.set(label.get(nb)!, (counts.get(label.get(nb)!) || 0) + 1));
+        let best = label.get(id)!, bestC = -1;
+        counts.forEach((c, l) => { if (c > bestC || (c === bestC && l < best)) { best = l; bestC = c; } });
+        if (best !== label.get(id)) { label.set(id, best); changed = true; }
+      }
+      if (!changed) break;
+    }
+    // Map final labels to compact indices, ordered by community size (largest first).
+    const size = new Map<string, number>();
+    ids.forEach((id) => size.set(label.get(id)!, (size.get(label.get(id)!) || 0) + 1));
+    const order = [...size.entries()].sort((a, b) => b[1] - a[1]).map((e) => e[0]);
+    const idx = new Map(order.map((l, i) => [l, i]));
+    const communities = new Map<string, number>();
+    ids.forEach((id) => communities.set(id, idx.get(label.get(id)!)!));
+    return { communities, communityCount: order.length };
+  }, [data, adjacency]);
+
   // Set of the hovered node + its direct neighbours (null when nothing hovered).
   const neighbors = useMemo(() => {
     if (!hoverId) return null;
@@ -178,7 +210,10 @@ export default function KnowledgeGraphPage() {
     ctx.globalAlpha = dimmed ? 0.12 : 1;
     ctx.beginPath();
     ctx.arc(node.x, node.y, r, 0, 2 * Math.PI);
-    ctx.fillStyle = colorFor(node.group);
+    // Colour by detected community so clusters are distinguishable; fall back to source-group
+    // colour when the graph is effectively one community.
+    const cid = communities.get(node.id);
+    ctx.fillStyle = (communityCount > 1 && cid != null) ? communityColor(cid) : colorFor(node.group);
     ctx.fill();
 
     if (!dimmed && (isHit || focused)) {
@@ -225,7 +260,7 @@ export default function KnowledgeGraphPage() {
     ctx.textBaseline = 'middle';
     ctx.fillText(label, lx, ly);
     ctx.globalAlpha = 1;
-  }, [highlight, neighbors, hoverId, hubIds, selected]);
+  }, [highlight, neighbors, hoverId, hubIds, selected, communities, communityCount]);
 
   // Memoize graph data + accessors. Passing a fresh { nodes, links } object (or new
   // accessor functions) on every render makes react-force-graph re-ingest the data and
@@ -310,6 +345,9 @@ export default function KnowledgeGraphPage() {
         <div className="flex flex-wrap items-center gap-3 text-xs text-gray-500 dark:text-gray-400">
           <Badge variant="secondary">{data.node_count} {t('graph.nodes', { defaultValue: 'sources' })}</Badge>
           <Badge variant="secondary">{data.edge_count} {t('graph.references', { defaultValue: 'relationships' })}</Badge>
+          {communityCount > 1 && (
+            <Badge variant="secondary">{communityCount} {t('graph.clusters', { defaultValue: 'clusters' })}</Badge>
+          )}
           {groups.map((g) => (
             <span key={g} className="inline-flex items-center gap-1">
               <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ background: colorFor(g) }} />
