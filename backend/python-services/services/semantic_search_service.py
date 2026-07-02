@@ -1112,6 +1112,61 @@ class SemanticSearchService:
             dedup_stats = f"seen_ids={len(seen_ids)}, seen_source_ids={len(seen_source_ids)}"
             logger.info(f"[VectorSearch] Cross-table dedup: {dedup_stats}")
 
+            # Cross-path dedup (in-memory, no DB writes): a law can be indexed twice — once as an
+            # uploaded PDF (document_embeddings) and once via the clean ingest (unified_embeddings,
+            # source_table='uae_legislation'). The two paths name the same law very differently — a
+            # filename slug ("Commercial-Companies-32-2021-EN.pdf") vs a descriptive title
+            # ("...Federal Decree-Law No. 32 of 2021") — so the reliable shared signal is the law
+            # number + year. We collect the signals of every uae_legislation row and drop
+            # document_embeddings rows that share one, preferring the clean copy. Only these two
+            # tables are collapsed; distinct articles of one law (different content, same table) are
+            # untouched, and nothing is deleted from the DB.
+            def _dedup_signals(r):
+                meta = r.get('metadata')
+                if isinstance(meta, str):
+                    try:
+                        meta = json.loads(meta)
+                    except (json.JSONDecodeError, TypeError):
+                        meta = {}
+                meta = meta or {}
+                name = str(meta.get('law') or meta.get('source_name') or meta.get('title')
+                           or meta.get('document_title') or meta.get('filename') or '').lower()
+                sig = set()
+                # Primary: law number + year (e.g. "No. 32 of 2021" or "...-32-2021-...").
+                flat = re.sub(r'[-_./]+', ' ', name)
+                m = (re.search(r'no\s+(\d{1,4})\s+of\s+(\d{4})', flat)
+                     or re.search(r'(?<!\d)(\d{1,4})\s+(\d{4})(?!\d)', flat))
+                if m:
+                    sig.add(f"nr:{int(m.group(1))}/{m.group(2)}")
+                # Secondary: normalized full name (catches same-scheme duplicates).
+                norm = re.sub(r'\.pdf$', '', name)
+                norm = re.sub(r'\s*[-–]\s*id:\s*\d+.*$', '', norm)
+                norm = re.sub(r'\s+', ' ', norm.replace('_', ' ')).strip()
+                if norm:
+                    sig.add(f"nm:{norm}")
+                # Tertiary: content prefix (catches byte-identical chunks across tables).
+                c = re.sub(r'\s+', ' ', str(r.get('content') or '')).strip().lower()[:160]
+                if c:
+                    sig.add(f"c:{c}")
+                return sig
+
+            legis_signals = set()
+            for r in all_results:
+                if r.get('source_table') == 'uae_legislation':
+                    legis_signals |= _dedup_signals(r)
+
+            if legis_signals:
+                before = len(all_results)
+                all_results = [
+                    r for r in all_results
+                    if not (r.get('source_table') == 'document_embeddings'
+                            and (_dedup_signals(r) & legis_signals))
+                ]
+                dropped = before - len(all_results)
+                if dropped:
+                    logger.info(f"[VectorSearch] Cross-path dedup: dropped {dropped} document_embeddings "
+                                f"row(s) duplicating a uae_legislation law")
+
             # v12.54: Sort by similarity + hierarchy-aware weight bonus
             # Similarity is 0-1 range, table_weight provides additive bonus
             def get_weighted_score(result):
