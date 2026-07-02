@@ -19,7 +19,8 @@ interface CitationChipProps {
 export function CitationChip({ chip, className, showLabel = true }: CitationChipProps) {
   const { t } = useTranslation();
   const label = chip.label ?? t(chip.labelKey, { defaultValue: '' });
-  const skin = className || 'rounded-full bg-black/5 dark:bg-white/10 px-2 py-0.5 text-[10px] text-current';
+  // Quiet default: thin border, muted text, no background tint.
+  const skin = className || 'rounded border border-gray-200 dark:border-gray-700 px-1.5 py-0.5 text-[10px] text-gray-500 dark:text-gray-400';
 
   return (
     <span

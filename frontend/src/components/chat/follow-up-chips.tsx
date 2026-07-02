@@ -15,10 +15,11 @@ interface FollowUpChipsProps {
   chipClassName?: string;
 }
 
+// Quiet by default: thin border, muted text, no background tint.
 const DEFAULT_CHIP_CLASS =
-  'inline-flex items-center gap-1.5 rounded-full border border-slate-300 dark:border-slate-600 ' +
-  'bg-slate-100/60 dark:bg-slate-800/60 px-3 py-1.5 text-xs text-slate-700 dark:text-slate-200 ' +
-  'hover:bg-slate-200/70 dark:hover:bg-slate-700/70 transition-colors text-start';
+  'inline-flex items-center gap-1.5 rounded-full border border-slate-300/70 dark:border-slate-600/60 ' +
+  'bg-transparent px-3 py-1 text-xs text-slate-600 dark:text-slate-300 ' +
+  'hover:bg-slate-100 dark:hover:bg-slate-800/50 transition-colors text-start';
 
 /**
  * Backend-generated follow-up questions rendered as clickable chips under the
@@ -46,7 +47,7 @@ export function FollowUpChips({
 
   return (
     <div dir={dir} className={`mt-3 ${className}`}>
-      <span className="block text-[11px] font-medium opacity-60 mb-1.5">
+      <span className="block text-[11px] font-medium text-slate-500 dark:text-slate-400 mb-1.5">
         {t('followUps.title')}
       </span>
       <div className="flex flex-wrap gap-1.5">

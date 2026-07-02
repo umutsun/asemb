@@ -271,7 +271,7 @@ export function SourceCitation({ sources, onLoadMore, hasMore = false, showLoadM
 
                 {/* Title - Plain text, no link (hidden when it just repeats the excerpt) */}
                 {!titleRedundant && (
-                  <p className="text-sm text-gray-200 leading-snug line-clamp-2 mb-2">
+                  <p className="text-sm text-gray-700 dark:text-gray-200 leading-snug line-clamp-2 mb-2">
                     {displayTitle}
                   </p>
                 )}

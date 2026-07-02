@@ -5,6 +5,10 @@ module.exports = {
     './src/pages/**/*.{js,ts,jsx,tsx,mdx}',
     './src/components/**/*.{js,ts,jsx,tsx,mdx}',
     './src/app/**/*.{js,ts,jsx,tsx,mdx}',
+    // Chat templates (zen01 etc.) use Tailwind utilities too — without this glob
+    // their classes are only generated when they happen to appear in other dirs
+    // (e.g. list-decimal was missing, so ordered lists rendered without numbers).
+    './src/templates/**/*.{js,ts,jsx,tsx,mdx}',
   ],
   theme: {
     extend: {

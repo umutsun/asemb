@@ -27,11 +27,12 @@ export function getQualityLevel(evidence: Evidence | undefined, sourceCount: num
   return 'low';
 }
 
+// Quiet styling: neutral pill, level conveyed by text color only (no tinted background).
 const LEVEL_CLASSES: Record<QualityLevel, string> = {
-  veryGood: 'bg-green-100 text-green-700 dark:bg-green-900/50 dark:text-green-300',
-  good: 'bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300',
-  medium: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/50 dark:text-yellow-300',
-  low: 'bg-gray-100 text-gray-600 dark:bg-gray-800/70 dark:text-gray-400',
+  veryGood: 'text-emerald-600 dark:text-emerald-400',
+  good: 'text-sky-600 dark:text-sky-400',
+  medium: 'text-amber-600 dark:text-amber-400',
+  low: 'text-gray-500 dark:text-gray-400',
 };
 
 interface QualityBadgeProps {
@@ -49,10 +50,10 @@ export function QualityBadge({ evidence, sourceCount, className = '' }: QualityB
   // good"), with the full explanation in the tooltip.
   return (
     <span
-      className={`inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-full font-medium ${LEVEL_CLASSES[level]} ${className}`}
+      className={`inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-full font-medium border border-gray-200 dark:border-gray-700 bg-transparent ${LEVEL_CLASSES[level]} ${className}`}
       title={t('chatMessage.quality.label')}
     >
-      <span className="opacity-70">{t('chatMessage.quality.label')}:</span>
+      <span className="text-gray-500 dark:text-gray-400">{t('chatMessage.quality.label')}:</span>
       {t(`chatMessage.quality.${level}`)}
     </span>
   );

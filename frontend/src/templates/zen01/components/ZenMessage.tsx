@@ -18,11 +18,6 @@ import { FollowUpChips } from '@/components/chat/follow-up-chips';
 import { QualityBadge } from '@/components/chat/quality-badge';
 import type { ZenMessageProps, ZenSource, MessageTranslation } from '../types';
 
-// Marker color tokens available in zen01.css; unknown tokens from settings fall back to slate
-const ZEN_MARKER_TOKENS = new Set(['yellow', 'green', 'pink', 'blue', 'purple', 'orange', 'slate', 'amber']);
-const zenMarkerClass = (token: string): string =>
-  `zen01-marker-${ZEN_MARKER_TOKENS.has(token) ? token : 'slate'}`;
-
 // Default stop words - can be overridden via settings
 const DEFAULT_STOP_WORDS = [
   // Turkish
@@ -285,7 +280,7 @@ export const ZenMessage: React.FC<ZenMessageProps> = ({
                   <Bot className="h-3.5 w-3.5 text-white" />
                 </span>
                 <ZenTypingIndicator />
-                <span className="text-cyan-400/60 text-sm">{t('chatMessage.analyzing')}</span>
+                <span className="text-slate-500 dark:text-cyan-400/60 text-sm">{t('chatMessage.analyzing')}</span>
               </div>
             ) : isUser ? (
               <div className="text-slate-700 dark:text-slate-200 leading-relaxed whitespace-pre-wrap">
@@ -322,19 +317,20 @@ export const ZenMessage: React.FC<ZenMessageProps> = ({
                 <ReactMarkdown
                   remarkPlugins={[remarkGfm]}
                   components={{
-                    // Headings
+                    // Headings — light mode: near-black, clearly heavier than body text;
+                    // dark mode keeps the approved cyan accent.
                     h1: ({ children }) => (
-                      <h1 className="text-lg font-bold text-cyan-700 dark:text-cyan-200 mt-4 mb-2 pb-1 border-b border-cyan-500/30">
+                      <h1 className="text-lg font-bold text-slate-900 dark:text-cyan-200 mt-4 mb-2 pb-1 border-b border-slate-200 dark:border-cyan-500/30">
                         {children}
                       </h1>
                     ),
                     h2: ({ children }) => (
-                      <h2 className="text-base font-semibold text-cyan-700 dark:text-cyan-300 mt-4 mb-2">
+                      <h2 className="text-base font-bold text-slate-900 dark:text-cyan-300 mt-4 mb-2">
                         {children}
                       </h2>
                     ),
                     h3: ({ children }) => (
-                      <h3 className="text-sm font-semibold text-cyan-700 dark:text-cyan-300 mt-3 mb-1">
+                      <h3 className="text-sm font-bold text-slate-900 dark:text-cyan-300 mt-3 mb-1">
                         {children}
                       </h3>
                     ),
@@ -430,9 +426,10 @@ export const ZenMessage: React.FC<ZenMessageProps> = ({
                         </p>
                       );
                     },
-                    // Bold - Style as section header when at start of paragraph
+                    // Bold — light mode: near-black + heavier weight so it clearly differs
+                    // from body text; dark mode keeps the approved cyan accent.
                     strong: ({ children }) => (
-                      <strong className="font-semibold text-cyan-700 dark:text-cyan-300 inline-block">
+                      <strong className="font-bold text-slate-900 dark:text-cyan-300 dark:font-semibold inline-block">
                         {children}
                       </strong>
                     ),
@@ -442,21 +439,21 @@ export const ZenMessage: React.FC<ZenMessageProps> = ({
                         {children}
                       </em>
                     ),
-                    // Unordered lists
+                    // Unordered lists — visible markers + indent (preflight resets list-style)
                     ul: ({ children }) => (
-                      <ul className="list-disc list-outside ml-4 my-2 space-y-1 text-slate-700 dark:text-slate-100">
+                      <ul className="list-disc list-outside pl-5 my-3 space-y-1.5 text-slate-700 dark:text-slate-100">
                         {children}
                       </ul>
                     ),
-                    // Ordered lists
+                    // Ordered lists — visible numbers + indent
                     ol: ({ children }) => (
-                      <ol className="list-decimal list-outside ml-4 my-2 space-y-1 text-slate-700 dark:text-slate-100">
+                      <ol className="list-decimal list-outside pl-5 my-3 space-y-1.5 text-slate-700 dark:text-slate-100">
                         {children}
                       </ol>
                     ),
                     // List items
                     li: ({ children }) => (
-                      <li className="text-slate-700 dark:text-slate-100 pl-1">
+                      <li className="text-slate-700 dark:text-slate-100 pl-1 leading-relaxed">
                         {children}
                       </li>
                     ),
@@ -588,7 +585,7 @@ export const ZenMessage: React.FC<ZenMessageProps> = ({
         {!isUser && message.sources && message.sources.length > 0 && !message.isStreaming && (
           <div className="zen01-sources mt-3">
             <div className="mb-2">
-              <span className="text-xs font-medium text-cyan-600/70 dark:text-cyan-400/70">
+              <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400">
                 {t('citationPanel.label', { count: sourceGroups.length })}
               </span>
             </div>
@@ -602,7 +599,6 @@ export const ZenMessage: React.FC<ZenMessageProps> = ({
                 // Shared, settings-driven presentation: type badge (ragSettings.sourceTypeLabels),
                 // metadata chips (ragSettings.citationPriorityFields/fieldLabels) and official link.
                 const typeInfo = getSourceTypeInfo(source.sourceTable, source.metadata, citationSettings.sourceTypeLabels);
-                const typeMarkerClass = zenMarkerClass(typeInfo.markerClass);
                 const chips = buildCitationChips(source, chipLang, citationSettings.fieldLabels, citationSettings.priorityFields);
                 const officialUrl = citationSettings.showOfficialSourceLink ? getOfficialSourceUrl(source) : undefined;
                 const meta = source.metadata as any;
@@ -705,19 +701,21 @@ export const ZenMessage: React.FC<ZenMessageProps> = ({
                     {aliasIndices.map((n) => (
                       <span key={`alias-${n}`} id={`citation-${message.id}-${n + 1}`} aria-hidden className="block h-0 w-0" />
                     ))}
-                    {/* Header Row: [1] + type badge + structured metadata chips */}
-                    <div className="flex items-center gap-2 flex-wrap mb-1.5">
-                      <span className="text-xs font-semibold text-cyan-500 dark:text-cyan-400">
+                    {/* Header Row: [1] + type badge + structured metadata chips.
+                        Quiet .zen01-chip pills (theme-safe via zen01.css) instead of the
+                        loud highlighter markers — keep the info, reduce visual weight. */}
+                    <div className="flex items-center gap-1.5 flex-wrap mb-1.5">
+                      <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">
                         [{idx + 1}]
                       </span>
-                      <span className={`zen01-marker ${typeMarkerClass} text-[10px] font-medium px-2 py-0.5`}>
+                      <span className="zen01-chip font-medium">
                         {t(typeInfo.labelKey)}
                       </span>
                       {chips.map((chip) => (
                         <CitationChip
                           key={chip.key}
                           chip={chip}
-                          className="zen01-marker zen01-marker-slate text-[10px] px-1.5 py-0.5"
+                          className="zen01-chip"
                         />
                       ))}
                     </div>
@@ -757,7 +755,7 @@ export const ZenMessage: React.FC<ZenMessageProps> = ({
             {sourceGroups.length > minSourcesToShow && (
               <button
                 onClick={() => setShowAllSources(!showAllSources)}
-                className="mt-2 text-xs text-cyan-600/70 dark:text-cyan-400/70 hover:text-cyan-700 dark:hover:text-cyan-300 transition-colors"
+                className="mt-2 text-xs text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-colors"
               >
                 {showAllSources
                   ? t('citationPanel.showLess')
@@ -773,7 +771,7 @@ export const ZenMessage: React.FC<ZenMessageProps> = ({
             questions={message.followUpQuestions}
             onQuestionClick={onQuestionClick}
             dir={isRtl ? 'rtl' : 'ltr'}
-            chipClassName="inline-flex items-center gap-1.5 rounded-full border border-cyan-500/30 bg-cyan-500/5 px-3 py-1.5 text-xs text-cyan-700 dark:text-cyan-300 hover:bg-cyan-500/15 transition-colors text-start"
+            chipClassName="zen01-followup-chip inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs transition-colors text-start"
           />
         )}
       </div>

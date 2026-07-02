@@ -223,7 +223,9 @@ export const ZenInput: React.FC<ZenInputProps> = ({
 
   return (
     <div className="zen01-input-container">
-      <div className="max-w-4xl mx-auto">
+      {/* Same max-width + horizontal padding as the message column so the input
+          bar spans the full content width and lines up with the messages. */}
+      <div className="max-w-5xl mx-auto w-full px-4">
         {/* Hidden file input */}
         <input
           ref={fileInputRef}

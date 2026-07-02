@@ -138,7 +138,8 @@ export const ZenHeader: React.FC<ZenHeaderProps> = ({
               <h1 className={`text-lg font-semibold ${isDark ? 'text-slate-100' : 'text-slate-800'}`}>
                 {chatbotSettings.title || 'Zen Assistant'}
               </h1>
-              <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded-md border ${isDark ? 'bg-cyan-500/20 text-cyan-300 border-cyan-500/30' : 'bg-cyan-500/10 text-cyan-700 border-cyan-500/20'}`}>
+              {/* Muted build badge — informational, so keep it visually quiet in both modes */}
+              <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded-md border ${isDark ? 'bg-slate-800/60 text-slate-400 border-slate-600/50' : 'bg-slate-100 text-slate-500 border-slate-300'}`}>
                 Build: {process.env.NEXT_PUBLIC_BUILD_TIMESTAMP || 'dev'}
               </span>
             </div>
@@ -152,24 +153,21 @@ export const ZenHeader: React.FC<ZenHeaderProps> = ({
         <div className="flex items-center gap-3">
           {/* Theme Toggle with Zen - Single Combined Button */}
           <button
+            type="button"
             onClick={handleThemeToggle}
             className={`w-9 h-9 rounded-xl flex items-center justify-center border
-              transition-all duration-300 hover:scale-105 hover:shadow-lg group relative overflow-hidden ${
+              transition-colors duration-200 ${
               isDark
-                ? 'bg-gradient-to-br from-slate-800 to-slate-700 border-slate-600 hover:from-cyan-900/30 hover:to-purple-900/30 hover:border-cyan-500/50'
-                : 'bg-gradient-to-br from-slate-100 to-slate-200 border-slate-300 hover:from-cyan-50 hover:to-purple-50 hover:border-cyan-400/50'
+                ? 'bg-slate-800 border-slate-600 hover:border-slate-500'
+                : 'bg-white border-slate-300 hover:border-slate-400'
             }`}
             aria-label={isDark ? 'Light mode' : 'Dark mode'}
             title={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
           >
-            {/* Animated background glow */}
-            <div className="absolute inset-0 bg-gradient-to-r from-cyan-500/0 via-cyan-500/10 to-purple-500/0
-              translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-700" />
-
             {isDark ? (
-              <Sun className="h-4 w-4 text-amber-500 group-hover:text-amber-400 transition-colors relative z-10" />
+              <Sun className="h-4 w-4 text-amber-400 transition-colors" />
             ) : (
-              <Moon className="h-4 w-4 text-slate-600 group-hover:text-purple-600 transition-colors relative z-10" />
+              <Moon className="h-4 w-4 text-slate-600 transition-colors" />
             )}
           </button>
 
