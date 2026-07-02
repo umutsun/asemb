@@ -14,6 +14,7 @@ Features:
 
 import os
 import json
+import math
 import hashlib
 import asyncio
 from typing import List, Dict, Any, Optional
@@ -30,6 +31,23 @@ JINA_API_URL = "https://api.jina.ai/v1/rerank"
 JINA_DEFAULT_MODEL = "jina-reranker-v2-base-multilingual"
 RERANK_CACHE_TTL = 3600  # 1 hour cache for rerank results
 RERANK_TIMEOUT = 10.0  # 10 second timeout for API calls
+
+# Free, self-hosted (fastembed) multilingual cross-encoder — no API key. Used when
+# ragSettings.rerankProvider = 'local'. Works for the EN + AR legal corpus.
+LOCAL_DEFAULT_MODEL = "jinaai/jina-reranker-v2-base-multilingual"
+
+# fastembed cross-encoders, lazily loaded and cached per model name: the first use downloads
+# the model (~1.1 GB, then cached on disk) and keeps it warm in-process for later requests.
+_LOCAL_ENCODERS: Dict[str, Any] = {}
+
+
+def _get_local_encoder(model_name: str):
+    enc = _LOCAL_ENCODERS.get(model_name)
+    if enc is None:
+        from fastembed.rerank.cross_encoder import TextCrossEncoder
+        enc = TextCrossEncoder(model_name=model_name)
+        _LOCAL_ENCODERS[model_name] = enc
+    return enc
 
 
 @dataclass
@@ -237,16 +255,24 @@ class RerankService:
         max_docs_for_jina = min(len(doc_texts), 15)
         jina_top_n = min(config.top_n or 10, max_docs_for_jina)
         try:
-            reranked = await self._call_jina_api(
-                query=query,
-                documents=doc_texts[:max_docs_for_jina],
-                model=config.model,
-                api_key=config.api_key,
-                top_n=jina_top_n  # Only return top N from Jina
-            )
+            if config.provider == 'local':
+                reranked = await self._rerank_local(
+                    query=query,
+                    documents=doc_texts[:max_docs_for_jina],
+                    model=config.model,
+                    top_n=jina_top_n,
+                )
+            else:
+                reranked = await self._call_jina_api(
+                    query=query,
+                    documents=doc_texts[:max_docs_for_jina],
+                    model=config.model,
+                    api_key=config.api_key,
+                    top_n=jina_top_n  # Only return top N
+                )
 
             elapsed = (datetime.now() - start_time).total_seconds() * 1000
-            logger.info(f"Jina rerank completed: {len(reranked)} results in {elapsed:.1f}ms (sent {max_docs_for_jina}/{len(documents)} docs)")
+            logger.info(f"{config.provider} rerank completed: {len(reranked)} results in {elapsed:.1f}ms (sent {max_docs_for_jina}/{len(documents)} docs)")
 
             # valid_indices for Jina are only the first max_docs_for_jina entries
             jina_valid_indices = valid_indices[:max_docs_for_jina]
@@ -299,9 +325,40 @@ class RerankService:
             return result_docs
 
         except Exception as e:
-            logger.error(f"Jina rerank failed: {e}. Falling back to original order.")
+            logger.error(f"Rerank ({config.provider}) failed: {e}. Falling back to original order.")
             # Return empty list to signal failure - caller keeps original scored_results
             return []
+
+    async def _rerank_local(
+        self,
+        query: str,
+        documents: List[str],
+        model: str,
+        top_n: int,
+    ) -> List[Dict[str, Any]]:
+        """
+        Rerank locally with a fastembed cross-encoder (free, no API key, multilingual).
+        Returns the same shape as _call_jina_api ([{index, relevance_score}], sorted desc,
+        capped to top_n). The CPU-bound scoring runs in a worker thread so it never blocks
+        the event loop.
+        """
+        model_name = model if (model and '/' in model) else LOCAL_DEFAULT_MODEL
+
+        def _run() -> List[Dict[str, Any]]:
+            enc = _get_local_encoder(model_name)
+            # fastembed cross-encoders return raw logits (unbounded, often negative). Map to a
+            # 0-1 relevance via sigmoid so the scores are comparable to the Jina API and the
+            # rerankMinScore threshold applies on the same scale (sigmoid is monotonic, so the
+            # ranking order is unchanged).
+            scores = list(enc.rerank(query, documents))
+            ranked = sorted(
+                ({'index': i, 'relevance_score': 1.0 / (1.0 + math.exp(-float(s)))} for i, s in enumerate(scores)),
+                key=lambda x: x['relevance_score'],
+                reverse=True,
+            )
+            return ranked[:top_n]
+
+        return await asyncio.to_thread(_run)
 
     async def _call_jina_api(
         self,
