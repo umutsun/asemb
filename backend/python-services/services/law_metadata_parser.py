@@ -337,6 +337,9 @@ def parse_law_from_content(
 
     num = year = None
     if lang == "ar":
+        # The document's own number/year live in the header at the very top;
+        # anchors deeper in the text are citations of OTHER laws.
+        head = head[:400]
         m = re.search(r"رقم", head)
         if m:
             window = head[max(0, m.start() - 15): m.end() + 15]
