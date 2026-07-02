@@ -2,6 +2,11 @@
  * Zen01 Template - Shared TypeScript Types
  */
 
+import type { Evidence } from '@/types/chat';
+
+// Re-export so zen01 components can import everything from '../types'
+export type { Evidence };
+
 // Message Source Interface
 export interface ZenSource {
   title?: string;
@@ -74,6 +79,12 @@ export interface ZenMessage {
   fastMode?: boolean;
   /** Flag indicating sources fetch failed after retries (streaming mode) */
   sourcesFetchFailed?: boolean;
+  /** Answer language reported by the backend (en|ar|tr); used for RTL rendering + markdown repair */
+  language?: string;
+  /** Evidence-gate metadata from the backend (absent on legacy messages) */
+  evidence?: Evidence;
+  /** Backend-generated follow-up questions rendered as clickable chips */
+  followUpQuestions?: string[];
 }
 
 // Chatbot Settings Interface
@@ -219,6 +230,8 @@ export interface ZenMessageProps {
   // Translation support
   translation?: MessageTranslation;
   onToggleTranslation?: () => void;
+  /** Fills the chat input with a follow-up question (wired to the interface input state) */
+  onQuestionClick?: (question: string) => void;
 }
 
 // Slash Command Submenu Item

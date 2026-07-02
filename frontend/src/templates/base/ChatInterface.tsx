@@ -16,6 +16,7 @@ import { ChatHeader, ChatWelcome, ChatMessage, ChatInput } from '@/components/ch
 // Import theme system (force 'base' theme)
 import { useTheme } from '@/hooks/useTheme';
 import { ChatbotFeatures, defaultFeatures } from '@/types/chatbot-features';
+import type { Evidence } from '@/types/chat';
 
 interface Message {
   id: string;
@@ -32,6 +33,7 @@ interface Message {
     summary?: string;
     keywords?: string[];
     category?: string;
+    metadata?: Record<string, unknown>;
   }>;
   relatedTopics?: Array<{
     title: string;
@@ -49,6 +51,12 @@ interface Message {
     output?: number;
     total?: number;
   };
+  /** Answer language reported by the backend (en|ar|tr) */
+  language?: string;
+  /** Evidence-gate metadata (absent on legacy messages) */
+  evidence?: Evidence;
+  /** Backend-generated follow-up questions */
+  followUpQuestions?: string[];
 }
 
 export default function ChatInterface() {
@@ -472,6 +480,9 @@ export default function ChatInterface() {
           response?: string;
           tokens?: Message['tokens'];
           usage?: Message['tokens'];
+          language?: string;
+          evidence?: Evidence;
+          followUpQuestions?: string[];
         } = {};
         try {
           const finalResponse = await fetch(getEndpoint('chat', 'send'), {
@@ -509,7 +520,10 @@ export default function ChatInterface() {
               relatedTopics: finalData.relatedTopics,
               context: finalData.context,
               responseTime: msg.startTime ? Date.now() - msg.startTime : undefined,
-              tokens: finalData.tokens || finalData.usage
+              tokens: finalData.tokens || finalData.usage,
+              language: finalData.language,
+              evidence: finalData.evidence,
+              followUpQuestions: finalData.followUpQuestions
             }
             : msg
         ));
@@ -532,7 +546,10 @@ export default function ChatInterface() {
               relatedTopics: data.relatedTopics,
               context: data.context,
               responseTime: msg.startTime ? Date.now() - msg.startTime : undefined,
-              tokens: data.tokens || data.usage
+              tokens: data.tokens || data.usage,
+              language: data.language,
+              evidence: data.evidence,
+              followUpQuestions: data.followUpQuestions
             }
             : msg
         ));

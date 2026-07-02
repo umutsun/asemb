@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { cn } from '@/lib/utils';
 import { User, Bot, FileText, Volume2, Pause, Loader2, AlertTriangle } from 'lucide-react';
 import React from 'react';
@@ -11,6 +12,12 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { useAudioPlayer } from '@/lib/hooks/use-audio-player';
 import { fetchWithAuth } from '@/lib/auth-fetch';
+import { prepareMarkdown, detectRtl } from '@/lib/chat-markdown';
+import { processCitationRefs } from './citation-refs';
+import { FollowUpChips } from './follow-up-chips';
+import { getQualityLevel } from './quality-badge';
+import type { QualityLevel } from './quality-badge';
+import { useCitationSettings } from '@/lib/citation-settings';
 
 // Format file size for display
 const formatFileSize = (bytes: number): string => {
@@ -42,45 +49,7 @@ function highlightRepeatingKeywords(text: string, keywords: string[]): string {
   return highlightedText;
 }
 
-/**
- * Processes React children to make inline citation references [1], [2] clickable.
- * Scrolls to the corresponding source in the citation section when clicked.
- */
-function processCitationRefs(children: React.ReactNode): React.ReactNode {
-  return React.Children.map(children, (child) => {
-    if (typeof child !== 'string') return child;
-
-    // Split text on citation patterns like [1], [2], [1][3]
-    const parts = child.split(/(\[\d+\])/g);
-    if (parts.length === 1) return child;
-
-    return parts.map((part, i) => {
-      const match = part.match(/^\[(\d+)\]$/);
-      if (match) {
-        const num = match[1];
-        return (
-          <sup
-            key={i}
-            className="inline-flex items-center justify-center min-w-[1.1rem] h-[1.1rem] px-0.5 mx-[1px] text-[10px] font-semibold rounded bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 cursor-pointer hover:bg-blue-200 dark:hover:bg-blue-800/60 transition-colors align-top"
-            title={`Kaynak ${num}`}
-            onClick={() => {
-              const el = document.getElementById(`source-ref-${num}`);
-              if (el) {
-                el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-                // Brief highlight animation
-                el.classList.add('ring-2', 'ring-blue-400', 'ring-offset-1');
-                setTimeout(() => el.classList.remove('ring-2', 'ring-blue-400', 'ring-offset-1'), 2000);
-              }
-            }}
-          >
-            {num}
-          </sup>
-        );
-      }
-      return part;
-    });
-  });
-}
+// Inline [n] citation-reference processing is shared across templates — see ./citation-refs.
 
 interface MessageItemProps {
   message: Message;
@@ -88,8 +57,21 @@ interface MessageItemProps {
 
 export function MessageItem({ message }: MessageItemProps) {
   const isUser = message.role === 'user';
+  const { t, i18n } = useTranslation();
   const [voiceOutputEnabled, setVoiceOutputEnabled] = useState(false);
   const apiUrl = process.env.NEXT_PUBLIC_API_URL || '';
+  const citationSettings = useCitationSettings();
+
+  // Answer language: backend-reported when available; Arabic-script heuristic for legacy messages
+  const isRtl = message.language
+    ? message.language.toLowerCase().startsWith('ar')
+    : (!isUser && detectRtl(message.content));
+
+  // Shared inline [n] citation processing (localized tooltip, RTL-safe markers)
+  const withCitationRefs = (children: React.ReactNode) =>
+    processCitationRefs(children, {
+      getTooltip: (num) => t('citations.sourceN', { num }),
+    });
 
   // Audio player hook for TTS
   const { isPlaying, isLoading, play, pause, stop } = useAudioPlayer({
@@ -154,14 +136,18 @@ export function MessageItem({ message }: MessageItemProps) {
     );
   }
 
-  // Calculate response quality based on sources
+  // Response quality: evidence-gate based when the backend provided it,
+  // source-count fallback for legacy messages (see quality-badge.tsx).
   const getResponseQuality = () => {
-    if (isUser || !message.sources) return null;
-    const sourceCount = message.sources.length;
-    if (sourceCount >= 5) return { text: 'Çok İyi', color: 'text-green-600 dark:text-green-400', bgColor: 'bg-green-100 dark:bg-green-900/70' };
-    if (sourceCount >= 3) return { text: 'İyi', color: 'text-blue-600 dark:text-blue-400', bgColor: 'bg-blue-100 dark:bg-blue-900/70' };
-    if (sourceCount >= 1) return { text: 'Orta', color: 'text-yellow-600 dark:text-yellow-400', bgColor: 'bg-yellow-100 dark:bg-yellow-900/70' };
-    return { text: 'Düşük', color: 'text-gray-600 dark:text-gray-400', bgColor: 'bg-gray-100 dark:bg-gray-900/70' };
+    if (isUser || (!message.sources && !message.evidence)) return null;
+    const level = getQualityLevel(message.evidence, message.sources?.length || 0);
+    const styles: Record<QualityLevel, { color: string; bgColor: string }> = {
+      veryGood: { color: 'text-green-600 dark:text-green-400', bgColor: 'bg-green-100 dark:bg-green-900/70' },
+      good: { color: 'text-blue-600 dark:text-blue-400', bgColor: 'bg-blue-100 dark:bg-blue-900/70' },
+      medium: { color: 'text-yellow-600 dark:text-yellow-400', bgColor: 'bg-yellow-100 dark:bg-yellow-900/70' },
+      low: { color: 'text-gray-600 dark:text-gray-400', bgColor: 'bg-gray-100 dark:bg-gray-900/70' },
+    };
+    return { text: t(`chatMessage.quality.${level}`), ...styles[level] };
   };
 
   const responseQuality = getResponseQuality();
@@ -223,7 +209,7 @@ export function MessageItem({ message }: MessageItemProps) {
         {/* Response quality indicator for assistant messages */}
         {responseQuality && (
           <div className="flex items-center gap-2 mb-2 pb-2 border-b border-gray-100 dark:border-gray-700">
-            <span className="text-xs text-gray-500 dark:text-gray-400">Yanıt Kalitesi:</span>
+            <span className="text-xs text-gray-500 dark:text-gray-400">{t('chatMessage.quality.label')}</span>
             <span className={cn(
               'text-xs px-2 py-0.5 rounded-full font-medium',
               responseQuality.bgColor,
@@ -233,7 +219,7 @@ export function MessageItem({ message }: MessageItemProps) {
             </span>
             {message.sources && (
               <span className="text-xs text-gray-400 dark:text-gray-500">
-                ({message.sources.length} konu)
+                {t('chatMessage.topicsCount', { count: message.sources.length })}
               </span>
             )}
           </div>
@@ -244,8 +230,7 @@ export function MessageItem({ message }: MessageItemProps) {
           <div className="flex items-center gap-2 mb-3 p-2 rounded-lg bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-800">
             <AlertTriangle className="w-4 h-4 text-amber-600 dark:text-amber-400 flex-shrink-0" />
             <span className="text-xs text-amber-800 dark:text-amber-200">
-              <strong>{message.articleQuery.lawCode} Madde {message.articleQuery.articleNumber}</strong> kanun metni veritabanında bulunamadı.
-              Aşağıdaki yanıt ilgili kaynaklardan derlenmiştir.
+              <strong>{message.articleQuery.lawCode} {t('chatMessage.article')} {message.articleQuery.articleNumber}</strong> {t('chatMessage.articleNotFoundBody')}
             </span>
           </div>
         )}
@@ -253,7 +238,7 @@ export function MessageItem({ message }: MessageItemProps) {
         {isUser ? (
           <div>
             <div className="text-sm whitespace-pre-wrap">
-              <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-white/20 mr-1.5 align-middle">
+              <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-white/20 me-1.5 align-middle">
                 <User className="w-3 h-3" />
               </span>
               {message.content}
@@ -272,15 +257,15 @@ export function MessageItem({ message }: MessageItemProps) {
             )}
           </div>
         ) : (
-          <div className={cn(
+          <div dir={isRtl ? 'rtl' : 'ltr'} className={cn(
             'prose prose-sm max-w-none',
             'prose-headings:text-gray-900 dark:prose-headings:text-gray-100',
             'prose-headings:font-semibold prose-headings:mt-4 prose-headings:mb-2',
             'prose-h1:text-lg prose-h2:text-base prose-h3:text-sm',
             'prose-p:text-gray-700 dark:prose-p:text-gray-300 prose-p:my-2 prose-p:leading-relaxed',
             'prose-strong:text-gray-900 dark:prose-strong:text-white prose-strong:font-semibold',
-            'prose-ul:my-2 prose-ul:pl-4 prose-li:my-1',
-            'prose-ol:my-2 prose-ol:pl-4',
+            'prose-ul:my-2 prose-ul:ps-4 prose-li:my-1',
+            'prose-ol:my-2 prose-ol:ps-4',
             '[&>*:first-child]:mt-0 [&>*:last-child]:mb-0'
           )}>
             <ReactMarkdown
@@ -305,36 +290,36 @@ export function MessageItem({ message }: MessageItemProps) {
                 // Paragraphs - with clickable citation refs
                 p: ({ children }) => (
                   <p className="text-gray-700 dark:text-gray-300 my-2 leading-relaxed">
-                    {processCitationRefs(children)}
+                    {withCitationRefs(children)}
                   </p>
                 ),
                 // Bold text - with clickable citation refs
                 strong: ({ children }) => (
                   <strong className="font-semibold text-gray-900 dark:text-white">
-                    {processCitationRefs(children)}
+                    {withCitationRefs(children)}
                   </strong>
                 ),
                 // Unordered lists
                 ul: ({ children }) => (
-                  <ul className="list-disc list-outside ml-4 my-2 space-y-1">
+                  <ul className="list-disc list-outside ms-4 my-2 space-y-1">
                     {children}
                   </ul>
                 ),
                 // Ordered lists
                 ol: ({ children }) => (
-                  <ol className="list-decimal list-outside ml-4 my-2 space-y-1">
+                  <ol className="list-decimal list-outside ms-4 my-2 space-y-1">
                     {children}
                   </ol>
                 ),
                 // List items - with clickable citation refs
                 li: ({ children }) => (
-                  <li className="text-gray-700 dark:text-gray-300 pl-1">
-                    {processCitationRefs(children)}
+                  <li className="text-gray-700 dark:text-gray-300 ps-1">
+                    {withCitationRefs(children)}
                   </li>
                 ),
                 // Blockquotes (for warnings/notes)
                 blockquote: ({ children }) => (
-                  <blockquote className="border-l-4 border-amber-400 bg-amber-50 dark:bg-amber-900/20 pl-4 py-2 my-3 text-amber-800 dark:text-amber-200 italic">
+                  <blockquote className="border-s-4 border-amber-400 bg-amber-50 dark:bg-amber-900/20 ps-4 py-2 my-3 text-amber-800 dark:text-amber-200 italic">
                     {children}
                   </blockquote>
                 ),
@@ -353,11 +338,11 @@ export function MessageItem({ message }: MessageItemProps) {
                 },
               }}
             >
-              {message.content}
+              {prepareMarkdown(message.content, { lang: message.language })}
             </ReactMarkdown>
           </div>
         )}
-        
+
         {message.sources && message.sources.length > 0 && (
           <SourceCitation
             sources={message.sources}
@@ -368,13 +353,25 @@ export function MessageItem({ message }: MessageItemProps) {
             }}
           />
         )}
+
+        {/* Follow-up question chips (backend-generated; gated by chatbot.enableFollowUps) */}
+        {!isUser && !message.isLoading && citationSettings.enableFollowUps && (
+          <FollowUpChips
+            questions={message.followUpQuestions}
+            dir={isRtl ? 'rtl' : 'ltr'}
+            onQuestionClick={(question) => {
+              // Same mechanism as source excerpt clicks: fill the chat input
+              window.dispatchEvent(new CustomEvent('addToInput', { detail: question }));
+            }}
+          />
+        )}
         
         <div className={cn(
           'flex items-center justify-between mt-2 opacity-0 group-hover:opacity-70 transition-all duration-200',
           isUser ? 'text-blue-100' : 'text-gray-500 dark:text-gray-400'
         )}>
           <span className="text-xs">
-            {new Date(message.timestamp).toLocaleTimeString('tr-TR', {
+            {new Date(message.timestamp).toLocaleTimeString(i18n.language || 'en', {
               hour: '2-digit',
               minute: '2-digit',
             })}
@@ -393,7 +390,7 @@ export function MessageItem({ message }: MessageItemProps) {
                     ? 'text-gray-400 cursor-wait'
                     : 'hover:text-blue-500 hover:bg-gray-100 dark:hover:bg-gray-700'
               )}
-              title={isPlaying ? 'Durdur' : isLoading ? 'Yükleniyor...' : 'Sesli dinle'}
+              title={isPlaying ? t('chatMessage.tts.stop') : isLoading ? t('chatMessage.tts.loading') : t('chatMessage.tts.listen')}
             >
               {isLoading ? (
                 <Loader2 className="w-3.5 h-3.5 animate-spin" />

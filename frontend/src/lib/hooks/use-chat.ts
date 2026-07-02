@@ -68,6 +68,9 @@ export function useChat() {
         content: data.message.content,
         sources: data.sources,
         articleQuery: data.articleQuery, // Article anchoring metadata
+        language: data.language,
+        evidence: data.evidence,
+        followUpQuestions: data.followUpQuestions,
         isLoading: false,
       });
     } catch (error) {

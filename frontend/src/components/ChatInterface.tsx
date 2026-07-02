@@ -67,6 +67,12 @@ interface Message {
     output?: number;
     total?: number;
   };
+  /** Answer language reported by the backend (en|ar|tr) */
+  language?: string;
+  /** Evidence-gate metadata from the backend (absent on legacy messages) */
+  evidence?: import('@/types/chat').Evidence;
+  /** Backend-generated follow-up questions */
+  followUpQuestions?: string[];
 }
 
 const getSourceTableName = (sourceTable?: string) => {
@@ -916,7 +922,10 @@ export default function ChatInterface() {
                 relatedTopics: finalData.relatedTopics,
                 context: finalData.context,
                 responseTime: msg.startTime ? Date.now() - msg.startTime : undefined,
-                tokens: finalData.tokens || finalData.usage
+                tokens: finalData.tokens || finalData.usage,
+                language: finalData.language,
+                evidence: finalData.evidence,
+                followUpQuestions: finalData.followUpQuestions
               }
             : msg
         ));
@@ -940,7 +949,10 @@ export default function ChatInterface() {
                 context: data.context,
                 suggestedQuestions: data.suggestedQuestions,  // "Did you mean?" suggestions
                 responseTime: msg.startTime ? Date.now() - msg.startTime : undefined,
-                tokens: data.tokens || data.usage
+                tokens: data.tokens || data.usage,
+                language: data.language,
+                evidence: data.evidence,
+                followUpQuestions: data.followUpQuestions
               }
             : msg
         ));

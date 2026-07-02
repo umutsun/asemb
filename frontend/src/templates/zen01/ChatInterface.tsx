@@ -772,6 +772,9 @@ export default function ChatInterface() {
           usage?: ZenMessageType['tokens'];
           fastMode?: boolean;
           conversationId?: string;
+          language?: ZenMessageType['language'];
+          evidence?: ZenMessageType['evidence'];
+          followUpQuestions?: string[];
         } = {};
 
         // Fetch sources with retry mechanism (streaming mode fix)
@@ -866,6 +869,9 @@ export default function ChatInterface() {
               responseTime: msg.startTime ? Date.now() - msg.startTime : undefined,
               tokens: finalData.tokens || finalData.usage,
               fastMode: finalData.fastMode,
+              language: finalData.language,
+              evidence: finalData.evidence,
+              followUpQuestions: finalData.followUpQuestions,
               sourcesFetchFailed // Flag for UI to show warning
             }
             : msg
@@ -890,7 +896,10 @@ export default function ChatInterface() {
               context: data.context,
               responseTime: msg.startTime ? Date.now() - msg.startTime : undefined,
               tokens: data.tokens || data.usage,
-              fastMode: data.fastMode
+              fastMode: data.fastMode,
+              language: data.language,
+              evidence: data.evidence,
+              followUpQuestions: data.followUpQuestions
             }
             : msg
         ));
@@ -1117,15 +1126,25 @@ export default function ChatInterface() {
   const handleSelectConversation = async (id: string) => {
     const conversation = await loadConversation(id);
     if (conversation) {
-      // Transform database messages to ZenMessage format
-      const transformedMessages: ZenMessageType[] = conversation.messages.map(msg => ({
-        id: msg.id,
-        role: msg.role as 'user' | 'assistant',
-        content: msg.content,
-        timestamp: new Date(msg.created_at),
-        sources: (msg.sources || []) as ZenSource[],
-        isFromSource: false
-      }));
+      // Transform database messages to ZenMessage format. Persisted assistant metadata
+      // (language/evidence/followUpQuestions) is restored when present — legacy messages
+      // without it fall back gracefully (RTL heuristics, count-based quality).
+      const transformedMessages: ZenMessageType[] = conversation.messages.map(msg => {
+        const meta = (msg.metadata || {}) as Record<string, unknown>;
+        return {
+          id: msg.id,
+          role: msg.role as 'user' | 'assistant',
+          content: msg.content,
+          timestamp: new Date(msg.created_at),
+          sources: (msg.sources || []) as ZenSource[],
+          isFromSource: false,
+          language: typeof meta.language === 'string' ? meta.language : undefined,
+          evidence: (meta.evidence as ZenMessageType['evidence']) || undefined,
+          followUpQuestions: Array.isArray(meta.followUpQuestions)
+            ? (meta.followUpQuestions as string[])
+            : undefined
+        };
+      });
 
       setMessages(transformedMessages);
       setConversationId(id);
@@ -1229,6 +1248,7 @@ export default function ChatInterface() {
                     minSourcesToShow={ragSettings.minSourcesToShow}
                     translation={messageTranslations.get(message.id)}
                     onToggleTranslation={() => handleToggleTranslation(message.id)}
+                    onQuestionClick={handleSuggestionClick}
                   />
                 ))}
               </AnimatePresence>

@@ -16,6 +16,7 @@ import { ChatHeader, ChatWelcome, ChatMessage, ChatInput } from '@/components/ch
 // Import theme system (force 'modern' theme)
 import { useTheme } from '@/hooks/useTheme';
 import { ChatbotFeatures, defaultFeatures } from '@/types/chatbot-features';
+import type { Evidence } from '@/types/chat';
 
 interface Message {
   id: string;
@@ -32,6 +33,7 @@ interface Message {
     summary?: string;
     keywords?: string[];
     category?: string;
+    metadata?: Record<string, unknown>;
   }>;
   relatedTopics?: Array<{
     title: string;
@@ -50,6 +52,12 @@ interface Message {
     total?: number;
   };
   fastMode?: boolean;
+  /** Answer language reported by the backend (en|ar|tr) */
+  language?: string;
+  /** Evidence-gate metadata (absent on legacy messages) */
+  evidence?: Evidence;
+  /** Backend-generated follow-up questions */
+  followUpQuestions?: string[];
 }
 
 export default function ChatInterface() {
@@ -455,6 +463,9 @@ export default function ChatInterface() {
           tokens?: Message['tokens'];
           usage?: Message['tokens'];
           fastMode?: boolean;
+          language?: string;
+          evidence?: Evidence;
+          followUpQuestions?: string[];
         } = {};
         try {
           const finalResponse = await fetch(getEndpoint('chat', 'send'), {
@@ -493,7 +504,10 @@ export default function ChatInterface() {
               context: finalData.context,
               responseTime: msg.startTime ? Date.now() - msg.startTime : undefined,
               tokens: finalData.tokens || finalData.usage,
-              fastMode: finalData.fastMode
+              fastMode: finalData.fastMode,
+              language: finalData.language,
+              evidence: finalData.evidence,
+              followUpQuestions: finalData.followUpQuestions
             }
             : msg
         ));
@@ -517,7 +531,10 @@ export default function ChatInterface() {
               context: data.context,
               responseTime: msg.startTime ? Date.now() - msg.startTime : undefined,
               tokens: data.tokens || data.usage,
-              fastMode: data.fastMode
+              fastMode: data.fastMode,
+              language: data.language,
+              evidence: data.evidence,
+              followUpQuestions: data.followUpQuestions
             }
             : msg
         ));

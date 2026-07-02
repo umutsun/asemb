@@ -5476,7 +5476,21 @@
   "questionPlaceholder": "question Placeholder",
   "examples": "examples",
   "page": "page",
-  "citations": "Citations",
+  "citations": {
+    "title": "Citations",
+    "sourceN": "Source {{num}}",
+    "officialSource": "Official source",
+    "articleShort": "Art.",
+    "fields": {
+      "law_title": "Law",
+      "article_number": "Article",
+      "law_year": "Year",
+      "issue_date": "Issue date",
+      "source": "Source",
+      "lang": "Language",
+      "url": "Link"
+    }
+  },
   "askQuestionDescription": "ask Question Description",
   "template": "template",
   "password": "password",
@@ -5563,5 +5577,63 @@
     "deleteConfirm": "This task will be permanently deleted.",
     "completedBy": "{{name}} completed",
     "close": "Close"
+  },
+  "sourceTypes": {
+    "legislation": "Legislation",
+    "govService": "Government Service",
+    "document": "Document",
+    "webpage": "Web Page",
+    "source": "Source",
+    "law": "Law",
+    "regulation": "Regulation",
+    "notice": "Notice",
+    "circular": "Circular",
+    "article": "Article",
+    "qa": "Q&A",
+    "media": "Media",
+    "taxRuling": "Tax Ruling",
+    "councilDecision": "Council of State Decision",
+    "legalAssessment": "Legal Assessment",
+    "generalLetter": "General Notice"
+  },
+  "citationPanel": {
+    "label": "Citations ({{count}} sources)",
+    "moreSources": "Show {{count}} more sources",
+    "showLess": "Show less",
+    "loadMore": "Load more",
+    "askQuestion": "Ask a question about this",
+    "askQuestionTooltip": "Generate a follow-up question from this source"
+  },
+  "followUps": {
+    "title": "Follow-up questions",
+    "rateConditions": "What are the conditions for applying the {{rate}} rate?",
+    "rateHow": "How is the applicable rate determined here?",
+    "exemptions": "What exemptions or exceptions apply in this case?",
+    "requirementsFor": "What are the requirements for {{term}}?",
+    "requirements": "What are the requirements in this case?",
+    "deadlinesFor": "What are the deadlines related to {{term}}?",
+    "deadlines": "What deadlines apply here?",
+    "explainMore": "Can you explain more about {{term}}?",
+    "covers": "What does {{term}} cover?",
+    "moreDetails": "Can you give more details on this?"
+  },
+  "chatMessage": {
+    "analyzing": "Analyzing...",
+    "sourcesLoadFailed": "Citations could not be loaded. Please refresh the page and try again.",
+    "article": "Article",
+    "articleNotFoundBody": "was not found verbatim in the sources; the answer is based on the closest available provisions.",
+    "topicsCount": "{{count}} sources",
+    "quality": {
+      "label": "Answer quality",
+      "veryGood": "Very good",
+      "good": "Good",
+      "medium": "Medium",
+      "low": "Low"
+    },
+    "tts": {
+      "listen": "Listen",
+      "loading": "Loading...",
+      "stop": "Stop"
+    }
   }
 }

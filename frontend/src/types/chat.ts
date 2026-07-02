@@ -18,6 +18,19 @@ export interface ArticleQuery {
   wrongMatchCount?: number;
 }
 
+/**
+ * Evidence-gate metadata attached to assistant answers by the backend RAG pipeline.
+ * Scores are 0-1. Legacy messages (persisted before this field existed) won't carry it —
+ * consumers must handle absence gracefully.
+ */
+export interface Evidence {
+  gatePassed: boolean;
+  bestScore: number;
+  qualityChunkCount: number;
+  minScore: number;
+  minChunks: number;
+}
+
 export interface Message {
   id: string;
   role: 'user' | 'assistant' | 'system';
@@ -31,6 +44,12 @@ export interface Message {
   relatedTopics?: Source[];
   pdfAttachment?: PdfAttachment;
   articleQuery?: ArticleQuery; // Article anchoring metadata
+  /** Answer language reported by the backend (en|ar|tr); used for RTL rendering + markdown repair */
+  language?: string;
+  /** Evidence-gate metadata (absent on legacy messages) */
+  evidence?: Evidence;
+  /** Backend-generated follow-up questions rendered as clickable chips */
+  followUpQuestions?: string[];
 }
 
 export interface Source {
@@ -43,6 +62,8 @@ export interface Source {
   category?: string;
   citation?: string;
   metadata?: Record<string, unknown>;
+  /** Origin table/row of the retrieved chunk (when the backend provides it) */
+  databaseInfo?: { table?: string; id?: string | number };
   confidence?: number;
   timestamp?: string;
   // v12.27: Synthetic source fields for transparent labeling

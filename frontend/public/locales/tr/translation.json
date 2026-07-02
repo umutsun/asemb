@@ -150,7 +150,21 @@
     },
     "welcomeMessage": "Merhaba! Size nasıl yardımcı olabilirim?"
   },
-  "citations": "Citations",
+  "citations": {
+    "title": "Kaynakça",
+    "sourceN": "Kaynak {{num}}",
+    "officialSource": "Resmî kaynak",
+    "articleShort": "Md.",
+    "fields": {
+      "law_title": "Kanun",
+      "article_number": "Madde",
+      "law_year": "Yıl",
+      "issue_date": "Yayım tarihi",
+      "source": "Kaynak",
+      "lang": "Dil",
+      "url": "Bağlantı"
+    }
+  },
   "commandPalette": {
     "actions": {
       "aiSettings": "AI Ayarları",
@@ -5556,5 +5570,63 @@
     "deleteConfirm": "Bu görev kalıcı olarak silinecek.",
     "completedBy": "{{name}} tamamladı",
     "close": "Kapat"
+  },
+  "sourceTypes": {
+    "legislation": "Mevzuat",
+    "govService": "Kamu Hizmeti",
+    "document": "Belge",
+    "webpage": "Web Sayfası",
+    "source": "Kaynak",
+    "law": "Kanun",
+    "regulation": "Yönetmelik",
+    "notice": "Tebliğ",
+    "circular": "Sirküler",
+    "article": "Makale",
+    "qa": "Soru-Cevap",
+    "media": "Medya",
+    "taxRuling": "Özelge",
+    "councilDecision": "Danıştay Kararı",
+    "legalAssessment": "Hukuki Değerlendirme",
+    "generalLetter": "Genel Yazı"
+  },
+  "citationPanel": {
+    "label": "Kaynakça ({{count}} kaynak)",
+    "moreSources": "{{count}} kaynak daha göster",
+    "showLess": "Daha az göster",
+    "loadMore": "Daha fazla yükle",
+    "askQuestion": "Bununla ilgili soru sor",
+    "askQuestionTooltip": "Bu kaynaktan bir takip sorusu oluştur"
+  },
+  "followUps": {
+    "title": "Takip soruları",
+    "rateConditions": "{{rate}} oranının uygulanma şartları nelerdir?",
+    "rateHow": "Burada uygulanacak oran nasıl belirlenir?",
+    "exemptions": "Bu durumda hangi muafiyet veya istisnalar uygulanır?",
+    "requirementsFor": "{{term}} için gereken şartlar nelerdir?",
+    "requirements": "Bu durumda gereken şartlar nelerdir?",
+    "deadlinesFor": "{{term}} ile ilgili süreler nelerdir?",
+    "deadlines": "Burada hangi süreler geçerlidir?",
+    "explainMore": "{{term}} hakkında daha fazla açıklayabilir misiniz?",
+    "covers": "{{term}} neleri kapsar?",
+    "moreDetails": "Bu konuda daha fazla ayrıntı verebilir misiniz?"
+  },
+  "chatMessage": {
+    "analyzing": "Analiz ediliyor...",
+    "sourcesLoadFailed": "Kaynaklar yüklenemedi. Lütfen sayfayı yenileyip tekrar deneyin.",
+    "article": "Madde",
+    "articleNotFoundBody": "kaynaklarda birebir bulunamadı; yanıt mevcut en yakın hükümlere dayanmaktadır.",
+    "topicsCount": "{{count}} kaynak",
+    "quality": {
+      "label": "Yanıt kalitesi",
+      "veryGood": "Çok iyi",
+      "good": "İyi",
+      "medium": "Orta",
+      "low": "Düşük"
+    },
+    "tts": {
+      "listen": "Dinle",
+      "loading": "Yükleniyor...",
+      "stop": "Durdur"
+    }
   }
 }

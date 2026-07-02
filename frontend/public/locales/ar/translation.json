@@ -150,7 +150,21 @@
     },
     "welcomeMessage": "Welcome! How can I help you today?"
   },
-  "citations": "Citations",
+  "citations": {
+    "title": "المراجع",
+    "sourceN": "المصدر {{num}}",
+    "officialSource": "المصدر الرسمي",
+    "articleShort": "المادة",
+    "fields": {
+      "law_title": "القانون",
+      "article_number": "المادة",
+      "law_year": "السنة",
+      "issue_date": "تاريخ الإصدار",
+      "source": "المصدر",
+      "lang": "اللغة",
+      "url": "الرابط"
+    }
+  },
   "commandPalette": {
     "actions": {
       "aiSettings": "AI Settings",
@@ -5465,5 +5479,63 @@
       "scraper": "Web Scraper"
     }
   },
-  "yourQuestion": "your Question"
+  "yourQuestion": "your Question",
+  "sourceTypes": {
+    "legislation": "تشريع",
+    "govService": "خدمة حكومية",
+    "document": "مستند",
+    "webpage": "صفحة ويب",
+    "source": "مصدر",
+    "law": "قانون",
+    "regulation": "لائحة",
+    "notice": "إشعار",
+    "circular": "تعميم",
+    "article": "مقال",
+    "qa": "سؤال وجواب",
+    "media": "وسائط",
+    "taxRuling": "قرار ضريبي",
+    "councilDecision": "قرار مجلس الدولة",
+    "legalAssessment": "تقييم قانوني",
+    "generalLetter": "إشعار عام"
+  },
+  "citationPanel": {
+    "label": "المراجع ({{count}} مصادر)",
+    "moreSources": "عرض {{count}} مصادر إضافية",
+    "showLess": "عرض أقل",
+    "loadMore": "تحميل المزيد",
+    "askQuestion": "اطرح سؤالاً حول هذا",
+    "askQuestionTooltip": "إنشاء سؤال متابعة من هذا المصدر"
+  },
+  "followUps": {
+    "title": "أسئلة متابعة",
+    "rateConditions": "ما هي شروط تطبيق نسبة {{rate}}؟",
+    "rateHow": "كيف تُحدَّد النسبة المطبَّقة هنا؟",
+    "exemptions": "ما الإعفاءات أو الاستثناءات المطبَّقة في هذه الحالة؟",
+    "requirementsFor": "ما هي المتطلبات الخاصة بـ {{term}}؟",
+    "requirements": "ما هي المتطلبات في هذه الحالة؟",
+    "deadlinesFor": "ما هي المهل الزمنية المتعلقة بـ {{term}}؟",
+    "deadlines": "ما المهل الزمنية المطبَّقة هنا؟",
+    "explainMore": "هل يمكنك التوضيح أكثر حول {{term}}؟",
+    "covers": "ماذا يشمل {{term}}؟",
+    "moreDetails": "هل يمكنك تقديم مزيد من التفاصيل حول هذا؟"
+  },
+  "chatMessage": {
+    "analyzing": "جارٍ التحليل...",
+    "sourcesLoadFailed": "تعذَّر تحميل المراجع. يرجى تحديث الصفحة والمحاولة مرة أخرى.",
+    "article": "المادة",
+    "articleNotFoundBody": "لم يُعثر عليها نصاً في المصادر؛ تستند الإجابة إلى أقرب الأحكام المتاحة.",
+    "topicsCount": "{{count}} مصادر",
+    "quality": {
+      "label": "جودة الإجابة",
+      "veryGood": "ممتازة",
+      "good": "جيدة",
+      "medium": "متوسطة",
+      "low": "منخفضة"
+    },
+    "tts": {
+      "listen": "استماع",
+      "loading": "جارٍ التحميل...",
+      "stop": "إيقاف"
+    }
+  }
 }

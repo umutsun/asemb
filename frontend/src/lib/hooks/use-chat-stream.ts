@@ -163,6 +163,9 @@ export function useChatStream() {
           relatedTopics: pdfData.relatedTopics,
           pdfAttachment: pdfData.pdfAttachment,
           articleQuery: pdfData.articleQuery, // Article anchoring metadata
+          language: pdfData.language,
+          evidence: pdfData.evidence,
+          followUpQuestions: pdfData.followUpQuestions,
           isLoading: false,
           isStreaming: false,
           status: 'complete',
@@ -230,6 +233,9 @@ export function useChatStream() {
                   sources: wsData.sources,
                   relatedTopics: wsData.relatedTopics,
                   articleQuery: wsData.articleQuery, // Article anchoring metadata
+                  language: wsData.language,
+                  evidence: wsData.evidence,
+                  followUpQuestions: wsData.followUpQuestions,
                   isLoading: false,
                   isStreaming: false,
                 });
@@ -268,6 +274,9 @@ export function useChatStream() {
           content: fallbackData.message.content,
           sources: fallbackData.sources,
           articleQuery: fallbackData.articleQuery, // Article anchoring metadata
+          language: fallbackData.language,
+          evidence: fallbackData.evidence,
+          followUpQuestions: fallbackData.followUpQuestions,
           isLoading: false,
           isStreaming: false,
         });

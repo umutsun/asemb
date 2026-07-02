@@ -3,14 +3,25 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
-import { User, Bot, Clock, Volume2, Pause, Loader2 } from 'lucide-react';
+import { User, Bot, Clock, Volume2, Pause, Loader2, ExternalLink } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { ZenTypingIndicator } from './ZenTypingIndicator';
 import { SchemaRenderer } from './SchemaRenderer';
 import { TranslationBadge } from './TranslationBadge';
 import { useAudioPlayer } from '@/lib/hooks/use-audio-player';
+import { prepareMarkdown, cleanLLMResponse, cleanCitationTitle, detectRtl } from '@/lib/chat-markdown';
+import { getSourceTypeInfo, buildCitationChips, getOfficialSourceUrl } from '@/lib/source-presentation';
+import { useCitationSettings } from '@/lib/citation-settings';
+import { CitationChip } from '@/components/chat/citation-chip';
+import { FollowUpChips } from '@/components/chat/follow-up-chips';
+import { QualityBadge } from '@/components/chat/quality-badge';
 import type { ZenMessageProps, ZenSource, MessageTranslation } from '../types';
+
+// Marker color tokens available in zen01.css; unknown tokens from settings fall back to slate
+const ZEN_MARKER_TOKENS = new Set(['yellow', 'green', 'pink', 'blue', 'purple', 'orange', 'slate', 'amber']);
+const zenMarkerClass = (token: string): string =>
+  `zen01-marker-${ZEN_MARKER_TOKENS.has(token) ? token : 'slate'}`;
 
 // Default stop words - can be overridden via settings
 const DEFAULT_STOP_WORDS = [
@@ -103,165 +114,8 @@ function highlightKeywordsInText(text: string, keywords: string[]): React.ReactN
   });
 }
 
-/**
- * Clean LLM response by removing section labels that should be rendered by UI components
- * Removes: SUBJECT, KEY_TERMS, BASES, ASSESSMENT, numbered format headers, footnotes
- */
-/**
- * Clean citation/source title from database formatting issues
- * v12.53: Uses Unicode ranges instead of hardcoded Turkish characters
- */
-/**
- * Fix Turkish OCR/PDF spacing: "çal ı şanlara" → "çalışanlara"
- * OCR engines often break words around Turkish special chars (ı ş ğ ç ü ö İ Ş Ğ Ç Ü Ö)
- */
-function fixTurkishOCRSpacing(text: string): string {
-  if (!text) return '';
-  const trChars = 'ıİşŞğĞçÇüÜöÖ';
-  const letters = `a-zA-Z${trChars}`;
-  // letter + space + Turkish special char(s) + letter → merge
-  // e.g. "çal ı şanlara" → "çalışanlara", "f ıkras" → "fıkras"
-  let result = text;
-  // Pass 1: "x ı", "x ş", etc. — letter, space, single Turkish char, followed by letter
-  result = result.replace(
-    new RegExp(`([${letters}]) ([${trChars}])(?=[${letters}])`, 'g'),
-    '$1$2'
-  );
-  // Pass 2: "ş x", "ğ x", etc. — Turkish char, space, letter
-  result = result.replace(
-    new RegExp(`([${trChars}]) ([${letters}])`, 'g'),
-    (match, p1, p2) => {
-      // Don't merge if it creates an unlikely combination (two capitals, etc.)
-      // Only merge if at least one side is lowercase
-      if (p1 === p1.toLowerCase() || p2 === p2.toLowerCase()) {
-        return p1 + p2;
-      }
-      return match;
-    }
-  );
-  // Pass 3: remaining isolated single Turkish chars: "say ılı" → "sayılı"
-  result = result.replace(
-    new RegExp(`([${letters}]) ([${trChars}][${letters}])`, 'g'),
-    '$1$2'
-  );
-  return result;
-}
-
-function cleanCitationTitle(title: string): string {
-  if (!title) return '';
-
-  return fixTurkishOCRSpacing(
-    title
-      // Remove time portion from dates (00:00:00, 12:30:45, etc.)
-      .replace(/\s+\d{2}:\d{2}:\d{2}$/g, '')
-      .replace(/\s+\d{2}:\d{2}:\d{2}\s/g, ' ')
-      // Remove long sequences of dots/periods (likely placeholder text)
-      .replace(/\.{4,}/g, '')
-      // Fix single-letter OCR spacing: "D A N I Ş T A Y" -> "DANIŞTAY" (3+ consecutive single letters)
-      .replace(/\b([A-Z\u00C0-\u024F]) ([A-Z\u00C0-\u024F]) ([A-Z\u00C0-\u024F](?:\s[A-Z\u00C0-\u024F])*)\b/g,
-        (m) => m.replace(/ /g, ''))
-      // Fix abbreviations: "T.C.D" -> "T.C. D"
-      .replace(/(\.[A-Z])\.([A-Z])/g, '$1. $2')
-      // Fix "No:2018" -> "No: 2018"
-      .replace(/No:(\d)/g, 'No: $1')
-      // Fix "2018/280Word" -> "2018/280 Word"
-      .replace(/(\d{4}\/\d+)([A-Z\u00C0-\u024F])/g, '$1 $2')
-      // Clean multiple spaces
-      .replace(/\s{2,}/g, ' ')
-      .trim()
-  );
-}
-
-function cleanLLMResponse(content: string): string {
-  if (!content) return '';
-
-  // v12.53: Minimal language-agnostic cleanup only
-  // Language-specific formatting (CEVAP, section headers, etc.) handled by backend fixMarkdownAndCitations()
-  return content
-    // Remove footnote/bibliography sections (common LLM pattern in any language)
-    .replace(/##\s*(?:Dipnotlar|Footnotes|References)[\s\S]*$/gi, '')
-    .replace(/\*\*(?:Dipnotlar|Footnotes|References):?\*\*[\s\S]*$/gi, '')
-    // Remove standalone bibliography-style reference lists at end: [1] Title\n[2] Title...
-    .replace(/\n\s*\[\d+\]\s+[^\n]+(?:\n\s*\[\d+\]\s+[^\n]+)*\s*$/gi, '')
-    // Clean up multiple newlines
-    .replace(/\n{3,}/g, '\n\n')
-    .trim();
-}
-
-/**
- * Preprocess markdown content to ensure proper paragraph breaks
- * v12.53: Language-agnostic only - Turkish-specific formatting handled by backend
- */
-function preprocessMarkdown(content: string): string {
-  let result = content;
-
-  // Repair mangled bold list markers: "**1--   **Title**" -> "1. Title" (they otherwise
-  // render as literal asterisks because the ** pairs are unbalanced).
-  result = result.replace(/\*\*\s*(\d{1,2})\s*-{1,3}\s*\*\*\s*/g, '$1. ');
-  result = result.replace(/\*\*\s*(\d{1,2})\s*-{1,3}\s+/g, '$1. ');
-
-  // ═══ STEP 1: Fix broken bold headers (language-agnostic) ═══
-  // "**2.\nHeader:**" → "**2. Header:**"
-  result = result.replace(/\*\*(\d)\.\s*\n\s*/g, '**$1. ');
-
-  // Ensure bold numbered section headers get their own line
-  result = result.replace(/([^\n])\s*(\*\*[1-9]\.\s+[^*]+:\*\*)/g, '$1\n\n$2');
-
-  // ═══ STEP 2: Fix inline bold sub-headers ═══
-  result = result.replace(/([^\n])(\s)(\*\*[^*]{2,50}:\*\*)/g, '$1\n\n$3');
-
-  // Fix "N. -" list format → "N. " (remove redundant dash)
-  result = result.replace(/(\d{1,2})\.\s+-\s+/g, '$1. ');
-
-  // ═══ STEP 3: Fix inline numbered lists ═══
-  const inlineListPattern = /(?:[.!?:;]\s*)\d{1,2}\.\s+\S[\s\S]*?(?:\s)\d{1,2}\.\s+\S[\s\S]*?(?:\s)\d{1,2}\.\s+\S/;
-  if (inlineListPattern.test(result)) {
-    result = result.replace(/([.!?:;,])\s+(\d{1,2})\.\s+/g, (match, punct, num) => {
-      const numInt = parseInt(num, 10);
-      if (numInt >= 1 && numInt <= 30) {
-        return `${punct}\n\n${num}. `;
-      }
-      return match;
-    });
-  }
-
-  // ═══ STEP 4: Fix single newlines between paragraphs (language-agnostic) ═══
-  result = result
-    .replace(/([.!?])(\s*\[\d+\])?\n(?!\n)([A-Z\u00C0-\u024F])/g, '$1$2\n\n$3');
-
-  // ═══ STEP 5: Handle warning emoji and dividers ═══
-  result = result.replace(/([^\n])(⚠️)/g, '$1\n\n$2');
-  result = result.replace(/([^\n])(---)/g, '$1\n\n$2');
-
-  // ═══ STEP 6: Paragraph breaking for wall-of-text (no structure) ═══
-  const paragraphCount = (result.match(/\n\n/g) || []).length;
-  const sentenceCount = (result.match(/[.!?](?:\s*\[\d+\])*\s/g) || []).length;
-  const hasBoldHeaders = (result.match(/\*\*[^*]+:\*\*/g) || []).length >= 2;
-
-  if (!hasBoldHeaders && sentenceCount >= 4 && paragraphCount < 2) {
-    let sentenceCounter = 0;
-    result = result.replace(/([.!?])(\s*\[\d+\]*)(\s+)([A-Z\u00C0-\u024F])/g,
-      (_match, punct, citations, _space, nextChar) => {
-        sentenceCounter++;
-        if (sentenceCounter % 3 === 0) {
-          return `${punct}${citations || ''}\n\n${nextChar}`;
-        }
-        return `${punct}${citations || ''} ${nextChar}`;
-      }
-    );
-  }
-
-  // ═══ STEP 7: Clean up ═══
-  result = result.replace(/\n{3,}/g, '\n\n');
-
-  // Balance an orphaned trailing bold marker (odd count of **) so a stray ** doesn't
-  // disable bold rendering for the rest of the answer.
-  if (((result.match(/\*\*/g) || []).length % 2) === 1) {
-    result = result.replace(/\*\*([^*]*)$/, '$1');
-  }
-
-  return result;
-}
+// Markdown/citation-title cleanup helpers live in the shared @/lib/chat-markdown module
+// (prepareMarkdown, cleanLLMResponse, cleanCitationTitle) - no local duplicates here.
 
 /**
  * Zen01 Message Component
@@ -280,10 +134,20 @@ export const ZenMessage: React.FC<ZenMessageProps> = ({
   minSourcesToShow = 5,  // From RAG settings, default 5
   translation,  // Translation state for this message
   onToggleTranslation,  // Callback to toggle translation
+  onQuestionClick,  // Fills the chat input with a follow-up question
 }) => {
   const isUser = message.role === 'user';
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const [showAllSources, setShowAllSources] = useState(false);
+
+  // Tenant citation presentation settings (chips, type labels, follow-up gating)
+  const citationSettings = useCitationSettings();
+
+  // Answer language: backend-reported when available; Arabic-script heuristic for legacy messages
+  const contentLang = message.language;
+  const isRtl = contentLang ? contentLang.toLowerCase().startsWith('ar') : (!isUser && detectRtl(message.content));
+  // Language used for citation-title cleanup and chip label resolution
+  const chipLang = contentLang || i18n.language;
 
   // Debug: Log component version on mount
   React.useEffect(() => {
@@ -421,7 +285,7 @@ export const ZenMessage: React.FC<ZenMessageProps> = ({
                   <Bot className="h-3.5 w-3.5 text-white" />
                 </span>
                 <ZenTypingIndicator />
-                <span className="text-cyan-400/60 text-sm">Analyzing...</span>
+                <span className="text-cyan-400/60 text-sm">{t('chatMessage.analyzing')}</span>
               </div>
             ) : isUser ? (
               <div className="text-slate-700 dark:text-slate-200 leading-relaxed whitespace-pre-wrap">
@@ -438,7 +302,7 @@ export const ZenMessage: React.FC<ZenMessageProps> = ({
                 <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-gradient-to-br from-cyan-500 to-blue-600 shadow-sm flex-shrink-0 mt-0.5">
                   <Bot className="h-3.5 w-3.5 text-white" />
                 </span>
-                <div className="flex-1 min-w-0">
+                <div className="flex-1 min-w-0" dir={isRtl ? 'rtl' : 'ltr'}>
                   <SchemaRenderer
                     content={cleanLLMResponse(displayContent)}
                     schemaId={responseSchemaId}
@@ -454,7 +318,7 @@ export const ZenMessage: React.FC<ZenMessageProps> = ({
                 <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-gradient-to-br from-cyan-500 to-blue-600 shadow-sm flex-shrink-0 mt-0.5">
                   <Bot className="h-3.5 w-3.5 text-white" />
                 </span>
-                <div className="flex-1 min-w-0 zen01-markdown prose prose-sm max-w-none dark:prose-invert">
+                <div className="flex-1 min-w-0 zen01-markdown prose prose-sm max-w-none dark:prose-invert" dir={isRtl ? 'rtl' : 'ltr'}>
                 <ReactMarkdown
                   remarkPlugins={[remarkGfm]}
                   components={{
@@ -508,39 +372,41 @@ export const ZenMessage: React.FC<ZenMessageProps> = ({
                             const citationNum = simpleMatch?.[1] || kaynakMatch?.[1] || sourceMatch?.[1];
 
                             if (citationNum) {
-                              // Clean, simple citation format - no fancy styling
-                              // Just a small superscript number that scrolls to source
+                              // Clean, simple citation format - no fancy styling.
+                              // <bdi dir="ltr"> keeps the [n] marker from mirroring inside RTL text.
                               if (enableSourceClick) {
                                 return (
-                                  <sup
-                                    key={`cite-${idx}`}
-                                    className="cursor-pointer text-cyan-600 dark:text-cyan-400 hover:text-cyan-500 dark:hover:text-cyan-300"
-                                    style={{ fontSize: '0.7em', fontWeight: 500 }}
-                                    onClick={(e) => {
-                                      e.preventDefault();
-                                      e.stopPropagation();
-                                      const el = document.getElementById(`citation-${message.id}-${citationNum}`);
-                                      if (el) {
-                                        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                                        el.style.boxShadow = '0 0 0 2px rgba(34, 211, 238, 0.5)';
-                                        el.style.transition = 'box-shadow 0.3s ease';
-                                        setTimeout(() => { el.style.boxShadow = 'none'; }, 2000);
-                                      }
-                                    }}
-                                  >
-                                    [{citationNum}]
-                                  </sup>
+                                  <bdi key={`cite-${idx}`} dir="ltr">
+                                    <sup
+                                      className="cursor-pointer text-cyan-600 dark:text-cyan-400 hover:text-cyan-500 dark:hover:text-cyan-300"
+                                      style={{ fontSize: '0.7em', fontWeight: 500 }}
+                                      onClick={(e) => {
+                                        e.preventDefault();
+                                        e.stopPropagation();
+                                        const el = document.getElementById(`citation-${message.id}-${citationNum}`);
+                                        if (el) {
+                                          el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                                          el.style.boxShadow = '0 0 0 2px rgba(34, 211, 238, 0.5)';
+                                          el.style.transition = 'box-shadow 0.3s ease';
+                                          setTimeout(() => { el.style.boxShadow = 'none'; }, 2000);
+                                        }
+                                      }}
+                                    >
+                                      [{citationNum}]
+                                    </sup>
+                                  </bdi>
                                 );
                               } else {
                                 // Not clickable - just display as superscript
                                 return (
-                                  <sup
-                                    key={`cite-${idx}`}
-                                    className="text-cyan-600 dark:text-cyan-400"
-                                    style={{ fontSize: '0.7em', fontWeight: 500 }}
-                                  >
-                                    [{citationNum}]
-                                  </sup>
+                                  <bdi key={`cite-${idx}`} dir="ltr">
+                                    <sup
+                                      className="text-cyan-600 dark:text-cyan-400"
+                                      style={{ fontSize: '0.7em', fontWeight: 500 }}
+                                    >
+                                      [{citationNum}]
+                                    </sup>
+                                  </bdi>
                                 );
                               }
                             }
@@ -649,7 +515,7 @@ export const ZenMessage: React.FC<ZenMessageProps> = ({
                     ),
                   }}
                 >
-                  {preprocessMarkdown(cleanLLMResponse(displayContent))}
+                  {prepareMarkdown(displayContent, { lang: contentLang })}
                 </ReactMarkdown>
                 </div>
               </div>
@@ -680,7 +546,7 @@ export const ZenMessage: React.FC<ZenMessageProps> = ({
                         ? 'text-slate-400 dark:text-slate-500 cursor-wait'
                         : 'text-slate-400 dark:text-slate-500 hover:text-cyan-500 dark:hover:text-cyan-400 hover:bg-cyan-100 dark:hover:bg-cyan-500/10'
                   }`}
-                  title={isPlaying ? 'Stop' : isTTSLoading ? 'Loading...' : 'Listen'}
+                  title={isPlaying ? t('chatMessage.tts.stop') : isTTSLoading ? t('chatMessage.tts.loading') : t('chatMessage.tts.listen')}
                 >
                   {isTTSLoading ? (
                     <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -700,6 +566,11 @@ export const ZenMessage: React.FC<ZenMessageProps> = ({
                   onToggle={onToggleTranslation}
                 />
               )}
+
+              {/* Evidence-based answer quality badge (count fallback for legacy messages) */}
+              {(message.evidence || message.sources) && (
+                <QualityBadge evidence={message.evidence} sourceCount={message.sources?.length || 0} />
+              )}
             </div>
           )}
         </div>
@@ -708,7 +579,7 @@ export const ZenMessage: React.FC<ZenMessageProps> = ({
         {!isUser && message.sourcesFetchFailed && !message.isStreaming && (
           <div className="zen01-sources-warning mt-3 p-2 rounded-lg bg-amber-500/10 border border-amber-500/20">
             <span className="text-xs text-amber-600 dark:text-amber-400">
-              ⚠️ Citations could not be loaded. Please refresh the page and try again.
+              ⚠️ {t('chatMessage.sourcesLoadFailed')}
             </span>
           </div>
         )}
@@ -718,7 +589,7 @@ export const ZenMessage: React.FC<ZenMessageProps> = ({
           <div className="zen01-sources mt-3">
             <div className="mb-2">
               <span className="text-xs font-medium text-cyan-600/70 dark:text-cyan-400/70">
-                Citations ({sourceGroups.length} sources)
+                {t('citationPanel.label', { count: sourceGroups.length })}
               </span>
             </div>
             <div className="space-y-2">
@@ -728,154 +599,25 @@ export const ZenMessage: React.FC<ZenMessageProps> = ({
                 const source: ZenSource = group.primary;
                 const idx = group.primaryIndex;
                 const aliasIndices = group.indices.filter((n) => n !== idx);
-                // Get source type info with hierarchy and marker color
-                const getSourceTypeInfo = (sourceTable?: string, metadata?: any) => {
-                  // Detailed type mapping with English labels
-                  const typeMap: Record<string, { label: string; weight: number; markerClass: string }> = {
-                    // Legal/Official documents (highest priority)
-                    'kanun': { label: 'Law/Legislation', weight: 100, markerClass: 'zen01-marker-purple' },
-                    'mevzuat': { label: 'Legislation', weight: 100, markerClass: 'zen01-marker-purple' },
-                    'teblig': { label: 'Communiqué', weight: 95, markerClass: 'zen01-marker-blue' },
-                    'tebliğ': { label: 'Communiqué', weight: 95, markerClass: 'zen01-marker-blue' },
-                    'yonetmelik': { label: 'Regulation', weight: 95, markerClass: 'zen01-marker-blue' },
-                    'yönetmelik': { label: 'Regulation', weight: 95, markerClass: 'zen01-marker-blue' },
-                    'sirkuler': { label: 'Circular', weight: 90, markerClass: 'zen01-marker-pink' },
-                    'sirkü': { label: 'Circular', weight: 90, markerClass: 'zen01-marker-pink' },
-                    // Tax authority documents
-                    'ozelge': { label: 'Tax Ruling', weight: 75, markerClass: 'zen01-marker-yellow' },
-                    'özelge': { label: 'Tax Ruling', weight: 75, markerClass: 'zen01-marker-yellow' },
-                    'gib': { label: 'Tax Authority Document', weight: 75, markerClass: 'zen01-marker-yellow' },
-                    'mukteza': { label: 'Advance Ruling', weight: 75, markerClass: 'zen01-marker-yellow' },
-                    'genelyazi': { label: 'General Notice', weight: 65, markerClass: 'zen01-marker-yellow' },
-                    'genelyazı': { label: 'General Notice', weight: 65, markerClass: 'zen01-marker-yellow' },
-                    // Court decisions
-                    'danistay': { label: 'Council of State Decision', weight: 70, markerClass: 'zen01-marker-orange' },
-                    'danıştay': { label: 'Council of State Decision', weight: 70, markerClass: 'zen01-marker-orange' },
-                    'danistaykararlari': { label: 'Council of State Decision', weight: 70, markerClass: 'zen01-marker-orange' },
-                    'yargitay': { label: 'Court of Cassation Decision', weight: 70, markerClass: 'zen01-marker-orange' },
-                    'yargıtay': { label: 'Court of Cassation Decision', weight: 70, markerClass: 'zen01-marker-orange' },
-                    'karar': { label: 'Court Decision', weight: 70, markerClass: 'zen01-marker-orange' },
-                    // Articles and publications
-                    'makale': { label: 'Article', weight: 50, markerClass: 'zen01-marker-green' },
-                    'yayin': { label: 'Publication', weight: 50, markerClass: 'zen01-marker-green' },
-                    'yayın': { label: 'Publication', weight: 50, markerClass: 'zen01-marker-green' },
-                    'dergi': { label: 'Journal Article', weight: 50, markerClass: 'zen01-marker-green' },
-                    // Q&A and guides
-                    'sorucevap': { label: 'Q&A', weight: 50, markerClass: 'zen01-marker-green' },
-                    'sss': { label: 'FAQ', weight: 50, markerClass: 'zen01-marker-green' },
-                    'rehber': { label: 'Guide', weight: 55, markerClass: 'zen01-marker-green' },
-                    'kilavuz': { label: 'Manual', weight: 55, markerClass: 'zen01-marker-green' },
-                    'kılavuz': { label: 'Manual', weight: 55, markerClass: 'zen01-marker-green' },
-                    // Legal assessments
-                    'hukdkk': { label: 'Legal Assessment', weight: 60, markerClass: 'zen01-marker-blue' },
-                    'hukuki': { label: 'Legal Opinion', weight: 60, markerClass: 'zen01-marker-blue' },
-                    // Documents and files
-                    'documents': { label: 'Document', weight: 40, markerClass: 'zen01-marker-slate' },
-                    'document': { label: 'Document', weight: 40, markerClass: 'zen01-marker-slate' },
-                    'dokuman': { label: 'Document', weight: 40, markerClass: 'zen01-marker-slate' },
-                    'doküman': { label: 'Document', weight: 40, markerClass: 'zen01-marker-slate' },
-                    'pdf': { label: 'PDF Document', weight: 40, markerClass: 'zen01-marker-slate' },
-                    'belge': { label: 'Document', weight: 40, markerClass: 'zen01-marker-slate' },
-                    // Unified embeddings (detect from content/metadata)
-                    'unified': { label: 'Archive Document', weight: 35, markerClass: 'zen01-marker-slate' },
-                    'unifiedembeddings': { label: 'Archive Document', weight: 35, markerClass: 'zen01-marker-slate' },
-                    'embeddings': { label: 'Data Source', weight: 30, markerClass: 'zen01-marker-slate' },
-                    // UAE corpus source tables (domain-agnostic RAG data)
-                    'uaelegislation': { label: 'Legislation', weight: 100, markerClass: 'zen01-marker-purple' },
-                    'uaegovservices': { label: 'Government Service', weight: 60, markerClass: 'zen01-marker-blue' },
-                    'documentembeddings': { label: 'Document', weight: 40, markerClass: 'zen01-marker-slate' },
-                    'webpage': { label: 'Web Page', weight: 40, markerClass: 'zen01-marker-blue' },
-                    // Calendar/schedule items
-                    'pratik': { label: 'Practical Info', weight: 45, markerClass: 'zen01-marker-amber' },
-                    'takvim': { label: 'Tax Calendar', weight: 45, markerClass: 'zen01-marker-amber' },
-                    'hatirlatma': { label: 'Reminder', weight: 45, markerClass: 'zen01-marker-amber' },
-                    'hatırlatma': { label: 'Reminder', weight: 45, markerClass: 'zen01-marker-amber' }
-                  };
-
-                  // Default fallback - more descriptive than "Source"
-                  const defaultInfo = { label: 'Document', weight: 0, markerClass: 'zen01-marker-slate' };
-
-                  if (!sourceTable) {
-                    // Try to detect from metadata
-                    if (metadata?.source_type) {
-                      const metaType = String(metadata.source_type).toLowerCase();
-                      for (const [key, value] of Object.entries(typeMap)) {
-                        if (metaType.includes(key)) return value;
-                      }
-                    }
-                    return defaultInfo;
-                  }
-
-                  const sourceStr = sourceTable.toLowerCase()
-                    .replace(/^csv_/, '')
-                    .replace(/_/g, '')
-                    .replace(/arsiv.*/, '')
-                    .replace(/\d+$/, ''); // Remove trailing numbers
-
-                  // Direct match
-                  if (typeMap[sourceStr]) return typeMap[sourceStr];
-
-                  // Partial match
-                  for (const [key, value] of Object.entries(typeMap)) {
-                    if (sourceStr.includes(key) || key.includes(sourceStr)) {
-                      return value;
-                    }
-                  }
-
-                  // Check metadata for additional hints
-                  if (metadata) {
-                    const metaStr = JSON.stringify(metadata).toLowerCase();
-                    if (metaStr.includes('özelge') || metaStr.includes('ozelge')) {
-                      return typeMap['ozelge'];
-                    }
-                    if (metaStr.includes('danıştay') || metaStr.includes('danistay')) {
-                      return typeMap['danistay'];
-                    }
-                    if (metaStr.includes('makale') || metaStr.includes('yazar')) {
-                      return typeMap['makale'];
-                    }
-                  }
-
-                  return defaultInfo;
-                };
-
-                const typeInfo = getSourceTypeInfo(source.sourceTable, source.metadata);
-
-                // Extract metadata for header display
+                // Shared, settings-driven presentation: type badge (ragSettings.sourceTypeLabels),
+                // metadata chips (ragSettings.citationPriorityFields/fieldLabels) and official link.
+                const typeInfo = getSourceTypeInfo(source.sourceTable, source.metadata, citationSettings.sourceTypeLabels);
+                const typeMarkerClass = zenMarkerClass(typeInfo.markerClass);
+                const chips = buildCitationChips(source, chipLang, citationSettings.fieldLabels, citationSettings.priorityFields);
+                const officialUrl = getOfficialSourceUrl(source);
                 const meta = source.metadata as any;
-                const getMetadataInfo = () => {
-                  if (!meta) return { karar: '', daire: '', tarih: '' };
-
-                  // Get karar/esas number
-                  const kararRaw = meta.kararno || meta.karar_no || meta.esas_no || meta.esasno || meta.karar || '';
-                  const karar = kararRaw ? cleanCitationTitle(String(kararRaw)) : '';
-
-                  // Get daire
-                  const daireRaw = meta.daire || '';
-                  const daire = daireRaw ? cleanCitationTitle(String(daireRaw)) : '';
-
-                  // Get year from tarih
-                  const tarihRaw = meta.tarih || meta.date || meta.yil || meta.year || '';
-                  const tarihClean = cleanCitationTitle(String(tarihRaw));
-                  const yearMatch = tarihClean.match(/\d{4}/);
-                  const tarih = yearMatch ? yearMatch[0] : '';
-
-                  return { karar, daire, tarih };
-                };
-
-                const metaInfo = getMetadataInfo();
 
                 // Build a single clean description paragraph (200-300 chars)
                 const getDescription = () => {
                   const m = source.metadata as any;
                   // Start with konu/baslik if available for context
-                  const konu = cleanCitationTitle(String(m?.konu || m?.baslik || m?.konusu || ''))
+                  const konu = cleanCitationTitle(String(m?.konu || m?.baslik || m?.konusu || ''), { lang: chipLang })
                     .replace(/^(KONU|İLGİ|SORU|CEVAP|Dilekçenizde|konusu|BAŞLIK)[:.\s]*/gi, '')
                     .trim();
 
                   // Get content for the body
                   const raw = source.summary || source.excerpt || source.content || '';
-                  let cleaned = cleanCitationTitle(raw)
+                  let cleaned = cleanCitationTitle(raw, { lang: chipLang })
                     .replace(/^(KONU|İLGİ|SORU|CEVAP|Dilekçenizde|konusu|VERGİ\s*Sİ\s*KANUNU[^.]*\.)[:.\s]*/gi, '')
                     .replace(/\.{2,}/g, '.')
                     .trim();
@@ -936,9 +678,9 @@ export const ZenMessage: React.FC<ZenMessageProps> = ({
                 // Source name / origin — show WHERE the citation came from (law name,
                 // document title, or the domain it was crawled from), not just a type badge.
                 const sourceName = cleanCitationTitle(String(
-                  meta?.source_name || meta?.law_name || meta?.title || meta?.baslik
+                  meta?.source_name || meta?.law_title || meta?.law_name || meta?.title || meta?.baslik
                     || (source as any).title || (source as any).citation || ''
-                )).replace(/\.pdf$/i, '').replace(/\s*[-–]\s*ID:\s*\d+.*$/i, '').replace(/_/g, ' ').trim();
+                ), { lang: chipLang }).replace(/\.pdf$/i, '').replace(/\s*[-–]\s*ID:\s*\d+.*$/i, '').replace(/_/g, ' ').trim();
                 let originLabel = sourceName;
                 if (!originLabel && meta?.url) {
                   try { originLabel = new URL(meta.url).hostname.replace(/^www\./, ''); } catch { /* ignore */ }
@@ -958,29 +700,21 @@ export const ZenMessage: React.FC<ZenMessageProps> = ({
                     {aliasIndices.map((n) => (
                       <span key={`alias-${n}`} id={`citation-${message.id}-${n + 1}`} aria-hidden className="block h-0 w-0" />
                     ))}
-                    {/* Header Row: [1] + Type + Chamber + Decision + Year */}
+                    {/* Header Row: [1] + type badge + structured metadata chips */}
                     <div className="flex items-center gap-2 flex-wrap mb-1.5">
                       <span className="text-xs font-semibold text-cyan-500 dark:text-cyan-400">
                         [{idx + 1}]
                       </span>
-                      <span className={`zen01-marker ${typeInfo.markerClass} text-[10px] font-medium px-2 py-0.5`}>
-                        {typeInfo.label}
+                      <span className={`zen01-marker ${typeMarkerClass} text-[10px] font-medium px-2 py-0.5`}>
+                        {t(typeInfo.labelKey)}
                       </span>
-                      {metaInfo.daire && (
-                        <span className="zen01-marker zen01-marker-amber text-[10px] font-medium px-1.5 py-0.5">
-                          {metaInfo.daire}
-                        </span>
-                      )}
-                      {metaInfo.karar && (
-                        <span className="zen01-marker zen01-marker-slate text-[10px] font-medium px-1.5 py-0.5">
-                          {metaInfo.karar}
-                        </span>
-                      )}
-                      {metaInfo.tarih && (
-                        <span className="zen01-marker zen01-marker-slate text-[10px] px-1.5 py-0.5">
-                          {metaInfo.tarih}
-                        </span>
-                      )}
+                      {chips.map((chip) => (
+                        <CitationChip
+                          key={chip.key}
+                          chip={chip}
+                          className="zen01-marker zen01-marker-slate text-[10px] px-1.5 py-0.5"
+                        />
+                      ))}
                     </div>
 
                     {/* Source name / origin (law name, document title, or crawl domain) */}
@@ -997,6 +731,20 @@ export const ZenMessage: React.FC<ZenMessageProps> = ({
                       </p>
                     )}
 
+                    {/* Official source link (from corpus metadata.url) */}
+                    {officialUrl && (
+                      <a
+                        href={officialUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        onClick={(e) => e.stopPropagation()}
+                        className="inline-flex items-center gap-1 mt-1.5 text-[10px] font-medium text-cyan-600 dark:text-cyan-400 hover:underline"
+                      >
+                        <ExternalLink className="h-3 w-3" />
+                        {t('citations.officialSource')}
+                      </a>
+                    )}
+
                   </div>
                 );
               })}
@@ -1006,10 +754,22 @@ export const ZenMessage: React.FC<ZenMessageProps> = ({
                 onClick={() => setShowAllSources(!showAllSources)}
                 className="mt-2 text-xs text-cyan-600/70 dark:text-cyan-400/70 hover:text-cyan-700 dark:hover:text-cyan-300 transition-colors"
               >
-                {showAllSources ? 'Show less' : `Show ${sourceGroups.length - minSourcesToShow} more sources`}
+                {showAllSources
+                  ? t('citationPanel.showLess')
+                  : t('citationPanel.moreSources', { count: sourceGroups.length - minSourcesToShow })}
               </button>
             )}
           </div>
+        )}
+
+        {/* Follow-up question chips (backend-generated; gated by chatbot.enableFollowUps) */}
+        {!isUser && !message.isStreaming && citationSettings.enableFollowUps && (
+          <FollowUpChips
+            questions={message.followUpQuestions}
+            onQuestionClick={onQuestionClick}
+            dir={isRtl ? 'rtl' : 'ltr'}
+            chipClassName="inline-flex items-center gap-1.5 rounded-full border border-cyan-500/30 bg-cyan-500/5 px-3 py-1.5 text-xs text-cyan-700 dark:text-cyan-300 hover:bg-cyan-500/15 transition-colors text-start"
+          />
         )}
       </div>
 

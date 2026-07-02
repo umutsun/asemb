@@ -10,7 +10,97 @@
  * Language-agnostic on purpose: language-specific section labels are stripped server-side
  * in rag-chat.service.ts `fixMarkdownAndCitations()`. Keep this the single source of truth —
  * themes import from here instead of rolling their own.
+ *
+ * Language-specific repairs (Turkish OCR spacing) are opt-in via the `lang` option and only
+ * run when the content language is Turkish, so English/Arabic answers are never corrupted.
  */
+
+export interface PrepareMarkdownOptions {
+  /** Language of the content (e.g. 'tr', 'ar', 'en'). Turkish-specific repairs only run for 'tr'. */
+  lang?: string;
+}
+
+const isTurkish = (lang?: string): boolean => (lang || '').toLowerCase().startsWith('tr');
+
+/**
+ * Fix Turkish OCR/PDF spacing: "çal ı şanlara" → "çalışanlara".
+ * OCR engines often break words around Turkish special chars (ı ş ğ ç ü ö İ Ş Ğ Ç Ü Ö).
+ * Only call this for Turkish content — it can merge legitimate words in other languages.
+ */
+export function fixTurkishOCRSpacing(text: string): string {
+  if (!text) return '';
+  const trChars = 'ıİşŞğĞçÇüÜöÖ';
+  const letters = `a-zA-Z${trChars}`;
+  // letter + space + Turkish special char(s) + letter → merge
+  // e.g. "çal ı şanlara" → "çalışanlara", "f ıkras" → "fıkras"
+  let result = text;
+  // Pass 1: "x ı", "x ş", etc. — letter, space, single Turkish char, followed by letter
+  result = result.replace(
+    new RegExp(`([${letters}]) ([${trChars}])(?=[${letters}])`, 'g'),
+    '$1$2'
+  );
+  // Pass 2: "ş x", "ğ x", etc. — Turkish char, space, letter
+  result = result.replace(
+    new RegExp(`([${trChars}]) ([${letters}])`, 'g'),
+    (match, p1, p2) => {
+      // Only merge if at least one side is lowercase (avoids joining two capitalised words)
+      if (p1 === p1.toLowerCase() || p2 === p2.toLowerCase()) {
+        return p1 + p2;
+      }
+      return match;
+    }
+  );
+  // Pass 3: remaining isolated single Turkish chars: "say ılı" → "sayılı"
+  result = result.replace(
+    new RegExp(`([${letters}]) ([${trChars}][${letters}])`, 'g'),
+    '$1$2'
+  );
+  return result;
+}
+
+/**
+ * Clean a citation/source title coming from OCR'd or database content.
+ * Generic repairs (timestamps, dot runs, spaced-out capitals, "No:" spacing) always run;
+ * the Turkish OCR word-spacing fix only runs when `opts.lang` is Turkish.
+ */
+export function cleanCitationTitle(title: string, opts?: PrepareMarkdownOptions): string {
+  if (!title) return '';
+
+  let result = title
+    // Remove time portion from dates (00:00:00, 12:30:45, etc.)
+    .replace(/\s+\d{2}:\d{2}:\d{2}$/g, '')
+    .replace(/\s+\d{2}:\d{2}:\d{2}\s/g, ' ')
+    // Remove long sequences of dots/periods (likely placeholder text)
+    .replace(/\.{4,}/g, '')
+    // Fix single-letter OCR spacing: "C O U N C I L" -> "COUNCIL" (3+ consecutive single letters)
+    .replace(/\b([A-ZÀ-ɏ]) ([A-ZÀ-ɏ]) ([A-ZÀ-ɏ](?:\s[A-ZÀ-ɏ])*)\b/g,
+      (m) => m.replace(/ /g, ''))
+    // Fix abbreviations: "T.C.D" -> "T.C. D"
+    .replace(/(\.[A-Z])\.([A-Z])/g, '$1. $2')
+    // Fix "No:2018" -> "No: 2018"
+    .replace(/No:(\d)/g, 'No: $1')
+    // Fix "2018/280Word" -> "2018/280 Word"
+    .replace(/(\d{4}\/\d+)([A-ZÀ-ɏ])/g, '$1 $2');
+
+  if (isTurkish(opts?.lang)) {
+    result = fixTurkishOCRSpacing(result);
+  }
+
+  // Clean multiple spaces
+  return result.replace(/\s{2,}/g, ' ').trim();
+}
+
+/**
+ * Heuristic RTL detection for legacy messages that don't carry a `language` field:
+ * true when more than 30% of the letters are Arabic-script characters.
+ */
+export function detectRtl(text: string): boolean {
+  if (!text) return false;
+  const arabicChars = text.match(/[؀-ۿݐ-ݿࢠ-ࣿﭐ-﷿ﹰ-﻿]/g)?.length ?? 0;
+  if (arabicChars === 0) return false;
+  const letters = text.match(/\p{L}/gu)?.length ?? 0;
+  return letters > 0 && arabicChars / letters > 0.3;
+}
 
 /** Strip footnote/bibliography tails and collapse excess blank lines. */
 export function cleanLLMResponse(content: string): string {
@@ -114,7 +204,15 @@ export function preprocessMarkdown(content: string): string {
   return result;
 }
 
-/** Convenience: clean then preprocess, ready for ReactMarkdown. */
-export function prepareMarkdown(content: string): string {
-  return preprocessMarkdown(cleanLLMResponse(content || ''));
+/**
+ * Convenience: clean then preprocess, ready for ReactMarkdown.
+ * Zero-arg behavior is unchanged; passing `{ lang: 'tr' }` additionally repairs
+ * Turkish OCR word spacing (never applied to other languages).
+ */
+export function prepareMarkdown(content: string, opts?: PrepareMarkdownOptions): string {
+  let result = preprocessMarkdown(cleanLLMResponse(content || ''));
+  if (isTurkish(opts?.lang)) {
+    result = fixTurkishOCRSpacing(result);
+  }
+  return result;
 }

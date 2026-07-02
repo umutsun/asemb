@@ -3,8 +3,20 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Source } from '@/types/chat';
-import { ChevronDown, ChevronUp, Plus, MessageSquareText } from 'lucide-react';
+import { ChevronDown, ChevronUp, Plus, MessageSquareText, ExternalLink } from 'lucide-react';
 import { stripHtml } from '@/utils/html-utils';
+import {
+  getSourceTypeInfo as getSharedSourceTypeInfo,
+  buildCitationChips,
+  getOfficialSourceUrl
+} from '@/lib/source-presentation';
+import { useCitationSettings } from '@/lib/citation-settings';
+import { CitationChip } from './citation-chip';
+
+// Marker color tokens available in globals.css (.marker-*); unknown tokens fall back to cyan
+const BASE_MARKER_TOKENS = new Set(['cyan', 'green', 'orange', 'pink', 'purple', 'yellow']);
+const baseMarkerClass = (token: string): string =>
+  `marker-${BASE_MARKER_TOKENS.has(token) ? token : 'cyan'}`;
 
 interface SourceCitationProps {
   sources: Source[];
@@ -110,59 +122,19 @@ export function SourceCitation({ sources, onLoadMore, hasMore = false, showLoadM
   const initialSourcesToShow = 7;
   const sourcesToDisplay = showAllSources ? sources : sources.slice(0, initialSourcesToShow);
 
-  // Helper to map source table to display name with hierarchy and marker color.
+  // Tenant citation presentation settings (type labels, chip fields/labels)
+  const citationSettings = useCitationSettings();
+
+  // Shared, settings-driven type badge (ragSettings.sourceTypeLabels + generic fallbacks).
   // Labels are i18n keys (sourceTypes.*) resolved via t() so they localize (EN/AR/...).
-  const getSourceTypeInfo = (sourceTable?: string, category?: string) => {
-    const fallback = { labelKey: 'sourceTypes.source', weight: 0, markerClass: 'marker-cyan' };
-
-    // Source type hierarchy with weights and marker colors
-    const typeMap: Record<string, { labelKey: string; weight: number; markerClass: string }> = {
-      'kanun': { labelKey: 'sourceTypes.law', weight: 100, markerClass: 'marker-purple' },
-      'teblig': { labelKey: 'sourceTypes.notice', weight: 95, markerClass: 'marker-cyan' },
-      'tebliğ': { labelKey: 'sourceTypes.notice', weight: 95, markerClass: 'marker-cyan' },
-      'yonetmelik': { labelKey: 'sourceTypes.regulation', weight: 95, markerClass: 'marker-cyan' },
-      'sirkuler': { labelKey: 'sourceTypes.circular', weight: 90, markerClass: 'marker-pink' },
-      'ozelge': { labelKey: 'sourceTypes.taxRuling', weight: 75, markerClass: 'marker-yellow' },
-      'danistay': { labelKey: 'sourceTypes.councilDecision', weight: 70, markerClass: 'marker-orange' },
-      'danistaykararlari': { labelKey: 'sourceTypes.councilDecision', weight: 70, markerClass: 'marker-orange' },
-      'makale': { labelKey: 'sourceTypes.article', weight: 50, markerClass: 'marker-green' },
-      'sorucevap': { labelKey: 'sourceTypes.qa', weight: 50, markerClass: 'marker-green' },
-      'hukdkk': { labelKey: 'sourceTypes.legalAssessment', weight: 60, markerClass: 'marker-cyan' },
-      'genelyazi': { labelKey: 'sourceTypes.generalLetter', weight: 65, markerClass: 'marker-yellow' },
-      'genelyazı': { labelKey: 'sourceTypes.generalLetter', weight: 65, markerClass: 'marker-yellow' },
-      // Multimodal cross-modal (CLIP) media results
-      'mediaembeddings': { labelKey: 'sourceTypes.media', weight: 55, markerClass: 'marker-pink' }
-    };
-
-    const resolve = (entry: { labelKey: string; weight: number; markerClass: string }) =>
-      ({ label: t(entry.labelKey), weight: entry.weight, markerClass: entry.markerClass });
-
-    if (!sourceTable && !category) return resolve(fallback);
-
-    const sourceStr = (sourceTable || category || '').toLowerCase()
-      .replace(/^csv_/, '')
-      .replace(/_/g, '')
-      .replace(/arsiv.*/, '');  // "makale_arsiv_2021" -> "makale"
-
-    // Try exact match first
-    if (typeMap[sourceStr]) {
-      return resolve(typeMap[sourceStr]);
-    }
-
-    // Try partial match
-    for (const [key, value] of Object.entries(typeMap)) {
-      if (sourceStr.includes(key) || key.includes(sourceStr)) {
-        return resolve(value);
-      }
-    }
-
-    // Fallback
-    return resolve(fallback);
+  const getSourceTypeInfo = (sourceTable?: string, category?: string, metadata?: Source['metadata']) => {
+    const info = getSharedSourceTypeInfo(sourceTable || category, metadata, citationSettings.sourceTypeLabels);
+    return { label: t(info.labelKey), weight: info.weight, markerClass: baseMarkerClass(info.markerClass) };
   };
 
-  // Generate a follow-up question from a source excerpt. Language-neutral: it
-  // recognises signal words in English (primary) as well as Turkish, and always
-  // produces a clean English question (Hard Rule #3). No Turkish-only logic.
+  // Generate a follow-up question from a source excerpt. Signal-word detection is
+  // language-neutral (English primary, Turkish recognised); the question text itself
+  // comes from i18n templates (followUps.*) so it localizes to en/ar/tr.
   const generateFollowUpQuestion = (excerpt: string, title: string): string => {
     const text = excerpt.toLowerCase();
     const hasPercentage = /\d+(?:\.\d+)?\s*%/.test(excerpt) || /\b(rate|per ?cent|yüzde)\b/.test(text);
@@ -189,26 +161,26 @@ export function SourceCitation({ sources, onLoadMore, hasMore = false, showLoadM
     if (hasPercentage) {
       const pm = excerpt.match(/\d+(?:\.\d+)?\s*%/);
       return pm
-        ? `What are the conditions for applying the ${pm[0].replace(/\s+/g, '')} rate?`
-        : 'How is the applicable rate determined here?';
+        ? t('followUps.rateConditions', { rate: pm[0].replace(/\s+/g, '') })
+        : t('followUps.rateHow');
     }
-    if (hasException) return 'What exemptions or exceptions apply in this case?';
+    if (hasException) return t('followUps.exemptions');
     if (hasCondition) {
       const k = keyTerm();
-      return k ? `What are the requirements for ${k}?` : 'What are the requirements in this case?';
+      return k ? t('followUps.requirementsFor', { term: k }) : t('followUps.requirements');
     }
     if (hasDeadline) {
       const k = keyTerm();
-      return k ? `What are the deadlines related to ${k}?` : 'What deadlines apply here?';
+      return k ? t('followUps.deadlinesFor', { term: k }) : t('followUps.deadlines');
     }
 
     const k = keyTerm();
-    if (k) return `Can you explain more about ${k}?`;
+    if (k) return t('followUps.explainMore', { term: k });
 
     const titleWord = (title || '').replace(/["'()]/g, ' ').split(/\s+/).find(w => w.length > 4);
-    if (titleWord) return `What does ${titleWord.replace(/[^\p{L}\p{N}-]/gu, '')} cover?`;
+    if (titleWord) return t('followUps.covers', { term: titleWord.replace(/[^\p{L}\p{N}-]/gu, '') });
 
-    return 'Can you give more details on this?';
+    return t('followUps.moreDetails');
   };
 
   return (
@@ -239,7 +211,7 @@ export function SourceCitation({ sources, onLoadMore, hasMore = false, showLoadM
                 const firstSentence = cleanExcerpt.split(/[.!?]/)[0]?.trim();
                 displayTitle = firstSentence?.length > 10 ? firstSentence : cleanExcerpt.slice(0, 100);
               } else {
-                displayTitle = getSourceTableName(source.sourceTable) + ' Source';
+                displayTitle = getSourceTypeInfo(source.sourceTable, source.category, source.metadata).label;
               }
             } else {
               displayTitle = rawTitle
@@ -269,7 +241,7 @@ export function SourceCitation({ sources, onLoadMore, hasMore = false, showLoadM
               <div className="flex-1 min-w-0">
                 {/* Source Type and Number with Marker Style */}
                 {(() => {
-                  const typeInfo = getSourceTypeInfo(source.sourceTable, source.category);
+                  const typeInfo = getSourceTypeInfo(source.sourceTable, source.category, source.metadata);
                   // v12.27: Check if synthetic source - show full title with [REFERANS] badge
                   const isSynthetic = source._synthetic === true || (source.metadata as Record<string, unknown>)?.synthetic === true;
 
@@ -307,41 +279,40 @@ export function SourceCitation({ sources, onLoadMore, hasMore = false, showLoadM
                   />
                 )}
 
-                {/* Metadata - Show all relevant fields */}
-                {source.metadata && Object.keys(source.metadata).length > 0 && (
-                  <div className="text-[11px] text-gray-500 mt-1.5 space-y-1">
-                    {/* Danıştay / Özelge metadata */}
-                    {(source.metadata.daire || source.metadata.tarih || source.metadata.kurum || source.metadata.makam) && (
-                      <p className="line-clamp-1">
-                        {source.metadata.daire && <span className="font-medium text-gray-400">{source.metadata.daire}</span>}
-                        {source.metadata.daire && source.metadata.tarih && ' • '}
-                        {source.metadata.kurum && !source.metadata.daire && <span className="font-medium text-gray-400">{source.metadata.kurum}</span>}
-                        {source.metadata.kurum && !source.metadata.daire && source.metadata.tarih && ' • '}
-                        {source.metadata.makam && ` ${source.metadata.makam}`}
-                        {source.metadata.tarih && `${source.metadata.tarih}`}
-                      </p>
-                    )}
-                    {/* Esas/Karar numaraları - hem underscore'lu hem underscore'suz */}
-                    {(source.metadata.esasno || source.metadata.esas_no || source.metadata.kararno || source.metadata.karar_no || source.metadata.sayisirano || source.metadata.sayi) && (
-                      <p className="line-clamp-1">
-                        {(source.metadata.esasno || source.metadata.esas_no) && `E: ${source.metadata.esasno || source.metadata.esas_no}`}
-                        {(source.metadata.esasno || source.metadata.esas_no) && (source.metadata.kararno || source.metadata.karar_no) && ' • '}
-                        {(source.metadata.kararno || source.metadata.karar_no) && `K: ${source.metadata.kararno || source.metadata.karar_no}`}
-                        {(source.metadata.kararno || source.metadata.karar_no || source.metadata.esasno || source.metadata.esas_no) && (source.metadata.sayisirano || source.metadata.sayi) && ' • '}
-                        {(source.metadata.sayisirano || source.metadata.sayi) && `No: ${source.metadata.sayisirano || source.metadata.sayi}`}
-                      </p>
-                    )}
-                    {/* Makale metadata */}
-                    {(source.metadata.yazar || source.metadata.dergi) && (
-                      <p className="line-clamp-1">
-                        {source.metadata.dergi && <span className="uppercase text-[10px]">{source.metadata.dergi}</span>}
-                        {source.metadata.dergi && source.metadata.yazar && ' • '}
-                        {source.metadata.yazar && `Author: ${source.metadata.yazar}`}
-                        {(source.metadata.yazar || source.metadata.dergi) && source.metadata.tarih && !source.metadata.daire && ` • ${source.metadata.tarih}`}
-                      </p>
-                    )}
-                  </div>
-                )}
+                {/* Structured metadata chips (settings-driven priority fields) + official link */}
+                {(() => {
+                  const chips = buildCitationChips(
+                    source,
+                    i18n.language,
+                    citationSettings.fieldLabels,
+                    citationSettings.priorityFields
+                  );
+                  const officialUrl = getOfficialSourceUrl(source);
+                  if (chips.length === 0 && !officialUrl) return null;
+                  return (
+                    <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
+                      {chips.map((chip) => (
+                        <CitationChip
+                          key={chip.key}
+                          chip={chip}
+                          className="rounded bg-white/[0.05] px-1.5 py-0.5 text-[10px] text-gray-400"
+                        />
+                      ))}
+                      {officialUrl && (
+                        <a
+                          href={officialUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          onClick={(e) => e.stopPropagation()}
+                          className="inline-flex items-center gap-1 text-[10px] font-medium text-cyan-400 hover:text-cyan-300 transition-colors"
+                        >
+                          <ExternalLink className="w-3 h-3" aria-hidden="true" />
+                          {t('citations.officialSource')}
+                        </a>
+                      )}
+                    </div>
+                  );
+                })()}
 
                 {/* Excerpt - fixed display with follow-up button */}
                 {(() => {
@@ -395,7 +366,7 @@ export function SourceCitation({ sources, onLoadMore, hasMore = false, showLoadM
                   }
 
                   // Add source type as keyword
-                  const typeInfo = getSourceTypeInfo(source.sourceTable, source.category);
+                  const typeInfo = getSourceTypeInfo(source.sourceTable, source.category, source.metadata);
                   if (typeInfo.label && !keywords.includes(typeInfo.label)) {
                     keywords.unshift(typeInfo.label);
                   }
