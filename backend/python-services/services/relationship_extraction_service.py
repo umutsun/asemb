@@ -43,6 +43,18 @@ EXTRACTION_CACHE_TTL = 86400  # 24h cache for extraction results
 DEFAULT_RESOLVE_LAW_FIELDS = ["law_key", "law_code", "law_number"]
 DEFAULT_RESOLVE_ARTICLE_FIELDS = ["article_number"]
 _SAFE_FIELD_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
+_ARTICLE_DIGITS_RE = re.compile(r"(\d{1,4})")
+_ARABIC_DIGIT_TRANSLATION = {ord(c): str(i % 10) for i, c in enumerate("٠١٢٣٤٥٦٧٨٩")}
+
+
+def _normalize_article_number(value: Any) -> str:
+    """LLMs return articles as '73', 'Article 73', 'المادة (٥)' or even 'None'.
+    Reduce to the bare number string; empty string when there is none."""
+    text = str(value or "").strip().translate(_ARABIC_DIGIT_TRANSLATION)
+    if not text or text.lower() in ("none", "null"):
+        return ""
+    m = _ARTICLE_DIGITS_RE.search(text)
+    return str(int(m.group(1))) if m else ""
 # WS4-B: how many chunks to extract concurrently inside a batch. Each chunk is
 # one ~7s LLM round-trip; serial processing made full re-extraction take ~20h.
 # Bounded concurrency keeps us well under gpt-4o-mini rate limits. Overridable
@@ -732,24 +744,54 @@ Rules:
 
         pool = await get_db()
         stored = 0
+        patterns = await self._get_parser_patterns()
         async with pool.acquire() as conn:
-            # The citing chunk's language steers same-language target resolution
-            # (EN chunks should link to the EN copy of the cited law).
-            source_lang = await conn.fetchval(
-                "SELECT metadata->>'lang' FROM unified_embeddings WHERE id = $1", chunk_id
+            # The citing chunk's language/law steer resolution: EN chunks link
+            # to the EN copy, and article-only references ("subject to Article
+            # (146) of this Law") resolve within the citing chunk's own law.
+            src = await conn.fetchrow(
+                """SELECT metadata->>'lang' AS lang, metadata->>'law_key' AS law_key,
+                          metadata->>'article_number' AS article_number
+                   FROM unified_embeddings WHERE id = $1""", chunk_id
             )
+            source_lang = src["lang"] if src else None
+            source_law_key = src["law_key"] if src else None
+            source_article = _normalize_article_number(src["article_number"]) if src else ""
             for ref in references:
                 try:
-                    target_law = ref.get("target_law", "")
-                    target_article = str(ref.get("target_article", ""))
+                    target_law = (ref.get("target_law") or "").strip()
+                    target_article = _normalize_article_number(ref.get("target_article"))
                     rel_type = ref.get("type", "references")
                     confidence = ref.get("confidence", 0.8)
                     context = ref.get("context", "")
-                    raw_ref = f"{target_law} art. {target_article}" if target_law and target_article else context[:200]
+                    parsed_target = parse_law_name(target_law, patterns) if target_law else {}
+
+                    # Noise gate: a reference with neither a resolvable article
+                    # nor a parseable law identity ("The law shall determine
+                    # ...") carries no graph value — skip it.
+                    if not target_article and not parsed_target.get("law_key"):
+                        logger.debug(f"[RelExtract] Skipping vague reference on chunk {chunk_id}: {target_law[:80]!r}")
+                        continue
+
+                    same_law = bool(target_article) and not parsed_target.get("law_key")
+                    # Article-only reference to the chunk's own article = self.
+                    if same_law and source_article and target_article == source_article:
+                        continue
+
+                    raw_ref = (f"{target_law} art. {target_article}" if target_law and target_article
+                               else f"art. {target_article}" if target_article else context[:200])
 
                     # Try to resolve target_chunk_id immediately
                     target_chunk_id = None
-                    if target_law and target_article:
+                    if same_law and source_law_key:
+                        target_chunk_id = await conn.fetchval("""
+                            SELECT id FROM unified_embeddings
+                            WHERE metadata->>'law_key' = $1
+                              AND metadata->>'article_number' = $2
+                            ORDER BY (metadata->>'lang' = $3) DESC, id
+                            LIMIT 1
+                        """, source_law_key, target_article, source_lang or '')
+                    elif target_law and target_article:
                         target_chunk_id = await self._resolve_single_reference(
                             conn, target_law, target_article, source_lang
                         )
@@ -770,9 +812,12 @@ Rules:
                         rel_type,
                         confidence,
                         raw_ref,
-                        target_law if target_law else None,
+                        # Same-law references store the source's law_key so a
+                        # later resolve pass can still find the target.
+                        (target_law or (source_law_key if same_law else None)) or None,
                         target_article if target_article else None,
-                        json.dumps({"context": context[:500]}),
+                        json.dumps({"context": context[:500],
+                                    **({"same_law": True} if same_law else {})}),
                         schema_id,
                     )
                     stored += 1
@@ -830,13 +875,21 @@ Rules:
         field is the structured key. Prefers a target in the same language as
         the citing chunk (EN chunks cite the EN copy of the law).
         """
+        article = _normalize_article_number(article_number)
+        if not article:
+            return None
         law_fields, article_fields = await self._get_resolve_fields()
         parsed = parse_law_name(law_code or "", await self._get_parser_patterns())
+        # The reference may already BE a structured key (same-law rows store
+        # the source's law_key in target_law_code).
+        law_key = parsed.get("law_key") or (
+            law_code if law_code and re.match(r"^[a-z_]+:\d+:\d{4}$", law_code) else None
+        )
         candidates: List[Tuple[str, str]] = []
         for field in law_fields:
             if field == "law_key":
-                if parsed.get("law_key"):
-                    candidates.append(("law_key", parsed["law_key"]))
+                if law_key:
+                    candidates.append(("law_key", law_key))
             else:
                 candidates.append((field, law_code))
         try:
@@ -848,7 +901,7 @@ Rules:
                           AND metadata->>'{article_field}' = $2
                         ORDER BY (metadata->>'lang' = $3) DESC, id
                         LIMIT 1
-                    """, value, str(article_number), source_lang or '')
+                    """, value, article, source_lang or '')
                     if row:
                         return row['id']
             return None
