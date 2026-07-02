@@ -155,6 +155,22 @@ export function getOfficialSourceUrl(source: PresentableSource): string | undefi
 }
 
 /**
+ * True when a card "title" is just the head of the excerpt/description below it
+ * (chunk-derived titles duplicate the content head, e.g. "7. The Input Tax that
+ * could be recoverable shall be calculated as..."). Cards should then skip the
+ * title line — the type badge + chips already identify the source.
+ */
+export function isRedundantTitle(title?: string, body?: string): boolean {
+  const normalize = (s: string) =>
+    s.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').replace(/\s+/g, ' ').trim();
+  const t = normalize(title || '');
+  const b = normalize(body || '');
+  if (!t || !b) return false;
+  const probe = t.slice(0, Math.min(40, t.length));
+  return probe.length >= 15 && (b.startsWith(probe) || b.includes(probe));
+}
+
+/**
  * Resolve the display value of one priority field from source metadata.
  * A handful of fields get structured fallbacks (legacy metadata aliases, URL host,
  * date truncation); everything else reads metadata[field] directly.

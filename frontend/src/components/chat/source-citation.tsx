@@ -8,7 +8,8 @@ import { stripHtml } from '@/utils/html-utils';
 import {
   getSourceTypeInfo as getSharedSourceTypeInfo,
   buildCitationChips,
-  getOfficialSourceUrl
+  getOfficialSourceUrl,
+  isRedundantTitle
 } from '@/lib/source-presentation';
 import { useCitationSettings } from '@/lib/citation-settings';
 import { CitationChip } from './citation-chip';
@@ -231,6 +232,13 @@ export function SourceCitation({ sources, onLoadMore, hasMore = false, showLoadM
             .replace(/^\s*[-•]\s*/, '')
             .trim() || 'Source';
 
+          // Chunk-derived titles duplicate the excerpt head; in that case the
+          // full excerpt wins and the truncated title line is dropped.
+          const excerptText = source.excerpt
+            ? cleanCitationText(stripHtml(source.excerpt), i18n.language)
+            : '';
+          const titleRedundant = isRedundantTitle(displayTitle, excerptText);
+
           return (
             <div
               key={source.id}
@@ -261,10 +269,12 @@ export function SourceCitation({ sources, onLoadMore, hasMore = false, showLoadM
                   );
                 })()}
 
-                {/* Title - Plain text, no link */}
-                <p className="text-sm text-gray-200 leading-snug line-clamp-2 mb-2">
-                  {displayTitle}
-                </p>
+                {/* Title - Plain text, no link (hidden when it just repeats the excerpt) */}
+                {!titleRedundant && (
+                  <p className="text-sm text-gray-200 leading-snug line-clamp-2 mb-2">
+                    {displayTitle}
+                  </p>
+                )}
 
                 {/* Media thumbnail (cross-modal results). Renders only when the backend
                     supplies a servable thumbnail_url; safe no-op otherwise. */}
@@ -317,9 +327,11 @@ export function SourceCitation({ sources, onLoadMore, hasMore = false, showLoadM
                 {/* Excerpt - fixed display with follow-up button */}
                 {(() => {
                   if (!source.excerpt) return null;
-                  const excerpt = cleanCitationText(stripHtml(source.excerpt), i18n.language);
-                  // Only show if different from title
-                  if (excerpt && excerpt.length > 20 && !displayTitle.includes(excerpt.slice(0, 50)) && !excerpt.includes(displayTitle.slice(0, 50))) {
+                  const excerpt = excerptText;
+                  // Show when the title was dropped as redundant (the excerpt IS the
+                  // content), or when title and excerpt genuinely differ.
+                  if (excerpt && excerpt.length > 20 && (titleRedundant ||
+                      (!displayTitle.includes(excerpt.slice(0, 50)) && !excerpt.includes(displayTitle.slice(0, 50))))) {
                     return (
                       <div className="mt-2">
                         <p className="text-xs text-gray-500 leading-relaxed line-clamp-4">

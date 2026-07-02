@@ -11,7 +11,7 @@ import { SchemaRenderer } from './SchemaRenderer';
 import { TranslationBadge } from './TranslationBadge';
 import { useAudioPlayer } from '@/lib/hooks/use-audio-player';
 import { prepareMarkdown, cleanLLMResponse, cleanCitationTitle, detectRtl } from '@/lib/chat-markdown';
-import { getSourceTypeInfo, buildCitationChips, getOfficialSourceUrl } from '@/lib/source-presentation';
+import { getSourceTypeInfo, buildCitationChips, getOfficialSourceUrl, isRedundantTitle } from '@/lib/source-presentation';
 import { useCitationSettings } from '@/lib/citation-settings';
 import { CitationChip } from '@/components/chat/citation-chip';
 import { FollowUpChips } from '@/components/chat/follow-up-chips';
@@ -543,8 +543,8 @@ export const ZenMessage: React.FC<ZenMessageProps> = ({
                     isPlaying
                       ? 'text-cyan-500 dark:text-cyan-400 bg-cyan-100 dark:bg-cyan-500/20'
                       : isTTSLoading
-                        ? 'text-slate-400 dark:text-slate-500 cursor-wait'
-                        : 'text-slate-400 dark:text-slate-500 hover:text-cyan-500 dark:hover:text-cyan-400 hover:bg-cyan-100 dark:hover:bg-cyan-500/10'
+                        ? 'text-slate-500 dark:text-slate-400 cursor-wait'
+                        : 'text-slate-500 dark:text-slate-400 hover:text-cyan-500 dark:hover:text-cyan-400 hover:bg-cyan-100 dark:hover:bg-cyan-500/10'
                   }`}
                   title={isPlaying ? t('chatMessage.tts.stop') : isTTSLoading ? t('chatMessage.tts.loading') : t('chatMessage.tts.listen')}
                 >
@@ -681,7 +681,9 @@ export const ZenMessage: React.FC<ZenMessageProps> = ({
                   meta?.source_name || meta?.law_title || meta?.law_name || meta?.title || meta?.baslik
                     || (source as any).title || (source as any).citation || ''
                 ), { lang: chipLang }).replace(/\.pdf$/i, '').replace(/\s*[-–]\s*ID:\s*\d+.*$/i, '').replace(/_/g, ' ').trim();
-                let originLabel = sourceName;
+                // Chunk-derived titles are just the head of the description —
+                // showing both reads as a repeat, so drop the redundant one.
+                let originLabel = isRedundantTitle(sourceName, description) ? '' : sourceName;
                 if (!originLabel && meta?.url) {
                   try { originLabel = new URL(meta.url).hostname.replace(/^www\./, ''); } catch { /* ignore */ }
                 }
