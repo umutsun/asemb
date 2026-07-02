@@ -155,6 +155,8 @@
     "sourceN": "Kaynak {num}",
     "officialSource": "Resmî kaynak",
     "articleShort": "Md.",
+    "sourcesHeading": "Kaynaklar ({count})",
+    "showAll": "Tümünü göster ({count})",
     "fields": {
       "law_title": "Kanun",
       "article_number": "Madde",
@@ -5612,6 +5614,8 @@
   },
   "chatMessage": {
     "analyzing": "Analiz ediliyor...",
+    "copy": "Kopyala",
+    "copied": "Kopyalandı",
     "sourcesLoadFailed": "Kaynaklar yüklenemedi. Lütfen sayfayı yenileyip tekrar deneyin.",
     "article": "Madde",
     "articleNotFoundBody": "kaynaklarda birebir bulunamadı; yanıt mevcut en yakın hükümlere dayanmaktadır.",

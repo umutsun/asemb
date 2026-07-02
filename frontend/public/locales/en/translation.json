@@ -5481,6 +5481,8 @@
     "sourceN": "Source {num}",
     "officialSource": "Official source",
     "articleShort": "Art.",
+    "sourcesHeading": "Sources ({count})",
+    "showAll": "Show all ({count})",
     "fields": {
       "law_title": "Law",
       "article_number": "Article",
@@ -5619,6 +5621,8 @@
   },
   "chatMessage": {
     "analyzing": "Analyzing...",
+    "copy": "Copy",
+    "copied": "Copied",
     "sourcesLoadFailed": "Citations could not be loaded. Please refresh the page and try again.",
     "article": "Article",
     "articleNotFoundBody": "was not found verbatim in the sources; the answer is based on the closest available provisions.",

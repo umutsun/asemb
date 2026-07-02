@@ -278,9 +278,10 @@ export const SchemaRenderer: React.FC<SchemaRendererProps> = ({
         );
       })}
 
-      {/* Fallback: If no sections rendered, show raw content */}
+      {/* Fallback: If no sections rendered, show raw content
+          (zen01-prose keys colors to the container's own theme class) */}
       {visibleSections.length === 0 && (
-        <div className="prose prose-sm max-w-none dark:prose-invert">
+        <div className="zen01-prose max-w-none">
           <ReactMarkdown remarkPlugins={[remarkGfm]}>
             {content}
           </ReactMarkdown>
@@ -306,10 +307,10 @@ const SectionRenderer: React.FC<SectionRendererProps> = ({ section, content, mes
     case 'heading':
       return (
         <div className="mb-4">
-          <h3 className="text-sm font-semibold text-cyan-700 dark:text-cyan-300 mb-1">
+          <h3 className="mb-1 text-sm font-semibold text-[var(--zen-ink)]">
             {section.label}
           </h3>
-          <p className="text-slate-700 dark:text-slate-100 text-base font-medium">
+          <p className="text-base font-medium text-[var(--zen-ink)]">
             {typeof content === 'string' ? content : content.join(' ')}
           </p>
         </div>
@@ -317,23 +318,16 @@ const SectionRenderer: React.FC<SectionRendererProps> = ({ section, content, mes
 
     case 'tags':
       const tags = Array.isArray(content) ? content : content.split(',').map(s => s.trim());
-      // Marker colors - like different highlighter pens (matching ZenMessage)
-      const MARKER_COLORS = [
-        'zen01-marker-yellow',  // Yellow highlighter
-        'zen01-marker-green',   // Green highlighter
-        'zen01-marker-pink',    // Pink highlighter
-        'zen01-marker-blue',    // Blue highlighter
-      ];
       return (
         <div className="mb-4">
-          {/* Hide label for keywords - show tags directly */}
-          <div className="flex flex-wrap gap-2">
+          {/* Hide label for keywords - show tags directly as quiet chips */}
+          <div className="flex flex-wrap gap-1.5">
             {tags.map((tag, idx) => (
               <span
                 key={idx}
-                className={`zen01-marker ${MARKER_COLORS[idx % MARKER_COLORS.length]}`}
+                className="inline-flex items-center rounded-full border border-[var(--zen-hairline)] px-2.5 py-0.5 text-xs text-[var(--zen-muted)]"
               >
-                <span className="text-xs font-medium">{tag}</span>
+                {tag}
               </span>
             ))}
           </div>
@@ -355,17 +349,17 @@ const SectionRenderer: React.FC<SectionRendererProps> = ({ section, content, mes
       if (citations.length === 0) return null;
       return (
         <div className="mb-4">
-          <h4 className="text-xs font-medium text-cyan-600/70 dark:text-cyan-400/70 mb-3">
+          <h4 className="mb-2 text-[11px] font-medium uppercase tracking-wide text-[var(--zen-muted)]">
             {section.label}
           </h4>
-          {/* Academic citation style - hanging indent */}
-          <div className="space-y-2 text-xs border-l-2 border-cyan-400/30 dark:border-cyan-500/30 pl-3">
+          {/* Quiet citation list - hairline start border */}
+          <div className="space-y-2 border-s-2 border-[var(--zen-hairline)] ps-3 text-xs">
             {citations.map((cite, idx) => (
               <div key={idx} className="flex items-start gap-2 py-1">
-                <span className="flex-shrink-0 text-cyan-600 dark:text-cyan-400 font-semibold min-w-[24px]">
+                <span className="min-w-[24px] flex-shrink-0 font-mono text-[var(--zen-muted)]">
                   [{idx + 1}]
                 </span>
-                <span className="text-slate-600 dark:text-slate-300 italic leading-relaxed">
+                <span className="italic leading-relaxed text-[var(--zen-muted)]">
                   {cleanCitationTitle(cite)}
                 </span>
               </div>
@@ -378,10 +372,10 @@ const SectionRenderer: React.FC<SectionRendererProps> = ({ section, content, mes
       const items = Array.isArray(content) ? content : content.split('\n').filter(Boolean);
       return (
         <div className="mb-4">
-          <h4 className="text-xs font-medium text-cyan-600/70 dark:text-cyan-400/70 mb-2">
+          <h4 className="mb-2 text-[11px] font-medium uppercase tracking-wide text-[var(--zen-muted)]">
             {section.label}
           </h4>
-          <ul className="list-disc list-outside ml-4 space-y-1 text-sm text-slate-700 dark:text-slate-100">
+          <ul className="list-disc list-outside ms-4 space-y-1 text-sm text-[var(--zen-ink)]">
             {items.map((item, idx) => (
               <li key={idx}>{item.replace(/^[-•*]\s*/, '')}</li>
             ))}
@@ -398,18 +392,17 @@ const SectionRenderer: React.FC<SectionRendererProps> = ({ section, content, mes
 
       return (
         <div className="mb-4">
-          {/* Hide section label - show content directly */}
-          <div className="prose prose-sm max-w-none dark:prose-invert text-slate-700 dark:text-slate-100
-                          prose-headings:text-cyan-700 dark:prose-headings:text-cyan-300
-                          prose-h1:text-lg prose-h1:font-bold prose-h1:mt-4 prose-h1:mb-2
-                          prose-h2:text-base prose-h2:font-semibold prose-h2:mt-3 prose-h2:mb-2
-                          prose-h3:text-sm prose-h3:font-semibold prose-h3:mt-2 prose-h3:mb-1
-                          prose-p:my-4 prose-p:leading-relaxed
-                          prose-ul:my-2 prose-ul:ml-4 prose-ul:list-disc
-                          prose-ol:my-2 prose-ol:ml-4 prose-ol:list-decimal
-                          prose-li:my-1 prose-li:pl-1
-                          prose-strong:text-cyan-700 dark:prose-strong:text-cyan-300
-                          prose-blockquote:border-l-4 prose-blockquote:border-cyan-500/50 prose-blockquote:pl-4 prose-blockquote:italic">
+          {/* Hide section label - show content directly. Colors come from the
+              container-scoped tokens (zen01-prose), not global dark: variants. */}
+          <div className="zen01-prose max-w-none
+                          [&_h1]:text-lg [&_h1]:font-semibold [&_h1]:mt-4 [&_h1]:mb-2
+                          [&_h2]:text-base [&_h2]:font-semibold [&_h2]:mt-3 [&_h2]:mb-2
+                          [&_h3]:text-sm [&_h3]:font-semibold [&_h3]:mt-2 [&_h3]:mb-1
+                          [&_ul]:my-2 [&_ul]:ms-4 [&_ul]:list-disc
+                          [&_ol]:my-2 [&_ol]:ms-4 [&_ol]:list-decimal
+                          [&_li]:my-1 [&_li]:ps-1
+                          [&_strong]:font-semibold [&_strong]:text-[var(--zen-ink)]
+                          [&_blockquote]:border-s-2 [&_blockquote]:border-[var(--zen-hairline)] [&_blockquote]:ps-4 [&_blockquote]:italic [&_blockquote]:text-[var(--zen-muted)]">
             <ReactMarkdown
               remarkPlugins={[remarkGfm]}
               components={{
@@ -430,8 +423,7 @@ const SectionRenderer: React.FC<SectionRendererProps> = ({ section, content, mes
                           return (
                             <sup
                               key={`cite-${idx}`}
-                              className="cursor-pointer text-cyan-600 dark:text-cyan-400 hover:text-cyan-500 dark:hover:text-cyan-300"
-                              style={{ fontSize: '0.75em', fontWeight: 600 }}
+                              className="cursor-pointer text-[0.7em] font-medium text-[var(--zen-accent)] no-underline hover:underline underline-offset-2"
                               onClick={(e) => {
                                 e.preventDefault();
                                 e.stopPropagation();
@@ -447,10 +439,13 @@ const SectionRenderer: React.FC<SectionRendererProps> = ({ section, content, mes
                                   sourceEl = sourceItems[parseInt(citationNum) - 1] as HTMLElement;
                                 }
                                 if (sourceEl) {
-                                  sourceEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                                  sourceEl.style.boxShadow = '0 0 0 2px rgba(34, 211, 238, 0.5)';
-                                  sourceEl.style.transition = 'box-shadow 0.3s ease';
-                                  setTimeout(() => { sourceEl!.style.boxShadow = 'none'; }, 2000);
+                                  // Flash the whole source row with a brief accent-tinted background
+                                  const row = (sourceEl.closest('.zen01-source-item') as HTMLElement) || sourceEl;
+                                  row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                                  row.classList.remove('zen01-cite-flash');
+                                  void row.offsetWidth; // restart the CSS animation
+                                  row.classList.add('zen01-cite-flash');
+                                  setTimeout(() => { row.classList.remove('zen01-cite-flash'); }, 1700);
                                 }
                               }}
                             >
@@ -472,7 +467,7 @@ const SectionRenderer: React.FC<SectionRendererProps> = ({ section, content, mes
                   };
 
                   return (
-                    <p className="my-4 leading-relaxed" style={{ marginBottom: '1.25em', marginTop: '1.25em' }}>
+                    <p className="my-3 leading-relaxed">
                       {processChildren(children)}
                     </p>
                   );

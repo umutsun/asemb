@@ -1,15 +1,20 @@
 'use client';
 
-import React, { useRef, useState, useMemo, ChangeEvent } from 'react';
+import React, { useRef, useState, useMemo, useEffect, ChangeEvent } from 'react';
 import { Send, Paperclip, X, FileText, Mic, Square, Loader2, Command } from 'lucide-react';
 import { useVoiceRecording } from '@/lib/hooks/use-voice-recording';
 import type { ZenInputProps, SlashCommand, SlashCommandSubmenuItem } from '../types';
 import { SlashCommandAutocomplete } from './SlashCommandAutocomplete';
-import { SLASH_COMMANDS, filterCommands } from '../config/slashCommands';
+import { SLASH_COMMANDS } from '../config/slashCommands';
+
+// Ghost icon button skin shared by the input's secondary actions
+const GHOST_BTN =
+  'rounded-lg p-2 text-[var(--zen-muted)] transition-colors hover:bg-[var(--zen-hover)] hover:text-[var(--zen-ink)] disabled:opacity-40';
 
 /**
  * Zen01 Input Component
- * Floating input area with textarea, PDF upload, voice input, and send button
+ * Sticky bottom input: surface container with hairline border, borderless
+ * autosize textarea, ghost secondary icons and a solid accent send button.
  */
 export const ZenInput: React.FC<ZenInputProps> = ({
   value,
@@ -33,6 +38,14 @@ export const ZenInput: React.FC<ZenInputProps> = ({
   const [showSlashAutocomplete, setShowSlashAutocomplete] = useState(false);
   const [slashSearchText, setSlashSearchText] = useState('');
   const [selectedCommandIndex, setSelectedCommandIndex] = useState(0);
+
+  // Autosize the borderless textarea (grow with content, capped)
+  useEffect(() => {
+    const el = textareaRef?.current;
+    if (!el) return;
+    el.style.height = 'auto';
+    el.style.height = `${Math.min(el.scrollHeight, 160)}px`;
+  }, [value, textareaRef]);
 
   // Build commands with dynamic submenu for /suggest
   const commandsWithDynamicSubmenu = useMemo(() => {
@@ -222,10 +235,10 @@ export const ZenInput: React.FC<ZenInputProps> = ({
   };
 
   return (
-    <div className="zen01-input-container">
-      {/* Same max-width + horizontal padding as the message column so the input
-          bar spans the full content width and lines up with the messages. */}
-      <div className="max-w-5xl mx-auto w-full px-4">
+    /* Fixed bottom bar with a functional top fade into the page background */
+    <div className="fixed bottom-0 left-0 right-0 z-50 bg-gradient-to-t from-[var(--zen-bg)] via-[var(--zen-bg)] to-transparent pb-5 pt-8">
+      {/* Same max-width + padding as the message column so both align exactly */}
+      <div className="mx-auto w-full max-w-3xl px-4">
         {/* Hidden file input */}
         <input
           ref={fileInputRef}
@@ -233,22 +246,24 @@ export const ZenInput: React.FC<ZenInputProps> = ({
           accept=".pdf,application/pdf"
           onChange={handleFileSelect}
           className="hidden"
+          aria-label="Attach PDF"
         />
 
-        {/* PDF Preview Chip */}
+        {/* PDF preview chip */}
         {pdfFile && (
-          <div className="mb-3 px-3">
-            <div className="zen01-pdf-chip inline-flex items-center gap-2 px-3 py-2 rounded-lg">
-              <FileText className="h-4 w-4" />
-              <span className="text-sm max-w-[200px] truncate font-medium">
+          <div className="mb-2">
+            <div className="inline-flex items-center gap-2 rounded-lg border border-[var(--zen-hairline)] bg-[var(--zen-surface)] px-3 py-1.5 text-[var(--zen-ink)]">
+              <FileText className="h-4 w-4 text-[var(--zen-muted)]" />
+              <span className="max-w-[200px] truncate text-sm">
                 {pdfFile.name}
               </span>
-              <span className="text-xs opacity-70">
+              <span className="text-xs text-[var(--zen-muted)]">
                 ({formatFileSize(pdfFile.size)})
               </span>
               <button
+                type="button"
                 onClick={handleRemovePdf}
-                className="p-1 hover:bg-black/10 dark:hover:bg-white/10 rounded transition-colors"
+                className="rounded p-0.5 text-[var(--zen-muted)] transition-colors hover:text-[var(--zen-ink)]"
                 title="Remove PDF"
               >
                 <X className="h-3.5 w-3.5" />
@@ -257,7 +272,7 @@ export const ZenInput: React.FC<ZenInputProps> = ({
           </div>
         )}
 
-        <div className="zen01-input flex items-end gap-3 p-3 relative">
+        <div className="relative flex items-end gap-1 rounded-2xl border border-[var(--zen-hairline)] bg-[var(--zen-surface)] p-2 transition-colors focus-within:border-[var(--zen-accent)]">
           {/* History Panel - renders above input */}
           {historyPanel}
 
@@ -276,45 +291,40 @@ export const ZenInput: React.FC<ZenInputProps> = ({
           {/* Paperclip button - only visible when PDF upload is enabled */}
           {pdfSettings?.enabled && (
             <button
+              type="button"
               onClick={handlePaperclipClick}
               disabled={isLoading || !!pdfFile || isRecording}
-              className={`p-2 rounded-lg transition-colors ${
-                pdfFile
-                  ? 'text-cyan-600 dark:text-cyan-400 bg-cyan-100 dark:bg-cyan-500/20 cursor-not-allowed'
-                  : 'text-slate-500 dark:text-slate-400 hover:text-cyan-600 dark:hover:text-cyan-400 hover:bg-cyan-100 dark:hover:bg-cyan-500/10'
-              } disabled:opacity-50`}
+              className={`${GHOST_BTN} ${pdfFile ? 'text-[var(--zen-accent)]' : ''}`}
               title={pdfFile ? 'PDF attached' : 'Attach PDF'}
             >
-              <Paperclip className="h-5 w-5" />
+              <Paperclip className="h-4 w-4" />
             </button>
           )}
 
           {/* Slash command button */}
           <button
+            type="button"
             onClick={handleSlashButtonClick}
             disabled={isLoading || isRecording}
-            className={`p-2 rounded-lg transition-colors ${
-              showSlashAutocomplete
-                ? 'text-cyan-600 dark:text-cyan-400 bg-cyan-100 dark:bg-cyan-500/20'
-                : 'text-slate-500 dark:text-slate-400 hover:text-cyan-600 dark:hover:text-cyan-400 hover:bg-cyan-100 dark:hover:bg-cyan-500/10'
-            } disabled:opacity-50`}
+            className={`${GHOST_BTN} ${showSlashAutocomplete ? 'text-[var(--zen-accent)]' : ''}`}
             title="Commands"
           >
-            <Command className="h-5 w-5" />
+            <Command className="h-4 w-4" />
           </button>
 
           {/* Mic button - only visible when voice input is enabled */}
           {voiceSettings?.enableVoiceInput && (
             <button
+              type="button"
               onClick={isRecording ? stopRecording : startRecording}
               disabled={isLoading || isTranscribing}
-              className={`p-2 rounded-lg transition-colors ${
+              className={`${GHOST_BTN} ${
                 isRecording
-                  ? 'text-rose-500 dark:text-rose-400 bg-rose-100 dark:bg-rose-500/20 animate-pulse'
+                  ? 'animate-pulse text-[var(--zen-danger)]'
                   : isTranscribing
-                    ? 'text-cyan-500 dark:text-cyan-400 bg-cyan-100 dark:bg-cyan-500/20'
-                    : 'text-slate-500 dark:text-slate-400 hover:text-cyan-600 dark:hover:text-cyan-400 hover:bg-cyan-100 dark:hover:bg-cyan-500/10'
-              } disabled:opacity-50`}
+                    ? 'text-[var(--zen-accent)]'
+                    : ''
+              }`}
               title={
                 isRecording
                   ? `Stop recording (${recordingDuration}s)`
@@ -324,11 +334,11 @@ export const ZenInput: React.FC<ZenInputProps> = ({
               }
             >
               {isRecording ? (
-                <Square className="h-5 w-5" />
+                <Square className="h-4 w-4" />
               ) : isTranscribing ? (
-                <Loader2 className="h-5 w-5 animate-spin" />
+                <Loader2 className="h-4 w-4 animate-spin" />
               ) : (
-                <Mic className="h-5 w-5" />
+                <Mic className="h-4 w-4" />
               )}
             </button>
           )}
@@ -349,17 +359,19 @@ export const ZenInput: React.FC<ZenInputProps> = ({
             }
             rows={1}
             disabled={isRecording || isTranscribing}
-            className="flex-1 bg-transparent border-none text-slate-800 dark:text-cyan-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 resize-none focus:outline-none focus:ring-0 py-2 px-3 text-sm disabled:opacity-50"
-            style={{ maxHeight: '120px' }}
+            className="max-h-40 flex-1 resize-none border-none bg-transparent px-2 py-1.5 text-[15px] leading-relaxed text-[var(--zen-ink)] placeholder:text-[var(--zen-muted)] focus:outline-none focus:ring-0 disabled:opacity-50"
           />
+
+          {/* Solid accent send button (36px circle, white icon) */}
           <button
+            type="button"
             onClick={handleSend}
             disabled={(!value.trim() && !pdfFile) || isLoading || isRecording}
-            className="zen01-send-btn"
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[var(--zen-accent)] transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
             aria-label="Send message"
           >
             {isLoading ? (
-              <div className="h-4 w-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+              <div className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
             ) : (
               <Send className="h-4 w-4 text-white" />
             )}

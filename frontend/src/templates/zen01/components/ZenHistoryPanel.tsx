@@ -1,7 +1,6 @@
 'use client';
 
 import React, { useMemo, useState, useRef, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
 import { X, Trash2, Search } from 'lucide-react';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import type { Conversation } from '../hooks/useConversationHistory';
@@ -70,7 +69,7 @@ function formatTime(dateStr: string): string {
 }
 
 /**
- * ZenHistoryPanel - Minimal dropdown style (like Claude Code)
+ * ZenHistoryPanel - quiet popover above the input (surface bg, hairline border)
  */
 export const ZenHistoryPanel: React.FC<ZenHistoryPanelProps> = ({
   isOpen,
@@ -169,104 +168,97 @@ export const ZenHistoryPanel: React.FC<ZenHistoryPanelProps> = ({
   if (!isOpen) return null;
 
   return (
-    <AnimatePresence>
-      <motion.div
-        ref={panelRef}
-        initial={{ opacity: 0, y: -10, scale: 0.95 }}
-        animate={{ opacity: 1, y: 0, scale: 1 }}
-        exit={{ opacity: 0, y: -10, scale: 0.95 }}
-        transition={{ duration: 0.15 }}
-        className="zen01-history-dropdown"
-      >
-        {/* Search */}
-        <div className="zen01-history-search">
-          <Search className="h-4 w-4 text-current opacity-50" />
-          <input
-            ref={searchRef}
-            type="text"
-            placeholder="Search conversations..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="zen01-history-search-input"
-          />
-          {searchQuery && (
-            <button
-              onClick={() => setSearchQuery('')}
-              className="opacity-50 hover:opacity-100"
-            >
-              <X className="h-3.5 w-3.5" />
-            </button>
-          )}
-        </div>
+    <div ref={panelRef} className="zen01-panel zen01-msg-in">
+      {/* Search */}
+      <div className="zen01-panel-search">
+        <Search className="h-4 w-4 opacity-50" />
+        <input
+          ref={searchRef}
+          type="text"
+          placeholder="Search conversations..."
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+        />
+        {searchQuery && (
+          <button
+            type="button"
+            onClick={() => setSearchQuery('')}
+            className="opacity-50 hover:opacity-100"
+            aria-label="Clear search"
+          >
+            <X className="h-3.5 w-3.5" />
+          </button>
+        )}
+      </div>
 
-
-        {/* Conversations List */}
-        <ScrollArea className="zen01-history-list">
-          {isLoading ? (
-            <div className="zen01-history-loading">
-              <div className="zen01-history-skeleton-sm" />
-              <div className="zen01-history-skeleton-sm" />
-              <div className="zen01-history-skeleton-sm" />
-            </div>
-          ) : filteredConversations.length === 0 ? (
-            <div className="zen01-history-empty-minimal">
-              {searchQuery ? 'No results found' : 'No conversations yet'}
-            </div>
-          ) : (
-            groupedConversations.map(([group, convs]) => (
-              <div key={group}>
-                <div className="zen01-history-group-label">{group}</div>
-                {convs.map(conv => (
-                  <div
-                    key={conv.id}
-                    onClick={() => {
-                      onSelectConversation(conv.id);
-                      onClose();
-                    }}
-                    className={`zen01-history-item ${
-                      conv.id === currentConversationId ? 'active' : ''
-                    }`}
-                  >
-                    <div className="zen01-history-item-content">
-                      <span className="zen01-history-item-title">
-                        {conv.title || 'Untitled conversation'}
-                      </span>
-                      <span className="zen01-history-item-time">
-                        {formatTime(conv.updated_at || conv.created_at)}
-                      </span>
-                    </div>
-                    {confirmDeleteId === conv.id ? (
-                      <div className="zen01-history-delete-confirm">
-                        <button
-                          onClick={(e) => handleDeleteClick(e, conv.id)}
-                          className="zen01-history-confirm-yes"
-                        >
-                          Delete
-                        </button>
-                        <button
-                          onClick={handleCancelDelete}
-                          className="zen01-history-confirm-no"
-                        >
-                          <X className="h-3 w-3" />
-                        </button>
-                      </div>
-                    ) : (
+      {/* Conversations List */}
+      <ScrollArea className="zen01-panel-list">
+        {isLoading ? (
+          <div className="py-1">
+            <div className="zen01-panel-skeleton" />
+            <div className="zen01-panel-skeleton" />
+            <div className="zen01-panel-skeleton" />
+          </div>
+        ) : filteredConversations.length === 0 ? (
+          <div className="zen01-panel-empty">
+            {searchQuery ? 'No results found' : 'No conversations yet'}
+          </div>
+        ) : (
+          groupedConversations.map(([group, convs]) => (
+            <div key={group}>
+              <div className="zen01-panel-label">{group}</div>
+              {convs.map(conv => (
+                <div
+                  key={conv.id}
+                  onClick={() => {
+                    onSelectConversation(conv.id);
+                    onClose();
+                  }}
+                  className={`zen01-panel-row ${
+                    conv.id === currentConversationId ? 'active' : ''
+                  }`}
+                >
+                  <span className="zen01-history-item-title">
+                    {conv.title || 'Untitled conversation'}
+                  </span>
+                  <span className="zen01-history-item-time">
+                    {formatTime(conv.updated_at || conv.created_at)}
+                  </span>
+                  {confirmDeleteId === conv.id ? (
+                    <div className="flex items-center gap-1">
                       <button
+                        type="button"
                         onClick={(e) => handleDeleteClick(e, conv.id)}
-                        className="zen01-history-item-delete"
-                        title="Delete"
+                        className="zen01-history-confirm-yes"
                       >
-                        <Trash2 className="h-3 w-3" />
+                        Delete
                       </button>
-                    )}
-                  </div>
-                ))}
-              </div>
-            ))
-          )}
-        </ScrollArea>
-      </motion.div>
-    </AnimatePresence>
+                      <button
+                        type="button"
+                        onClick={handleCancelDelete}
+                        className="zen01-history-confirm-no"
+                        aria-label="Cancel delete"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={(e) => handleDeleteClick(e, conv.id)}
+                      className="zen01-history-item-delete"
+                      title="Delete"
+                    >
+                      <Trash2 className="h-3 w-3" />
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+          ))
+        )}
+      </ScrollArea>
+    </div>
   );
 };
 

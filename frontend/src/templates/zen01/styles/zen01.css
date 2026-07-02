@@ -1,1481 +1,212 @@
 /**
- * Zen01 Template Styles
- * Navy blue glassmorphism with zen-like aesthetics
- * Supports both Dark and Light modes
- * UI Style Guide compliant
+ * Zen01 — quiet legal assistant
+ * Minimal, typography-first theme. One accent (cyan), everything else neutral.
+ *
+ * All critical colors are keyed to the container's OWN theme class
+ * (.zen01-container.light / .zen01-container.dark) via CSS variables,
+ * never to the global html.dark — the two theme systems can desync.
  */
 
-/* ============================================
-   Base Theme Variables - Dark Mode (Default)
-   ============================================ */
-[data-theme="zen01"] {
-  /* Dark Mode Colors */
-  --zen-deep: #0a1628;
-  --zen-mid: #0d1f3c;
-  --zen-border: #1e3a5f;
-  --zen-surface: rgba(13, 31, 60, 0.6);
-  --zen-surface-hover: rgba(13, 31, 60, 0.8);
-
-  /* Accent Colors */
-  --zen-cyan: #06b6d4;
-  --zen-emerald: #10b981;
-  --zen-amber: #f59e0b;
-  --zen-rose: #f43f5e;
-  --zen-purple: #8b5cf6;
-
-  /* Text Colors */
-  --zen-text-primary: #f1f5f9;
-  --zen-text-secondary: rgba(148, 163, 184, 0.8);
-  --zen-text-muted: rgba(100, 116, 139, 0.6);
-
-  /* Glassmorphism */
-  --zen-glass-bg: rgba(13, 31, 60, 0.6);
-  --zen-glass-border: rgba(30, 58, 95, 0.5);
-  --zen-glass-blur: blur(12px);
+/* ============ Tokens ============ */
+.zen01-container,
+.zen01-container.dark {
+  --zen-bg: #0b1220;
+  --zen-surface: #111a2e;
+  --zen-ink: #e5e7eb;
+  --zen-muted: #94a3b8;
+  --zen-hairline: rgba(255, 255, 255, 0.08);
+  --zen-accent: #22d3ee;            /* cyan-400 */
+  --zen-accent-soft: rgba(34, 211, 238, 0.12);
+  --zen-hover: rgba(255, 255, 255, 0.05);
+  --zen-warn: #fbbf24;
+  --zen-danger: #f87171;
+  --zen-q-verygood: #34d399;
+  --zen-q-good: #38bdf8;
+  --zen-q-medium: #fbbf24;
+  --zen-q-low: #94a3b8;
 }
 
-/* ============================================
-   Light Mode Variables
-   ============================================ */
-[data-theme="zen01"][data-mode="light"],
-.zen01-container.light[data-theme="zen01"],
-.zen01-container[data-mode="light"],
 .zen01-container.light {
-  /* Light Mode Colors */
-  --zen-deep: #f8fafc;
-  --zen-mid: #f1f5f9;
-  --zen-border: #cbd5e1;
-  --zen-surface: rgba(255, 255, 255, 0.8);
-  --zen-surface-hover: rgba(255, 255, 255, 0.95);
-
-  /* Accent Colors - Slightly darker for light mode */
-  --zen-cyan: #0891b2;
-  --zen-emerald: #059669;
-  --zen-amber: #d97706;
-  --zen-rose: #e11d48;
-  --zen-purple: #7c3aed;
-
-  /* Text Colors */
-  --zen-text-primary: #0f172a;
-  --zen-text-secondary: #475569;
-  /* Muted text: slate-500 (was slate-400 #94a3b8, ~2.8:1 on white — failed WCAG AA). */
-  --zen-text-muted: #64748b;
-
-  /* Glassmorphism */
-  --zen-glass-bg: rgba(255, 255, 255, 0.8);
-  --zen-glass-border: rgba(203, 213, 225, 0.6);
-  --zen-glass-blur: blur(12px);
+  --zen-bg: #fafafa;
+  --zen-surface: #ffffff;
+  --zen-ink: #111827;
+  --zen-muted: #6b7280;
+  --zen-hairline: rgba(0, 0, 0, 0.08);
+  --zen-accent: #0891b2;            /* cyan-600 */
+  --zen-accent-soft: rgba(8, 145, 178, 0.10);
+  --zen-hover: rgba(17, 24, 39, 0.04);
+  --zen-warn: #b45309;
+  --zen-danger: #dc2626;
+  --zen-q-verygood: #059669;
+  --zen-q-good: #0284c7;
+  --zen-q-medium: #b45309;
+  --zen-q-low: #6b7280;
 }
 
-/* ============================================
-   Main Container
-   ============================================ */
+/* ============ Container ============ */
 .zen01-container {
   min-height: 100vh;
-  background: linear-gradient(135deg, var(--zen-deep) 0%, var(--zen-mid) 50%, var(--zen-deep) 100%);
+  background: var(--zen-bg);
+  color: var(--zen-ink);
   position: relative;
   overflow: hidden;
-  color: var(--zen-text-primary);
 }
 
-/* Light mode container background */
-.zen01-container.light {
-  background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 50%, #f8fafc 100%);
+/* Thin, muted scrollbars everywhere inside the template */
+.zen01-container ::-webkit-scrollbar { width: 6px; height: 6px; }
+.zen01-container ::-webkit-scrollbar-track { background: transparent; }
+.zen01-container ::-webkit-scrollbar-thumb { background: var(--zen-hairline); border-radius: 3px; }
+.zen01-container ::-webkit-scrollbar-thumb:hover { background: var(--zen-muted); }
+
+/* ============ Prose (assistant markdown) ============ */
+.zen01-prose {
+  font-size: 15.5px;
+  line-height: 1.7;
+  color: var(--zen-ink);
 }
 
-/* ============================================
-   Glassmorphism Cards
-   ============================================ */
-.zen01-glass {
-  background: var(--zen-glass-bg);
-  backdrop-filter: var(--zen-glass-blur);
-  -webkit-backdrop-filter: var(--zen-glass-blur);
-  border: 1px solid var(--zen-glass-border);
-  border-radius: 1rem;
+.zen01-prose li::marker { color: var(--zen-muted); }
+
+/* ============ Message mount animation (only animation in the template) ============ */
+.zen01-msg-in { animation: zen01-in 150ms ease-out; }
+
+@keyframes zen01-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: none; }
 }
 
-.zen01-glass-light {
-  background: rgba(255, 255, 255, 0.05);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+/* ============ Citation scroll highlight (brief accent-tinted fade) ============ */
+.zen01-cite-flash {
+  animation: zen01-flash 1.6s ease-out;
+  border-radius: 8px;
 }
 
-.zen01-container.light .zen01-glass-light {
-  background: rgba(0, 0, 0, 0.03);
-  border: 1px solid rgba(0, 0, 0, 0.08);
+@keyframes zen01-flash {
+  0%, 25% { background-color: var(--zen-accent-soft); }
+  100% { background-color: transparent; }
 }
 
-/* ============================================
-   Message Bubbles - Dark Mode
-   ============================================ */
-.zen01-message-user {
-  background: linear-gradient(135deg, rgba(6, 182, 212, 0.15) 0%, rgba(139, 92, 246, 0.15) 100%);
-  border: 1px solid rgba(6, 182, 212, 0.3);
-  backdrop-filter: blur(8px);
-  border-radius: 1.25rem 1.25rem 0.25rem 1.25rem;
-}
-
-.zen01-message-assistant {
-  background: var(--zen-glass-bg);
-  border: 1px solid var(--zen-glass-border);
-  backdrop-filter: blur(12px);
-  border-radius: 1.25rem 1.25rem 1.25rem 0.25rem;
-}
-
-/* Message Bubbles - Light Mode */
-.zen01-container.light .zen01-message-user {
-  background: linear-gradient(135deg, rgba(8, 145, 178, 0.12) 0%, rgba(124, 58, 237, 0.12) 100%);
-  border: 1px solid rgba(8, 145, 178, 0.25);
-}
-
-.zen01-container.light .zen01-message-assistant {
-  background: rgba(255, 255, 255, 0.9);
-  border: 1px solid rgba(203, 213, 225, 0.6);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
-}
-
-/* Message text colors */
-.zen01-message-user p,
-.zen01-message-assistant p,
-.zen01-message-user div,
-.zen01-message-assistant div {
-  color: var(--zen-text-primary);
-}
-
-/* ============================================
-   Input Area
-   ============================================ */
-.zen01-input-container {
-  position: fixed;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  /* No horizontal padding here — the inner wrapper carries the same
-     max-width + px as the message column so the input bar lines up with it. */
-  padding: 1rem 0 1.25rem;
-  background: linear-gradient(to top, var(--zen-deep) 0%, transparent 100%);
-  z-index: 50;
-}
-
-.zen01-container.light .zen01-input-container {
-  background: linear-gradient(to top, #f8fafc 0%, transparent 100%);
-}
-
-.zen01-input {
-  background: var(--zen-surface-hover);
-  backdrop-filter: blur(16px);
-  border: 1px solid rgba(6, 182, 212, 0.3);
-  border-radius: 1.5rem;
-  transition: all 0.3s ease;
-}
-
-.zen01-container.light .zen01-input {
-  background: rgba(255, 255, 255, 0.95);
-  border: 1px solid rgba(8, 145, 178, 0.3);
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
-}
-
-.zen01-input:focus-within {
-  border-color: rgba(6, 182, 212, 0.6);
-  box-shadow: 0 0 20px rgba(6, 182, 212, 0.15);
-}
-
-.zen01-container.light .zen01-input:focus-within {
-  border-color: rgba(8, 145, 178, 0.5);
-  box-shadow: 0 4px 25px rgba(8, 145, 178, 0.15);
-}
-
-.zen01-input textarea {
-  background: transparent;
-  border: none;
-  color: var(--zen-cyan);
-  resize: none;
-}
-
-.zen01-container.light .zen01-input textarea {
-  color: var(--zen-text-primary);
-}
-
-.zen01-input textarea::placeholder {
-  color: var(--zen-text-muted);
-}
-
-.zen01-input textarea:focus {
-  outline: none;
-  box-shadow: none;
-}
-
-/* ============================================
-   Send Button
-   ============================================ */
-.zen01-send-btn {
-  background: linear-gradient(135deg, var(--zen-cyan) 0%, var(--zen-purple) 100%);
-  border: none;
-  border-radius: 50%;
-  width: 2.75rem;
-  height: 2.75rem;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  transition: all 0.3s ease;
-  box-shadow: 0 4px 15px rgba(6, 182, 212, 0.3);
-}
-
-.zen01-send-btn:hover {
-  transform: scale(1.05);
-  box-shadow: 0 6px 20px rgba(6, 182, 212, 0.4);
-}
-
-.zen01-send-btn:active {
-  transform: scale(0.95);
-}
-
-.zen01-send-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-  transform: none;
-}
-
-/* ============================================
-   PDF Chip
-   ============================================ */
-/* Dark mode (default) - bright cyan on dark bg */
-.zen01-pdf-chip {
-  background: rgba(6, 182, 212, 0.2);
-  border: 1px solid rgba(103, 232, 249, 0.4);
-  color: #67e8f9;
-}
-
-/* Light mode - dark teal on light bg */
-.zen01-container.light .zen01-pdf-chip,
-.zen01-container[data-mode="light"] .zen01-pdf-chip {
-  background: rgba(14, 116, 144, 0.12);
-  border: 1px solid rgba(14, 116, 144, 0.35);
-  color: #0e7490;
-}
-
-/* ============================================
-   Header
-   ============================================ */
-.zen01-header {
-  position: sticky;
-  top: 0;
-  z-index: 50;
-  background: var(--zen-surface-hover);
-  backdrop-filter: blur(16px);
-  border-bottom: 1px solid var(--zen-glass-border);
-}
-
-.zen01-container.light .zen01-header {
-  background: rgba(255, 255, 255, 0.9);
-  border-bottom: 1px solid rgba(203, 213, 225, 0.6);
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
-}
-
-/* Header title/subtitle/toggle colours are set in ZenHeader.tsx from the zen01 `isDark` prop
-   (NOT the global Tailwind `.dark` class — the two theme systems can desync, which left a light
-   title + a dark toggle on the white header). Do NOT override with --zen-text-* here. */
-
-/* ============================================
-   Welcome Screen
-   ============================================ */
-.zen01-welcome {
-  text-align: center;
-  padding: 3rem 1rem;
-}
-
-.zen01-welcome-title {
-  font-size: 2.5rem;
-  font-weight: 700;
-  background: linear-gradient(135deg, var(--zen-cyan) 0%, var(--zen-purple) 50%, var(--zen-cyan) 100%);
-  background-size: 200% 200%;
-  -webkit-background-clip: text;
-  background-clip: text;
-  -webkit-text-fill-color: transparent;
-  animation: zen-gradient 8s ease infinite;
-}
-
-@keyframes zen-gradient {
-  0%, 100% { background-position: 0% 50%; }
-  50% { background-position: 100% 50%; }
-}
-
-.zen01-welcome-subtitle {
-  color: var(--zen-text-secondary);
-  font-size: 1.125rem;
-  margin-top: 0.5rem;
-}
-
-/* ============================================
-   Recent Conversations Grid
-   ============================================ */
-.zen01-recent-title {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.5rem;
-  font-size: 0.8rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: var(--zen-text-muted);
-  margin-bottom: 1rem;
-}
-
-.zen01-recent-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 0.75rem;
-  max-width: 800px;
-  margin: 0 auto;
-}
-
-.zen01-recent-card {
-  background: rgba(6, 182, 212, 0.06);
-  border: 1px solid rgba(6, 182, 212, 0.15);
-  border-radius: 0.75rem;
-  padding: 0.875rem 1rem;
-  text-align: left;
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-
-.zen01-container.light .zen01-recent-card {
-  background: rgba(8, 145, 178, 0.04);
-  border-color: rgba(8, 145, 178, 0.12);
-}
-
-.zen01-recent-card:hover {
-  background: rgba(6, 182, 212, 0.12);
-  border-color: rgba(6, 182, 212, 0.3);
-  transform: translateY(-2px);
-}
-
-.zen01-container.light .zen01-recent-card:hover {
-  background: rgba(8, 145, 178, 0.08);
-  border-color: rgba(8, 145, 178, 0.25);
-}
-
-.zen01-recent-card-title {
-  font-size: 0.875rem;
-  color: var(--zen-text-primary);
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-  line-height: 1.4;
-}
-
-/* ============================================
-   Suggestion Pills
-   ============================================ */
-.zen01-suggestion {
-  background: rgba(6, 182, 212, 0.1);
-  border: 1px solid rgba(6, 182, 212, 0.3);
-  border-radius: 9999px;
-  padding: 0.625rem 1.25rem;
-  color: var(--zen-cyan);
-  font-size: 0.875rem;
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-
-.zen01-container.light .zen01-suggestion {
-  background: rgba(8, 145, 178, 0.08);
-  border: 1px solid rgba(8, 145, 178, 0.25);
-}
-
-.zen01-suggestion:hover {
-  background: rgba(6, 182, 212, 0.2);
-  border-color: rgba(6, 182, 212, 0.5);
-  transform: translateY(-2px);
-}
-
-.zen01-container.light .zen01-suggestion:hover {
-  background: rgba(8, 145, 178, 0.15);
-  border-color: rgba(8, 145, 178, 0.4);
-}
-
-/* ============================================
-   Sources Section
-   ============================================ */
-.zen01-sources {
-  margin-top: 1rem;
-  padding-top: 1rem;
-  border-top: 1px solid var(--zen-glass-border);
-}
-
-.zen01-source-item {
-  background: rgba(6, 182, 212, 0.05);
-  border: 1px solid rgba(6, 182, 212, 0.2);
-  border-radius: 0.75rem;
-  padding: 0.75rem 1rem;
-  margin-bottom: 0.5rem;
-  /* cursor moved to React inline class for conditional control */
-  transition: all 0.2s ease;
-}
-
-.zen01-container.light .zen01-source-item {
-  background: rgba(8, 145, 178, 0.04);
-  border: 1px solid rgba(8, 145, 178, 0.15);
-}
-
-.zen01-source-item:hover {
-  background: rgba(6, 182, 212, 0.1);
-  border-color: rgba(6, 182, 212, 0.4);
-}
-
-.zen01-container.light .zen01-source-item:hover {
-  background: rgba(8, 145, 178, 0.08);
-  border-color: rgba(8, 145, 178, 0.3);
-}
-
-/* Source text colors */
-.zen01-source-item p {
-  color: var(--zen-text-primary);
-}
-
-.zen01-container.light .zen01-source-item p {
-  color: #475569;
-}
-
-.zen01-source-item .text-cyan-300\/90 {
-  color: var(--zen-cyan);
-}
-
-/* ============================================
-   Typing Indicator
-   ============================================ */
+/* ============ Typing indicator ============ */
 .zen01-typing {
   display: flex;
   align-items: center;
-  gap: 0.375rem;
-  padding: 1rem;
+  gap: 5px;
+  padding: 0.5rem 0;
 }
 
 .zen01-typing-dot {
-  width: 0.5rem;
-  height: 0.5rem;
-  background: var(--zen-cyan);
-  border-radius: 50%;
-  animation: zen-pulse 1.4s ease-in-out infinite;
-}
-
-.zen01-typing-dot:nth-child(2) {
-  animation-delay: 0.2s;
-}
-
-.zen01-typing-dot:nth-child(3) {
-  animation-delay: 0.4s;
-}
-
-@keyframes zen-pulse {
-  0%, 60%, 100% {
-    opacity: 0.3;
-    transform: scale(0.8);
-  }
-  30% {
-    opacity: 1;
-    transform: scale(1);
-  }
-}
-
-/* ============================================
-   Scrollbar - Dark Mode
-   ============================================ */
-.zen01-scroll::-webkit-scrollbar {
-  width: 6px;
-}
-
-.zen01-scroll::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-.zen01-scroll::-webkit-scrollbar-thumb {
-  background: rgba(6, 182, 212, 0.3);
-  border-radius: 3px;
-}
-
-.zen01-scroll::-webkit-scrollbar-thumb:hover {
-  background: rgba(6, 182, 212, 0.5);
-}
-
-/* Scrollbar - Light Mode */
-.zen01-container.light .zen01-scroll::-webkit-scrollbar-thumb {
-  background: rgba(8, 145, 178, 0.25);
-}
-
-.zen01-container.light .zen01-scroll::-webkit-scrollbar-thumb:hover {
-  background: rgba(8, 145, 178, 0.4);
-}
-
-/* ============================================
-   Marker Highlight Box for Keywords
-   Hand-drawn style background box with 45deg skew
-   Optimized for readability in both dark/light modes
-   ============================================ */
-.zen01-marker {
-  position: relative;
-  display: inline;
-  padding: 0.2em 0.5em;
-  margin: 0 0.15em;
-  /* Dark mode: Lighter cyan bg for contrast with light text */
-  background: linear-gradient(
-    135deg,
-    rgba(6, 182, 212, 0.25) 0%,
-    rgba(6, 182, 212, 0.18) 100%
-  );
-  /* Text color: bright cyan for dark mode readability */
-  color: #67e8f9;
-  transform: skewX(-6deg);
-  border-radius: 2px 6px 4px 8px;
-  box-decoration-break: clone;
-  -webkit-box-decoration-break: clone;
-}
-
-/* Keep text straight while box is skewed */
-.zen01-marker > * {
-  display: inline-block;
-  transform: skewX(6deg);
-}
-
-/* Light mode - darker bg and text for contrast */
-.zen01-container.light .zen01-marker {
-  background: linear-gradient(
-    135deg,
-    rgba(8, 145, 178, 0.20) 0%,
-    rgba(8, 145, 178, 0.14) 100%
-  );
-  /* Dark teal text for light mode readability */
-  color: #0e7490;
-}
-
-/* ============================================
-   Multi-Color Marker Highlighters
-   Different colors like highlighter pens
-   ============================================ */
-/* Yellow highlighter - Dark mode */
-.zen01-marker.zen01-marker-yellow {
-  background: linear-gradient(135deg, rgba(250, 204, 21, 0.35) 0%, rgba(250, 204, 21, 0.25) 100%);
-  color: #fef08a;
-}
-.zen01-container.light .zen01-marker.zen01-marker-yellow {
-  background: linear-gradient(135deg, rgba(250, 204, 21, 0.45) 0%, rgba(250, 204, 21, 0.30) 100%);
-  color: #854d0e;
-}
-
-/* Green highlighter - Dark mode */
-.zen01-marker.zen01-marker-green {
-  background: linear-gradient(135deg, rgba(34, 197, 94, 0.30) 0%, rgba(34, 197, 94, 0.20) 100%);
-  color: #86efac;
-}
-.zen01-container.light .zen01-marker.zen01-marker-green {
-  background: linear-gradient(135deg, rgba(34, 197, 94, 0.35) 0%, rgba(34, 197, 94, 0.22) 100%);
-  color: #166534;
-}
-
-/* Pink highlighter - Dark mode */
-.zen01-marker.zen01-marker-pink {
-  background: linear-gradient(135deg, rgba(236, 72, 153, 0.30) 0%, rgba(236, 72, 153, 0.20) 100%);
-  color: #f9a8d4;
-}
-.zen01-container.light .zen01-marker.zen01-marker-pink {
-  background: linear-gradient(135deg, rgba(236, 72, 153, 0.35) 0%, rgba(236, 72, 153, 0.22) 100%);
-  color: #9d174d;
-}
-
-/* Blue highlighter - Dark mode */
-.zen01-marker.zen01-marker-blue {
-  background: linear-gradient(135deg, rgba(59, 130, 246, 0.30) 0%, rgba(59, 130, 246, 0.20) 100%);
-  color: #93c5fd;
-}
-.zen01-container.light .zen01-marker.zen01-marker-blue {
-  background: linear-gradient(135deg, rgba(59, 130, 246, 0.35) 0%, rgba(59, 130, 246, 0.22) 100%);
-  color: #1e40af;
-}
-
-/* Purple highlighter - Dark mode */
-.zen01-marker.zen01-marker-purple {
-  background: linear-gradient(135deg, rgba(168, 85, 247, 0.30) 0%, rgba(168, 85, 247, 0.20) 100%);
-  color: #e9d5ff;
-}
-.zen01-container.light .zen01-marker.zen01-marker-purple {
-  background: linear-gradient(135deg, rgba(168, 85, 247, 0.35) 0%, rgba(168, 85, 247, 0.22) 100%);
-  color: #6b21a8;
-}
-
-/* Orange highlighter - Dark mode */
-.zen01-marker.zen01-marker-orange {
-  background: linear-gradient(135deg, rgba(249, 115, 22, 0.30) 0%, rgba(249, 115, 22, 0.20) 100%);
-  color: #fdba74;
-}
-.zen01-container.light .zen01-marker.zen01-marker-orange {
-  background: linear-gradient(135deg, rgba(249, 115, 22, 0.35) 0%, rgba(249, 115, 22, 0.22) 100%);
-  color: #9a3412;
-}
-
-/* Slate/Gray highlighter - subtle for metadata */
-.zen01-marker.zen01-marker-slate {
-  background: linear-gradient(135deg, rgba(148, 163, 184, 0.22) 0%, rgba(148, 163, 184, 0.14) 100%);
-  color: #cbd5e1;
-}
-.zen01-container.light .zen01-marker.zen01-marker-slate {
-  background: linear-gradient(135deg, rgba(71, 85, 105, 0.18) 0%, rgba(71, 85, 105, 0.10) 100%);
-  color: #475569;
-}
-
-/* Amber highlighter - for daire/court info */
-.zen01-marker.zen01-marker-amber {
-  background: linear-gradient(135deg, rgba(245, 158, 11, 0.28) 0%, rgba(245, 158, 11, 0.18) 100%);
-  color: #fcd34d;
-}
-.zen01-container.light .zen01-marker.zen01-marker-amber {
-  background: linear-gradient(135deg, rgba(245, 158, 11, 0.32) 0%, rgba(245, 158, 11, 0.20) 100%);
-  color: #92400e;
-}
-
-/* ============================================
-   Citation Superscript - CRITICAL FIX
-   ============================================ */
-.zen01-citation-anchor,
-.zen01-citation-number {
-  font-family: 'Monaco', 'Menlo', 'Courier New', monospace;
-  font-size: 10px !important;
-  font-weight: 600;
-  vertical-align: super !important;
-  line-height: 0 !important;
-  color: var(--zen-cyan);
-  transition: color 0.2s ease;
-}
-
-.zen01-citation-anchor:hover {
-  color: #22d3ee;
-}
-
-/* Dark mode */
-[data-theme="zen01"] .zen01-citation-anchor {
-  color: #06b6d4;
-}
-
-/* Light mode */
-[data-theme="zen01"][data-mode="light"] .zen01-citation-anchor,
-.zen01-container.light .zen01-citation-anchor {
-  color: #0891b2;
-}
-
-/* ============================================
-   Source Type Badge (Citation Labels)
-   High contrast for readability
-   ============================================ */
-.zen01-source-badge {
-  display: inline-block;
-  padding: 0.25rem 0.5rem;
-  font-size: 10px;
-  font-weight: 600;
-  text-transform: capitalize;
-  border-radius: 4px;
-  /* Dark mode - cyan theme */
-  background: rgba(6, 182, 212, 0.25);
-  color: #67e8f9;
-  border: 1px solid rgba(6, 182, 212, 0.4);
-}
-
-/* Light mode - darker for contrast */
-.zen01-container.light .zen01-source-badge {
-  background: rgba(8, 145, 178, 0.15);
-  color: #0e7490;
-  border: 1px solid rgba(8, 145, 178, 0.3);
-}
-
-/* ============================================
-   Quiet Metadata Chips (citation cards)
-   Minimal pills: thin border, muted text, no background tint.
-   Theme-safe: keyed off the container's own light class, not the global .dark.
-   ============================================ */
-.zen01-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.25rem;
-  padding: 0.125rem 0.375rem;
-  border-radius: 0.25rem;
-  font-size: 10px;
-  line-height: 1.3;
-  border: 1px solid rgba(148, 163, 184, 0.25);
-  color: rgba(148, 163, 184, 0.9);
-  background: transparent;
-}
-
-.zen01-container.light .zen01-chip {
-  border-color: rgba(100, 116, 139, 0.3);
-  color: #64748b;
-}
-
-/* ============================================
-   Quiet Follow-up Question Chips
-   ============================================ */
-.zen01-followup-chip {
-  border: 1px solid rgba(148, 163, 184, 0.3);
-  color: rgba(203, 213, 225, 0.85);
-  background: transparent;
-}
-
-.zen01-followup-chip:hover {
-  background: rgba(148, 163, 184, 0.1);
-}
-
-.zen01-container.light .zen01-followup-chip {
-  border-color: rgba(100, 116, 139, 0.3);
-  color: #475569;
-}
-
-.zen01-container.light .zen01-followup-chip:hover {
-  background: rgba(100, 116, 139, 0.08);
-}
-
-/* ============================================
-   Live Indicator
-   ============================================ */
-.zen01-live {
-  display: flex;
-  align-items: center;
-  gap: 0.375rem;
-}
-
-.zen01-live-dot {
-  width: 0.5rem;
-  height: 0.5rem;
-  background: var(--zen-emerald);
-  border-radius: 50%;
-  animation: zen-live-pulse 2s ease-in-out infinite;
-}
-
-@keyframes zen-live-pulse {
-  0%, 100% {
-    opacity: 1;
-    box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.4);
-  }
-  50% {
-    opacity: 0.8;
-    box-shadow: 0 0 0 4px rgba(16, 185, 129, 0);
-  }
-}
-
-/* ============================================
-   Response Time Badge
-   ============================================ */
-.zen01-response-time {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.25rem;
-  padding: 0.25rem 0.5rem;
-  background: rgba(16, 185, 129, 0.1);
-  border: 1px solid rgba(16, 185, 129, 0.3);
+  width: 4px;
+  height: 4px;
   border-radius: 9999px;
-  font-size: 0.75rem;
-  color: var(--zen-emerald);
+  background: var(--zen-muted);
+  animation: zen01-pulse 1.2s ease-in-out infinite;
 }
 
-/* ============================================
-   Avatar
-   ============================================ */
-.zen01-avatar {
-  width: 2.25rem;
-  height: 2.25rem;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-weight: 600;
-  font-size: 0.875rem;
+.zen01-typing-dot:nth-child(2) { animation-delay: 0.15s; }
+.zen01-typing-dot:nth-child(3) { animation-delay: 0.3s; }
+
+@keyframes zen01-pulse {
+  0%, 60%, 100% { opacity: 0.35; }
+  30% { opacity: 1; }
 }
 
-.zen01-avatar-user {
-  background: linear-gradient(135deg, var(--zen-cyan) 0%, var(--zen-purple) 100%);
-  color: white;
-}
+/* ============ Answer-quality text (level -> text color, no pill) ============ */
+.zen01-q-veryGood { color: var(--zen-q-verygood); }
+.zen01-q-good     { color: var(--zen-q-good); }
+.zen01-q-medium   { color: var(--zen-q-medium); }
+.zen01-q-low      { color: var(--zen-q-low); }
 
-.zen01-avatar-assistant {
-  background: rgba(6, 182, 212, 0.2);
-  border: 1px solid rgba(6, 182, 212, 0.4);
-  color: var(--zen-cyan);
-}
-
-.zen01-container.light .zen01-avatar-assistant {
-  background: rgba(8, 145, 178, 0.1);
-  border: 1px solid rgba(8, 145, 178, 0.3);
-}
-
-/* ============================================
-   Theme Toggle Button
-   ============================================ */
-.zen01-theme-toggle {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 2.25rem;
-  height: 2.25rem;
-  border-radius: 0.5rem;
-  background: rgba(6, 182, 212, 0.1);
-  border: 1px solid rgba(6, 182, 212, 0.2);
-  color: var(--zen-cyan);
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-
-.zen01-theme-toggle:hover {
-  background: rgba(6, 182, 212, 0.2);
-  border-color: rgba(6, 182, 212, 0.4);
-}
-
-.zen01-container.light .zen01-theme-toggle {
-  background: rgba(8, 145, 178, 0.08);
-  border: 1px solid rgba(8, 145, 178, 0.15);
-}
-
-.zen01-container.light .zen01-theme-toggle:hover {
-  background: rgba(8, 145, 178, 0.15);
-  border-color: rgba(8, 145, 178, 0.3);
-}
-
-/* ============================================
-   Animations
-   ============================================ */
-.zen01-fade-in {
-  animation: zen-fade-in 0.3s ease-out;
-}
-
-@keyframes zen-fade-in {
-  from {
-    opacity: 0;
-    transform: translateY(10px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-.zen01-slide-up {
-  animation: zen-slide-up 0.4s ease-out;
-}
-
-@keyframes zen-slide-up {
-  from {
-    opacity: 0;
-    transform: translateY(20px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-/* ============================================
-   Dropdown Menu Styles
-   ============================================ */
-.zen01-dropdown {
-  backdrop-filter: blur(16px);
-  border-radius: 0.75rem;
-}
-
-/* Dark mode dropdown (default + explicit) */
-.zen01-dropdown.zen01-dark,
-.zen01-dropdown:not(.zen01-light) {
-  background: rgba(13, 31, 60, 0.95);
-  border: 1px solid rgba(30, 58, 95, 0.5);
-  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
-}
-
-/* Light mode dropdown */
-.zen01-container.light .zen01-dropdown,
-.zen01-dropdown.zen01-light {
-  background: rgba(255, 255, 255, 0.98);
-  border: 1px solid rgba(203, 213, 225, 0.6);
-  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1);
-}
-
-/* Dark mode dropdown items (default) */
-.zen01-dropdown-item {
-  color: #f1f5f9;
-  transition: background 0.15s ease;
-}
-
-.zen01-dropdown-item:hover {
-  background: rgba(6, 182, 212, 0.1);
-}
-
-/* Light mode dropdown items */
-.zen01-container.light .zen01-dropdown-item,
-.zen01-dropdown.zen01-light .zen01-dropdown-item {
-  color: #0f172a;
-}
-
-.zen01-container.light .zen01-dropdown-item:hover,
-.zen01-dropdown.zen01-light .zen01-dropdown-item:hover {
-  background: rgba(8, 145, 178, 0.08);
-}
-
-/* ============================================
-   Error State
-   ============================================ */
-.zen01-error {
-  background: rgba(244, 63, 94, 0.1);
-  border: 1px solid rgba(244, 63, 94, 0.3);
-  color: var(--zen-rose);
-}
-
-.zen01-container.light .zen01-error {
-  background: rgba(225, 29, 72, 0.08);
-  border: 1px solid rgba(225, 29, 72, 0.25);
-}
-
-/* ============================================
-   Loading Skeleton
-   ============================================ */
-.zen01-skeleton {
-  background: linear-gradient(90deg,
-    rgba(6, 182, 212, 0.1) 25%,
-    rgba(6, 182, 212, 0.2) 50%,
-    rgba(6, 182, 212, 0.1) 75%
-  );
-  background-size: 200% 100%;
-  animation: zen-skeleton 1.5s ease-in-out infinite;
-}
-
-.zen01-container.light .zen01-skeleton {
-  background: linear-gradient(90deg,
-    rgba(8, 145, 178, 0.08) 25%,
-    rgba(8, 145, 178, 0.15) 50%,
-    rgba(8, 145, 178, 0.08) 75%
-  );
-  background-size: 200% 100%;
-}
-
-@keyframes zen-skeleton {
-  0% { background-position: 200% 0; }
-  100% { background-position: -200% 0; }
-}
-
-/* ============================================
-   Markdown Content - Better Typography
-   Article-style paragraphs with proper spacing
-   ============================================ */
-.zen01-markdown {
-  line-height: 1.8;
-  font-size: 0.9375rem; /* 15px - slightly larger for readability */
-}
-
-.zen01-markdown p {
-  margin-top: 1.5rem !important;
-  margin-bottom: 1.5rem !important;
-  text-align: justify;
-  text-justify: inter-word;
-  line-height: 1.9 !important;
-}
-
-.zen01-markdown p:first-child {
-  margin-top: 0;
-}
-
-.zen01-markdown p:last-child {
-  margin-bottom: 0;
-}
-
-/* First paragraph - intro styling */
-.zen01-markdown p:first-of-type {
-  font-size: 0.95rem;
-  color: rgba(148, 163, 184, 0.95); /* slightly brighter for intro */
-}
-
-.zen01-container.light .zen01-markdown p:first-of-type {
-  color: rgba(51, 65, 85, 0.95);
-}
-
-.zen01-markdown strong {
-  color: #67e8f9; /* cyan-300 - readable against dark bg */
-  font-weight: 600;
-}
-
-/* Section headers - Bold text at start of paragraph acting as headers */
-.zen01-markdown p > strong:first-child {
-  display: block;
-  margin-bottom: 0.5rem;
-  font-size: 1.05em;
-}
-
-/* Light mode: bold text is near-black and heavier so it clearly differs from body text */
-.zen01-container.light .zen01-markdown strong {
-  color: #0f172a;
-  font-weight: 700;
-}
-
-/* Lists: guarantee visible markers regardless of Tailwind utility generation
-   (preflight resets ul/ol to list-style: none, which hid the numbers/bullets). */
-.zen01-markdown ul,
-.zen01-markdown ol {
-  margin-top: 0.75rem;
-  margin-bottom: 0.75rem;
-  padding-inline-start: 1.25rem;
-}
-
-.zen01-markdown ul {
-  list-style: disc outside;
-}
-
-.zen01-markdown ol {
-  list-style: decimal outside;
-}
-
-.zen01-markdown li {
-  margin-top: 0.375rem;
-  margin-bottom: 0.375rem;
-}
-
-.zen01-markdown li::marker {
-  color: rgba(148, 163, 184, 0.9);
-}
-
-.zen01-markdown ol > li::marker {
-  font-weight: 600;
-}
-
-.zen01-container.light .zen01-markdown li::marker {
-  color: #64748b;
-}
-
-/* Headings inside markdown content */
-.zen01-markdown h1 {
-  font-size: 1.125rem;
-  font-weight: 700;
-  color: #22d3ee;
-  margin-top: 1.5rem;
-  margin-bottom: 0.75rem;
-  padding-bottom: 0.25rem;
-  border-bottom: 1px solid rgba(34, 211, 238, 0.3);
-}
-
-/* Light mode headings: near-black, clearly darker/heavier than body text */
-.zen01-container.light .zen01-markdown h1 {
-  color: #0f172a;
-  border-bottom-color: rgba(148, 163, 184, 0.35);
-}
-
-.zen01-markdown h2 {
-  font-size: 1rem;
-  font-weight: 600;
-  color: #67e8f9;
-  margin-top: 1.25rem;
-  margin-bottom: 0.5rem;
-}
-
-.zen01-container.light .zen01-markdown h2 {
-  color: #0f172a;
-  font-weight: 700;
-}
-
-.zen01-markdown h3 {
-  font-size: 0.9375rem;
-  font-weight: 600;
-  color: #67e8f9;
-  margin-top: 1rem;
-  margin-bottom: 0.375rem;
-}
-
-.zen01-container.light .zen01-markdown h3 {
-  color: #0f172a;
-  font-weight: 700;
-}
-
-/* Blockquotes - legal citation style */
-.zen01-markdown blockquote {
-  border-left: 3px solid rgba(34, 211, 238, 0.5);
-  padding-left: 1rem;
-  margin: 1rem 0;
-  font-style: italic;
-  color: rgba(148, 163, 184, 0.9);
-}
-
-.zen01-container.light .zen01-markdown blockquote {
-  border-left-color: rgba(14, 116, 144, 0.3);
-  color: rgba(71, 85, 105, 0.9);
-}
-
-/* Horizontal dividers */
-.zen01-markdown hr {
-  border: none;
-  border-top: 1px solid rgba(34, 211, 238, 0.2);
-  margin: 1.5rem 0;
-}
-
-.zen01-container.light .zen01-markdown hr {
-  border-top-color: rgba(14, 116, 144, 0.15);
-}
-
-/* Warning/critical notes styling */
-.zen01-markdown p:has(> strong:first-child) {
-  margin-top: 1.75rem !important;
-}
-
-/* List item text colors for both modes */
-.zen01-container.light .zen01-markdown ul,
-.zen01-container.light .zen01-markdown ol {
-  color: #334155;
-}
-
-.zen01-container.light .zen01-markdown li {
-  color: #334155;
-}
-
-/* Override prose defaults that may conflict - FORCE with !important */
-.zen01-markdown.prose p {
-  margin-top: 1.5rem !important;
-  margin-bottom: 1.5rem !important;
-  line-height: 1.9 !important;
-}
-
-.zen01-markdown.prose strong {
-  color: #67e8f9;
-}
-
-.zen01-container.light .zen01-markdown.prose strong {
-  color: #0f172a;
-  font-weight: 700;
-}
-
-/* Light mode paragraph text readability */
-.zen01-container.light .zen01-markdown p {
-  color: #334155;
-}
-
-.zen01-container.light .zen01-markdown.prose p {
-  color: #334155;
-}
-
-/* ============================================
-   Slash Command Autocomplete
-   ============================================ */
-.zen01-slash-autocomplete {
+/* ============ Popover panels (history / suggest / slash) ============ */
+.zen01-panel {
   position: absolute;
   bottom: 100%;
   left: 0;
   right: 0;
   margin-bottom: 0.5rem;
-  background: var(--zen-surface-hover);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  border: 1px solid var(--zen-glass-border);
+  background: var(--zen-surface);
+  border: 1px solid var(--zen-hairline);
   border-radius: 0.75rem;
-  box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.2);
-  overflow: hidden;
-  z-index: 60;
-}
-
-.zen01-container.light .zen01-slash-autocomplete {
-  background: rgba(255, 255, 255, 0.98);
-  border: 1px solid rgba(203, 213, 225, 0.6);
-  box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.08);
-}
-
-.zen01-slash-command-item {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  padding: 0.75rem 1rem;
-  cursor: pointer;
-  transition: background 0.15s ease;
-}
-
-.zen01-slash-command-item:hover,
-.zen01-slash-command-item.selected {
-  background: rgba(6, 182, 212, 0.1);
-}
-
-.zen01-container.light .zen01-slash-command-item:hover,
-.zen01-container.light .zen01-slash-command-item.selected {
-  background: rgba(8, 145, 178, 0.08);
-}
-
-.zen01-slash-command-icon {
-  font-size: 1.25rem;
-  line-height: 1;
-}
-
-.zen01-slash-command-trigger {
-  font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
-  font-size: 0.875rem;
-  font-weight: 600;
-  color: var(--zen-cyan);
-  min-width: 2.5rem;
-}
-
-.zen01-slash-command-label {
-  font-size: 0.875rem;
-  font-weight: 500;
-  color: var(--zen-text-primary);
-}
-
-.zen01-slash-command-desc {
-  font-size: 0.75rem;
-  color: var(--zen-text-muted);
-  margin-left: auto;
-}
-
-.zen01-slash-command-hint {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0.5rem 1rem;
-  font-size: 0.7rem;
-  color: var(--zen-text-muted);
-  border-top: 1px solid var(--zen-glass-border);
-  background: rgba(0, 0, 0, 0.1);
-}
-
-.zen01-container.light .zen01-slash-command-hint {
-  background: rgba(0, 0, 0, 0.03);
-}
-
-.zen01-slash-command-hint kbd {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 1.25rem;
-  padding: 0.125rem 0.375rem;
-  font-size: 0.65rem;
-  font-family: inherit;
-  background: rgba(6, 182, 212, 0.15);
-  border: 1px solid rgba(6, 182, 212, 0.3);
-  border-radius: 0.25rem;
-  color: var(--zen-cyan);
-}
-
-/* Slash Command Submenu */
-.zen01-slash-submenu {
-  background: rgba(0, 0, 0, 0.15);
-  overflow: hidden;
-}
-
-.zen01-container.light .zen01-slash-submenu {
-  background: rgba(0, 0, 0, 0.03);
-}
-
-.zen01-slash-submenu-item {
-  padding: 0.625rem 1rem 0.625rem 2.5rem;
-  font-size: 0.875rem;
-  color: var(--zen-text-primary);
-  cursor: pointer;
-  transition: background 0.15s ease;
-}
-
-.zen01-slash-submenu-item:hover,
-.zen01-slash-submenu-item.selected {
-  background: rgba(6, 182, 212, 0.15);
-}
-
-.zen01-container.light .zen01-slash-submenu-item:hover,
-.zen01-container.light .zen01-slash-submenu-item.selected {
-  background: rgba(8, 145, 178, 0.1);
-}
-
-/* ============================================
-   Translation Badge
-   ============================================ */
-.zen01-translation-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.25rem;
-  padding: 0.25rem 0.5rem;
-  background: rgba(139, 92, 246, 0.15);
-  border: 1px solid rgba(139, 92, 246, 0.3);
-  border-radius: 9999px;
-  font-size: 0.7rem;
-  font-weight: 500;
-  color: var(--zen-purple);
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-
-.zen01-translation-badge:hover {
-  background: rgba(139, 92, 246, 0.25);
-  border-color: rgba(139, 92, 246, 0.5);
-}
-
-.zen01-translation-badge.active {
-  background: rgba(139, 92, 246, 0.25);
-  border-color: rgba(139, 92, 246, 0.5);
-}
-
-.zen01-container.light .zen01-translation-badge {
-  background: rgba(124, 58, 237, 0.1);
-  border: 1px solid rgba(124, 58, 237, 0.25);
-  color: #7c3aed;
-}
-
-.zen01-container.light .zen01-translation-badge:hover,
-.zen01-container.light .zen01-translation-badge.active {
-  background: rgba(124, 58, 237, 0.2);
-  border-color: rgba(124, 58, 237, 0.4);
-}
-
-.zen01-translation-badge-flag {
-  font-size: 0.85rem;
-  line-height: 1;
-}
-
-.zen01-translation-badge-lang {
-  text-transform: uppercase;
-  letter-spacing: 0.025em;
-}
-
-/* ============================================
-   History Panel - Above Input Style (like slash commands)
-   ============================================ */
-.zen01-history-dropdown {
-  position: absolute;
-  bottom: 100%;
-  left: 0;
-  right: 0;
-  margin-bottom: 0.5rem;
-  max-height: 420px;
-  /* Near-opaque so chat text behind the panel does not bleed through (readability). */
-  background: rgba(13, 22, 43, 0.98);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  border: 1px solid var(--zen-glass-border);
-  border-radius: 0.75rem;
-  box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
   z-index: 60;
   display: flex;
   flex-direction: column;
   overflow: hidden;
 }
 
-.zen01-container.light .zen01-history-dropdown {
-  background: rgba(255, 255, 255, 0.98);
-  border: 1px solid rgba(203, 213, 225, 0.6);
-  box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.08);
-}
-
-/* Search Box */
-.zen01-history-search {
+.zen01-panel-search {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 12px 14px;
-  border-bottom: 1px solid rgba(6, 182, 212, 0.15);
-  color: var(--zen-text-secondary);
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--zen-hairline);
+  color: var(--zen-muted);
 }
 
-.zen01-container.light .zen01-history-search {
-  border-bottom-color: rgba(203, 213, 225, 0.6);
-}
-
-.zen01-history-search-input {
+.zen01-panel-search input {
   flex: 1;
   background: transparent;
   border: none;
   outline: none;
   font-size: 0.875rem;
-  color: var(--zen-text-primary);
+  color: var(--zen-ink);
 }
 
-.zen01-history-search-input::placeholder {
-  color: var(--zen-text-muted);
-}
+.zen01-panel-search input::placeholder { color: var(--zen-muted); }
 
-/* Scrollable List */
-.zen01-history-list {
+.zen01-panel-list {
   flex: 1;
   max-height: 280px;
-  min-height: 120px;
-  padding: 8px 12px 12px;
+  padding: 6px;
   overflow-y: auto;
 }
 
-/* Custom scrollbar for history list */
-.zen01-history-list::-webkit-scrollbar {
-  width: 6px;
-}
-
-.zen01-history-list::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-.zen01-history-list::-webkit-scrollbar-thumb {
-  background: rgba(6, 182, 212, 0.3);
-  border-radius: 3px;
-}
-
-.zen01-history-list::-webkit-scrollbar-thumb:hover {
-  background: rgba(6, 182, 212, 0.5);
-}
-
-.zen01-container.light .zen01-history-list::-webkit-scrollbar-thumb {
-  background: rgba(8, 145, 178, 0.25);
-}
-
-.zen01-container.light .zen01-history-list::-webkit-scrollbar-thumb:hover {
-  background: rgba(8, 145, 178, 0.4);
-}
-
-/* Group Label */
-.zen01-history-group-label {
-  font-size: 0.7rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: var(--zen-text-muted);
-  padding: 8px 4px 6px;
-  margin-top: 4px;
-}
-
-.zen01-history-group-label:first-child {
-  margin-top: 0;
-}
-
-/* History Item */
-.zen01-history-item {
+.zen01-panel-row {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 10px 12px;
+  width: 100%;
+  padding: 8px 10px;
   border-radius: 8px;
+  background: transparent;
+  border: none;
   cursor: pointer;
-  transition: all 0.15s ease;
-  margin-bottom: 2px;
+  text-align: start;
+  font-size: 0.875rem;
+  color: var(--zen-ink);
+  transition: background 0.15s ease;
 }
 
-.zen01-history-item:hover {
-  background: rgba(6, 182, 212, 0.1);
+.zen01-panel-row:hover,
+.zen01-panel-row.selected,
+.zen01-panel-row.active { background: var(--zen-hover); }
+
+.zen01-panel-label {
+  font-size: 11px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--zen-muted);
+  padding: 8px 10px 4px;
 }
 
-.zen01-history-item.active {
-  background: rgba(6, 182, 212, 0.15);
+.zen01-panel-empty {
+  text-align: center;
+  padding: 24px 16px;
+  color: var(--zen-muted);
+  font-size: 0.875rem;
 }
 
-.zen01-container.light .zen01-history-item:hover {
-  background: rgba(8, 145, 178, 0.08);
+.zen01-panel-skeleton {
+  height: 36px;
+  margin: 4px 0;
+  border-radius: 8px;
+  background: var(--zen-hover);
 }
 
-.zen01-container.light .zen01-history-item.active {
-  background: rgba(8, 145, 178, 0.12);
-}
-
-.zen01-history-item-content {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-}
-
+/* History rows: title + time + delete affordance */
 .zen01-history-item-title {
   flex: 1;
-  font-size: 0.875rem;
-  color: var(--zen-text-primary);
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1483,274 +214,73 @@
 
 .zen01-history-item-time {
   font-size: 0.75rem;
-  color: var(--zen-text-muted);
+  color: var(--zen-muted);
   flex-shrink: 0;
 }
 
-/* Delete Button */
 .zen01-history-item-delete {
   opacity: 0;
-  padding: 6px;
-  border-radius: 4px;
-  color: var(--zen-rose);
+  padding: 5px;
+  border-radius: 6px;
+  color: var(--zen-muted);
   background: transparent;
   border: none;
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition: opacity 0.15s ease, color 0.15s ease;
 }
 
-.zen01-history-item:hover .zen01-history-item-delete {
-  opacity: 0.6;
-}
-
-.zen01-history-item-delete:hover {
-  opacity: 1 !important;
-  background: rgba(244, 63, 94, 0.15);
-}
-
-/* Delete Confirmation Inline */
-.zen01-history-delete-confirm {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  animation: zen-fade-in 0.15s ease;
-}
-
-@keyframes zen-fade-in {
-  from { opacity: 0; transform: scale(0.9); }
-  to { opacity: 1; transform: scale(1); }
-}
+.zen01-panel-row:hover .zen01-history-item-delete { opacity: 1; }
+.zen01-history-item-delete:hover { color: var(--zen-danger); }
 
 .zen01-history-confirm-yes {
-  padding: 4px 10px;
-  font-size: 0.7rem;
-  font-weight: 600;
-  background: rgba(244, 63, 94, 0.9);
-  color: white;
+  padding: 3px 10px;
+  font-size: 11px;
+  font-weight: 500;
+  background: var(--zen-danger);
+  color: #ffffff;
   border: none;
-  border-radius: 4px;
+  border-radius: 6px;
   cursor: pointer;
-  transition: background 0.15s ease;
-}
-
-.zen01-history-confirm-yes:hover {
-  background: rgba(244, 63, 94, 1);
 }
 
 .zen01-history-confirm-no {
-  padding: 4px 6px;
-  background: rgba(100, 116, 139, 0.2);
-  color: var(--zen-text-secondary);
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  transition: background 0.15s ease;
-  display: flex;
-  align-items: center;
-}
-
-.zen01-history-confirm-no:hover {
-  background: rgba(100, 116, 139, 0.3);
-}
-
-/* Empty State */
-.zen01-history-empty-minimal {
-  text-align: center;
-  padding: 24px 16px;
-  color: var(--zen-text-muted);
-  font-size: 0.875rem;
-}
-
-/* Loading Skeleton */
-.zen01-history-loading {
-  padding: 8px 0;
-}
-
-.zen01-history-skeleton-sm {
-  height: 40px;
-  margin-bottom: 6px;
-  border-radius: 8px;
-  background: linear-gradient(90deg,
-    rgba(6, 182, 212, 0.06) 25%,
-    rgba(6, 182, 212, 0.12) 50%,
-    rgba(6, 182, 212, 0.06) 75%
-  );
-  background-size: 200% 100%;
-  animation: zen-skeleton 1.5s ease-in-out infinite;
-}
-
-.zen01-container.light .zen01-history-skeleton-sm {
-  background: linear-gradient(90deg,
-    rgba(8, 145, 178, 0.05) 25%,
-    rgba(8, 145, 178, 0.1) 50%,
-    rgba(8, 145, 178, 0.05) 75%
-  );
-  background-size: 200% 100%;
-}
-
-@keyframes zen-skeleton {
-  0% {
-    background-position: 200% 0;
-  }
-  100% {
-    background-position: -200% 0;
-  }
-}
-
-/* ============================================
-   Suggest Panel - Above Input Style (like history)
-   ============================================ */
-.zen01-suggest-dropdown {
-  position: absolute;
-  bottom: 100%;
-  left: 0;
-  right: 0;
-  margin-bottom: 0.5rem;
-  max-height: 380px;
-  /* Near-opaque so chat text behind the panel does not bleed through (readability). */
-  background: rgba(13, 22, 43, 0.98);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  border: 1px solid var(--zen-glass-border);
-  border-radius: 0.75rem;
-  box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.2);
-  z-index: 60;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-}
-
-.zen01-container.light .zen01-suggest-dropdown {
-  background: rgba(255, 255, 255, 0.98);
-  border: 1px solid rgba(203, 213, 225, 0.6);
-  box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.08);
-}
-
-/* Header */
-.zen01-suggest-header {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 12px 14px;
-  border-bottom: 1px solid rgba(6, 182, 212, 0.15);
-  color: var(--zen-cyan);
-  font-size: 0.8rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-}
-
-.zen01-container.light .zen01-suggest-header {
-  border-bottom-color: rgba(203, 213, 225, 0.6);
-  color: #0891b2;
-}
-
-/* List */
-.zen01-suggest-list {
-  flex: 1;
-  max-height: 280px;
-  padding: 8px;
-  overflow-y: auto;
-}
-
-/* Item */
-.zen01-suggest-item {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  width: 100%;
-  padding: 10px 12px;
-  border-radius: 8px;
+  padding: 3px 6px;
   background: transparent;
-  border: none;
+  color: var(--zen-muted);
+  border: 1px solid var(--zen-hairline);
+  border-radius: 6px;
   cursor: pointer;
-  transition: background 0.15s ease;
-  text-align: left;
-}
-
-.zen01-suggest-item:hover {
-  background: rgba(6, 182, 212, 0.1);
-}
-
-.zen01-container.light .zen01-suggest-item:hover {
-  background: rgba(8, 145, 178, 0.08);
-}
-
-.zen01-suggest-item-title {
-  flex: 1;
-  font-size: 0.875rem;
-  color: var(--zen-text-primary);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.zen01-suggest-item-time {
-  font-size: 0.75rem;
-  color: var(--zen-text-muted);
-  flex-shrink: 0;
-}
-
-/* Empty State */
-.zen01-suggest-empty {
-  text-align: center;
-  padding: 24px 16px;
-  color: var(--zen-text-muted);
-  font-size: 0.875rem;
-}
-
-/* Loading */
-.zen01-suggest-loading {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 24px 8px;
-}
-
-.zen01-suggest-skeleton {
-  height: 40px;
-  margin-bottom: 6px;
-  border-radius: 8px;
-  background: linear-gradient(90deg,
-    rgba(6, 182, 212, 0.06) 25%,
-    rgba(6, 182, 212, 0.12) 50%,
-    rgba(6, 182, 212, 0.06) 75%
-  );
-  background-size: 200% 100%;
-  animation: zen-skeleton 1.5s ease-in-out infinite;
-}
-
-/* Hint */
-.zen01-suggest-hint {
   display: flex;
   align-items: center;
-  justify-content: center;
-  gap: 0.5rem;
-  padding: 8px 14px;
-  border-top: 1px solid rgba(6, 182, 212, 0.1);
-  font-size: 0.7rem;
-  color: var(--zen-text-muted);
 }
 
-.zen01-suggest-hint kbd {
-  padding: 2px 6px;
-  font-size: 0.65rem;
-  font-family: inherit;
-  background: rgba(6, 182, 212, 0.15);
-  border: 1px solid rgba(6, 182, 212, 0.3);
-  border-radius: 4px;
-  color: var(--zen-cyan);
+/* Slash command rows */
+.zen01-slash-trigger {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.8125rem;
+  color: var(--zen-muted);
+  min-width: 4.5rem;
 }
 
-/* ============================================
-   Sheet Overlay - Ensure proper backdrop
-   Portal renders outside container, use global selector
-   ============================================ */
-[data-theme="zen01"] ~ [data-radix-dialog-overlay],
-body:has([data-theme="zen01"]) [data-radix-dialog-overlay] {
-  background: rgba(0, 0, 0, 0.7) !important;
-  z-index: 99 !important;
-  backdrop-filter: blur(4px) !important;
+.zen01-slash-submenu-row { padding-inline-start: 2.5rem; }
+
+/* ============ User-menu dropdown (renders in a portal OUTSIDE the container,
+   so CSS vars are unavailable — literal colors keyed by an explicit mode class) */
+.zen01-dropdown { border-radius: 0.75rem; }
+
+.zen01-dropdown.zen01-dark {
+  background: #111a2e;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: #e5e7eb;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
 }
+
+.zen01-dropdown.zen01-light {
+  background: #ffffff;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  color: #111827;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
+}
+
+.zen01-dropdown.zen01-dark .zen01-dropdown-item:hover { background: rgba(255, 255, 255, 0.05); }
+.zen01-dropdown.zen01-light .zen01-dropdown-item:hover { background: rgba(17, 24, 39, 0.04); }

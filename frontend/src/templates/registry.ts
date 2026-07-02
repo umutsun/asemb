@@ -47,8 +47,8 @@ export const chatTemplates: Record<string, TemplateConfig> = {
   'zen01': {
     id: 'zen01',
     name: 'Zen 01',
-    description: 'Navy blue glassmorphism with zen-like animations, particles background, and dark/light mode support',
-    version: '1.0.0',
+    description: 'Minimal typography-first chat: single accent color, hairline borders, dark/light mode',
+    version: '2.0.0',
     ChatInterface: () => import('./zen01/ChatInterface'),
     config: () => import('./zen01/config.json')
   },

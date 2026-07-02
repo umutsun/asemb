@@ -1,7 +1,6 @@
 'use client';
 
 import React, { useState, useRef, useEffect } from 'react';
-import { AnimatePresence } from 'framer-motion';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { getEndpoint } from '@/config/api.config';
@@ -9,9 +8,6 @@ import { useAuth } from '@/contexts/AuthProvider';
 import { useTranslation } from 'react-i18next';
 import { useLanguage } from '@/hooks/useLanguage';
 import { createEnhancedSourceClickHandler } from '@/utils/semantic-search-enhancement';
-
-// Particles Background Component
-import { ParticlesBackground } from '@/components/ui/particles-background';
 
 // Import CSS
 import './styles/zen01.css';
@@ -44,7 +40,8 @@ const SUGGESTIONS_CACHE_TTL = 60 * 60 * 1000; // 1 hour
 
 /**
  * Zen01 Chat Interface
- * A modern, glassmorphic chat interface with dark/light mode support
+ * Minimal, typography-first chat interface ("quiet legal assistant") with
+ * its own dark/light mode (container-scoped theme tokens).
  */
 export default function ChatInterface() {
   const { token, user, logout } = useAuth();
@@ -1208,9 +1205,6 @@ export default function ChatInterface() {
         data-theme="zen01"
         data-mode={isDark ? 'dark' : 'light'}
       >
-        {/* Particles Background */}
-        <ParticlesBackground variant={isDark ? 'dark' : 'light'} />
-
         {/* Header */}
         <ZenHeader
           chatbotSettings={chatbotSettings}
@@ -1221,37 +1215,37 @@ export default function ChatInterface() {
           onToggleTheme={toggleTheme}
         />
 
-        {/* Main Chat Area */}
-        <div className="relative z-10 pt-20 pb-32 max-w-5xl mx-auto w-full px-4 overflow-hidden">
-          <ScrollArea className="h-[calc(100vh-13rem)] zen01-scroll">
-            <div className="space-y-6 py-4 pr-4">
+        {/* Main Chat Area - single centered reading column */}
+        <div className="relative z-10 mx-auto w-full max-w-3xl overflow-hidden px-4">
+          <ScrollArea className="h-[calc(100vh-11.5rem)]">
+            <div className="space-y-8 py-6 pe-2">
               {/* Welcome Screen - only render after settings are loaded */}
               {isClient && settingsLoaded && messages.length === 0 && (
                 <ZenWelcome
                   chatbotSettings={chatbotSettings}
                   user={user}
+                  suggestions={memoizedSuggestions}
+                  onSuggestionClick={handleSuggestionClick}
                 />
               )}
 
               {/* Messages */}
-              <AnimatePresence mode="popLayout">
-                {messages.map((message) => (
-                  <ZenMessage
-                    key={message.id}
-                    message={message}
-                    onSourceClick={handleSourceClick}
-                    lastUserQuery={lastUserQuery}
-                    voiceOutputEnabled={voiceSettings.enableVoiceOutput}
-                    enableSourceClick={chatbotSettings.enableSourceClick}
-                    enableKeywordHighlighting={chatbotSettings.enableKeywordHighlighting}
-                    responseSchemaId={chatbotSettings.responseSchemaId}
-                    minSourcesToShow={ragSettings.minSourcesToShow}
-                    translation={messageTranslations.get(message.id)}
-                    onToggleTranslation={() => handleToggleTranslation(message.id)}
-                    onQuestionClick={handleSuggestionClick}
-                  />
-                ))}
-              </AnimatePresence>
+              {messages.map((message) => (
+                <ZenMessage
+                  key={message.id}
+                  message={message}
+                  onSourceClick={handleSourceClick}
+                  lastUserQuery={lastUserQuery}
+                  voiceOutputEnabled={voiceSettings.enableVoiceOutput}
+                  enableSourceClick={chatbotSettings.enableSourceClick}
+                  enableKeywordHighlighting={chatbotSettings.enableKeywordHighlighting}
+                  responseSchemaId={chatbotSettings.responseSchemaId}
+                  minSourcesToShow={ragSettings.minSourcesToShow}
+                  translation={messageTranslations.get(message.id)}
+                  onToggleTranslation={() => handleToggleTranslation(message.id)}
+                  onQuestionClick={handleSuggestionClick}
+                />
+              ))}
               <div ref={messagesEndRef} />
             </div>
           </ScrollArea>

@@ -9,15 +9,6 @@ interface TranslationBadgeProps {
   onToggle: () => void;
 }
 
-const LANGUAGE_FLAGS: Record<string, string> = {
-  en: '\uD83C\uDDEC\uD83C\uDDE7',
-  tr: '\uD83C\uDDF9\uD83C\uDDF7',
-  de: '\uD83C\uDDE9\uD83C\uDDEA',
-  fr: '\uD83C\uDDEB\uD83C\uDDF7',
-  es: '\uD83C\uDDEA\uD83C\uDDF8',
-  ar: '\uD83C\uDDF8\uD83C\uDDE6',
-};
-
 const LANGUAGE_NAMES: Record<string, string> = {
   en: 'EN',
   tr: 'TR',
@@ -29,33 +20,29 @@ const LANGUAGE_NAMES: Record<string, string> = {
 
 /**
  * TranslationBadge
- * Small toggle badge showing translation status
+ * Quiet toggle showing translation state: hairline ghost pill, accent when
+ * the translation is being shown. Colors come from container-scoped tokens.
  */
 export const TranslationBadge: React.FC<TranslationBadgeProps> = ({
   targetLanguage,
   isShowingTranslation,
   onToggle,
 }) => {
-  const flag = LANGUAGE_FLAGS[targetLanguage] || '';
   const langCode = LANGUAGE_NAMES[targetLanguage] || targetLanguage.toUpperCase();
 
   return (
     <button
+      type="button"
       onClick={onToggle}
-      className={`zen01-translation-badge ${isShowingTranslation ? 'active' : ''}`}
+      className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide transition-colors ${
+        isShowingTranslation
+          ? 'border-[var(--zen-accent)] text-[var(--zen-accent)]'
+          : 'border-[var(--zen-hairline)] text-[var(--zen-muted)] hover:text-[var(--zen-ink)]'
+      }`}
       title={isShowingTranslation ? 'Show original' : 'Show translation'}
     >
-      {isShowingTranslation ? (
-        <>
-          <span className="zen01-translation-badge-flag">{flag}</span>
-          <span className="zen01-translation-badge-lang">{langCode}</span>
-        </>
-      ) : (
-        <>
-          <Languages className="h-3 w-3" />
-          <span className="zen01-translation-badge-lang">Original</span>
-        </>
-      )}
+      <Languages className="h-3 w-3" />
+      <span>{isShowingTranslation ? langCode : 'Original'}</span>
     </button>
   );
 };

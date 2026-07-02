@@ -155,6 +155,8 @@
     "sourceN": "المصدر {num}",
     "officialSource": "المصدر الرسمي",
     "articleShort": "المادة",
+    "sourcesHeading": "المصادر ({count})",
+    "showAll": "عرض الكل ({count})",
     "fields": {
       "law_title": "القانون",
       "article_number": "المادة",
@@ -5521,6 +5523,8 @@
   },
   "chatMessage": {
     "analyzing": "جارٍ التحليل...",
+    "copy": "نسخ",
+    "copied": "تم النسخ",
     "sourcesLoadFailed": "تعذَّر تحميل المراجع. يرجى تحديث الصفحة والمحاولة مرة أخرى.",
     "article": "المادة",
     "articleNotFoundBody": "لم يُعثر عليها نصاً في المصادر؛ تستند الإجابة إلى أقرب الأحكام المتاحة.",

@@ -175,6 +175,10 @@ export interface ZenRecentConversation {
 export interface ZenWelcomeProps {
   chatbotSettings: ZenChatbotSettings;
   user: ZenUserInfo | null;
+  /** Example questions for the empty state (existing suggestions source; first 4 shown) */
+  suggestions?: string[];
+  /** Fills the chat input with the clicked example question */
+  onSuggestionClick?: (question: string) => void;
 }
 
 // PDF Settings Interface

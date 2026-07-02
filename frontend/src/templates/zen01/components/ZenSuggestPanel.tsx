@@ -1,8 +1,7 @@
 'use client';
 
 import React, { useMemo, useState, useRef, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { Search, X, Sparkles, Loader2 } from 'lucide-react';
+import { Search, X, Loader2 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
 interface ZenSuggestPanelProps {
@@ -15,6 +14,7 @@ interface ZenSuggestPanelProps {
 
 /**
  * ZenSuggestPanel - Shows suggestion questions with search
+ * Quiet popover above the input: surface bg, hairline border, plain rows.
  */
 export const ZenSuggestPanel: React.FC<ZenSuggestPanelProps> = ({
   isOpen,
@@ -77,68 +77,59 @@ export const ZenSuggestPanel: React.FC<ZenSuggestPanelProps> = ({
   if (!isOpen) return null;
 
   return (
-    <AnimatePresence>
-      <motion.div
-        ref={panelRef}
-        initial={{ opacity: 0, y: -10, scale: 0.95 }}
-        animate={{ opacity: 1, y: 0, scale: 1 }}
-        exit={{ opacity: 0, y: -10, scale: 0.95 }}
-        transition={{ duration: 0.15 }}
-        className="zen01-suggest-dropdown"
-      >
-        {/* Search Box */}
-        <div className="zen01-history-search">
-          <Search className="h-4 w-4 opacity-50" />
-          <input
-            ref={searchRef}
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder={t('chat.searchSuggestions', 'Search suggestions...')}
-            className="zen01-history-search-input"
-          />
-          {searchQuery && (
+    <div ref={panelRef} className="zen01-panel zen01-msg-in">
+      {/* Search Box */}
+      <div className="zen01-panel-search">
+        <Search className="h-4 w-4 opacity-50" />
+        <input
+          ref={searchRef}
+          type="text"
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          placeholder={t('chat.searchSuggestions', 'Search suggestions...')}
+        />
+        {searchQuery && (
+          <button
+            type="button"
+            onClick={() => setSearchQuery('')}
+            className="opacity-50 hover:opacity-100"
+            aria-label="Clear search"
+          >
+            <X className="h-3.5 w-3.5" />
+          </button>
+        )}
+      </div>
+
+      {/* Suggestions List */}
+      <div className="zen01-panel-list">
+        {isLoading ? (
+          <div className="flex flex-col items-center justify-center py-6">
+            <Loader2 className="h-5 w-5 animate-spin text-[var(--zen-muted)]" />
+            <span className="mt-2 text-xs text-[var(--zen-muted)]">{t('chat.loadingSuggestions', 'Loading suggestions...')}</span>
+          </div>
+        ) : filteredSuggestions.length === 0 ? (
+          <div className="zen01-panel-empty">
+            {searchQuery ? t('chat.noResults', 'No results') : t('chat.noSuggestions', 'No suggestions yet')}
+          </div>
+        ) : (
+          filteredSuggestions.map((suggestion, index) => (
             <button
-              onClick={() => setSearchQuery('')}
-              className="opacity-50 hover:opacity-100"
+              key={index}
+              type="button"
+              onClick={() => {
+                onSelectSuggestion(suggestion);
+                onClose();
+              }}
+              className="zen01-panel-row"
             >
-              <X className="h-3.5 w-3.5" />
+              <span className="min-w-0 flex-1 truncate">
+                {suggestion}
+              </span>
             </button>
-          )}
-        </div>
-
-        {/* Suggestions List */}
-        <div className="zen01-suggest-list">
-          {isLoading ? (
-            <div className="zen01-suggest-loading">
-              <Loader2 className="h-5 w-5 animate-spin text-cyan-500" />
-              <span className="text-xs text-slate-500 dark:text-slate-400 mt-2">{t('chat.loadingSuggestions', 'Loading suggestions...')}</span>
-            </div>
-          ) : filteredSuggestions.length === 0 ? (
-            <div className="zen01-suggest-empty">
-              {searchQuery ? t('chat.noResults', 'No results') : t('chat.noSuggestions', 'No suggestions yet')}
-            </div>
-          ) : (
-            filteredSuggestions.map((suggestion, index) => (
-              <button
-                key={index}
-                onClick={() => {
-                  onSelectSuggestion(suggestion);
-                  onClose();
-                }}
-                className="zen01-suggest-item"
-              >
-                <Sparkles className="h-3.5 w-3.5 flex-shrink-0 opacity-50" />
-                <span className="zen01-suggest-item-title">
-                  {suggestion}
-                </span>
-              </button>
-            ))
-          )}
-        </div>
-
-      </motion.div>
-    </AnimatePresence>
+          ))
+        )}
+      </div>
+    </div>
   );
 };
 
