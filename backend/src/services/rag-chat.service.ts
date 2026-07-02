@@ -1549,7 +1549,16 @@ export class RAGChatService {
       'ragSettings.pdfInstructionEn',
       'ragSettings.pdfMaxLength',
       'ragSettings.pdfEnableRag',
-      'ragSettings.pdfRagMaxResults'
+      'ragSettings.pdfRagMaxResults',
+      'ragSettings.pdfRelevanceTerms',
+      'ragSettings.pdfRelevanceMinTerms',
+      'ragSettings.pdfRelevanceMinDensity',
+      'ragSettings.pdfRelevanceNoticeEn',
+      'ragSettings.pdfRelevanceNoticeTr',
+      'ragSettings.pdfRelevanceNoticeAr',
+      'ragSettings.pdfNonLegalInstructionEn',
+      'ragSettings.pdfNonLegalInstructionTr',
+      'ragSettings.pdfNonLegalInstructionAr'
     ];
 
     const settingsResult = await pool.query(
@@ -1571,7 +1580,20 @@ export class RAGChatService {
     const maxPdfLength = parseInt(settingsMap.get('ragSettings.pdfMaxLength') || '20000');
     let pdfText = pdfContext.extractedText;
     if (pdfText.length > maxPdfLength) {
-      pdfText = pdfText.substring(0, maxPdfLength) + '\n\n[... belgenin geri kalani kisaltildi ...]';
+      pdfText = pdfText.substring(0, maxPdfLength) + '\n\n[... remainder of the document truncated ...]';
+    }
+
+    // Relevance gate: does the uploaded document look like a legal document at
+    // all? Non-legal uploads (a novel, a slide deck) still get answered — from
+    // the corpus — but the user is told honestly that their document carries no
+    // legal content and no "legal evaluation" of it is attempted. Skipped for
+    // media (image/OCR) context. Terms and thresholds are settings-driven.
+    const pdfRelevance = pdfContext.isMedia
+      ? { isLegalDocument: true, matchedTerms: -1, density: -1 }
+      : this.assessPdfLegalRelevance(pdfText, settingsMap);
+    if (!pdfRelevance.isLegalDocument) {
+      console.log(`[PDF Mode] Relevance gate: document does NOT look legal ` +
+        `(distinct terms: ${pdfRelevance.matchedTerms}, density: ${pdfRelevance.density.toFixed(2)}/1000 chars)`);
     }
 
     // Build PDF-focused prompt - instruction loaded from settings
@@ -1693,12 +1715,25 @@ Using the relevant legal sources from database:
       }
     }
 
-    // Select instruction based on mode
-    const pdfInstruction = enableRagWithPdf && ragSources.length > 0
-      ? (responseLanguage === 'en' ? defaultHybridInstructionEn : defaultHybridInstructionTr)
-      : (responseLanguage === 'en'
-        ? (settingsMap.get('ragSettings.pdfInstructionEn') || defaultInstructionEn)
-        : (settingsMap.get('ragSettings.pdfInstructionTr') || defaultInstructionTr));
+    // Instruction for non-legal uploads: identify the document briefly, answer
+    // the question from the legal sources, and do NOT attempt a legal
+    // evaluation of the document itself. Default here (single place),
+    // overridable via ragSettings.pdfNonLegalInstruction{En,Tr,Ar}.
+    const defaultNonLegalInstructionEn = `The user uploaded a document that does not appear to contain legal content.
+
+1. In ONE sentence, state what the document appears to be ("This document appears to be ...").
+2. Do NOT attempt a legal analysis or evaluation of this document — it has none to offer.
+3. Answer the user's question using the RELATED LEGAL SOURCES below when present, citing them as [n]. If the question is unrelated to the sources, say what you can and cannot help with.`;
+
+    // Select instruction based on mode and document relevance
+    const pdfInstruction = !pdfRelevance.isLegalDocument
+      ? (this.pickLocalizedSetting(settingsMap, 'ragSettings.pdfNonLegalInstruction', responseLanguage)
+          || defaultNonLegalInstructionEn)
+      : enableRagWithPdf && ragSources.length > 0
+        ? (responseLanguage === 'en' ? defaultHybridInstructionEn : defaultHybridInstructionTr)
+        : (responseLanguage === 'en'
+          ? (settingsMap.get('ragSettings.pdfInstructionEn') || defaultInstructionEn)
+          : (settingsMap.get('ragSettings.pdfInstructionTr') || defaultInstructionTr));
 
     const userPrompt = `${pdfInstruction}
 
@@ -1727,7 +1762,21 @@ ${questionLabel}: ${message}`;
     // Markdown/citation repairs — same post-processing as the standard chat
     // path (previously skipped for PDF answers). With no RAG sources the
     // hallucinated-citation stripper is a no-op, so pure-PDF mode is safe.
-    const fixedContent = this.fixMarkdownAndCitations(response.content, ragSources);
+    let fixedContent = this.fixMarkdownAndCitations(response.content, ragSources);
+
+    // Honest notice for non-legal uploads, prepended as a quiet blockquote so
+    // the user knows the answer comes from the corpus, not their document.
+    // Text is settings-driven (ragSettings.pdfRelevanceNotice{En,Tr,Ar}).
+    if (!pdfRelevance.isLegalDocument) {
+      const defaultNotices: Record<string, string> = {
+        en: 'Note: the uploaded document does not appear to be a legal document, so no legal assessment of it was made. The answer below is based on the legal sources in our knowledge base.',
+        ar: 'ملاحظة: لا يبدو أن المستند الذي تم تحميله مستند قانوني، لذلك لم يتم إجراء أي تقييم قانوني له. تستند الإجابة أدناه إلى المصادر القانونية في قاعدة معارفنا.',
+        tr: 'Not: Yüklediğiniz belge hukuki bir belge gibi görünmüyor, bu nedenle belge üzerinde hukuki bir değerlendirme yapılmadı. Aşağıdaki yanıt bilgi tabanımızdaki hukuki kaynaklara dayanmaktadır.'
+      };
+      const notice = this.pickLocalizedSetting(settingsMap, 'ragSettings.pdfRelevanceNotice', responseLanguage)
+        || defaultNotices[responseLanguage] || defaultNotices.en;
+      fixedContent = `> _${notice}_\n\n${fixedContent}`;
+    }
 
     // Save message to conversation (the repaired content, so persisted
     // history matches what the client displays)
@@ -1752,7 +1801,92 @@ ${questionLabel}: ${message}`;
       language: responseLanguage, // lets the frontend render RTL for Arabic
       pdfMode: true,
       pdfFilename: pdfContext.filename,
+      pdfRelevance, // relevance-gate verdict ({isLegalDocument, matchedTerms, density})
       hybridMode: enableRagWithPdf && ragSources.length > 0
+    };
+  }
+
+  /**
+   * Localized settings lookup: '<base>En' / '<base>Tr' / '<base>Ar' by response
+   * language, falling back to the English row. Returns undefined when none set.
+   */
+  private pickLocalizedSetting(
+    settingsMap: Map<string, string>,
+    baseKey: string,
+    language: string
+  ): string | undefined {
+    const suffix = language === 'ar' ? 'Ar' : language === 'tr' ? 'Tr' : 'En';
+    return settingsMap.get(`${baseKey}${suffix}`) || settingsMap.get(`${baseKey}En`) || undefined;
+  }
+
+  /**
+   * Heuristic legal-relevance check for an uploaded document.
+   *
+   * A document counts as "legal" when it matches enough DISTINCT legal signal
+   * terms AND those terms appear densely enough (a novel may mention "law" and
+   * "court" a few times; a contract repeats party/clause/article constantly).
+   * A strong shortcut also accepts documents with 3+ numbered article markers
+   * ("Article (5)", "Madde 12", "المادة (٣)").
+   *
+   * Config (all settings-driven, defaults in one place here):
+   *   ragSettings.pdfRelevanceTerms      JSON array of signal terms
+   *   ragSettings.pdfRelevanceMinTerms   min distinct terms (default 3)
+   *   ragSettings.pdfRelevanceMinDensity min total hits per 1000 chars (default 1)
+   */
+  private assessPdfLegalRelevance(
+    text: string,
+    settingsMap: Map<string, string>
+  ): { isLegalDocument: boolean; matchedTerms: number; density: number } {
+    const defaultTerms = [
+      // English
+      'article', 'law', 'decree', 'regulation', 'clause', 'contract', 'agreement',
+      'court', 'tribunal', 'party', 'parties', 'liability', 'pursuant', 'provision',
+      'penalty', 'jurisdiction', 'lease', 'tenancy', 'employer', 'employee',
+      // Arabic
+      'المادة', 'قانون', 'مرسوم', 'لائحة', 'عقد', 'اتفاق', 'محكمة', 'التزام', 'طرف',
+      // Turkish
+      'madde', 'kanun', 'sözleşme', 'yönetmelik', 'mahkeme', 'taraf', 'fıkra', 'hüküm'
+    ];
+    let terms = defaultTerms;
+    try {
+      const raw = settingsMap.get('ragSettings.pdfRelevanceTerms');
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed) && parsed.length > 0) terms = parsed.map(String);
+      }
+    } catch { /* keep defaults */ }
+    const minTerms = parseInt(settingsMap.get('ragSettings.pdfRelevanceMinTerms') || '3');
+    const minDensity = parseFloat(settingsMap.get('ragSettings.pdfRelevanceMinDensity') || '1');
+
+    const sample = text.substring(0, 20000);
+    const sampleLower = sample.toLowerCase();
+
+    // Strong signal: repeated numbered article markers = legislation/contract.
+    const articleMarkers = sample.match(/(?:\barticle|\bmadde|المادة)\s*[\(:]?\s*[\d٠-٩]/gi)?.length ?? 0;
+    if (articleMarkers >= 3) {
+      return { isLegalDocument: true, matchedTerms: terms.length, density: articleMarkers };
+    }
+
+    let distinct = 0;
+    let totalHits = 0;
+    for (const term of terms) {
+      const t = term.toLowerCase();
+      let hits = 0;
+      if (/[؀-ۿ]/.test(t)) {
+        // Arabic: plain substring occurrences (\b is unreliable for Arabic)
+        hits = sampleLower.split(t).length - 1;
+      } else {
+        const escaped = t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        hits = (sampleLower.match(new RegExp(`\\b${escaped}\\b`, 'g')) || []).length;
+      }
+      if (hits > 0) distinct++;
+      totalHits += hits;
+    }
+    const density = sample.length > 0 ? (totalHits / sample.length) * 1000 : 0;
+    return {
+      isLegalDocument: distinct >= minTerms && density >= minDensity,
+      matchedTerms: distinct,
+      density
     };
   }
 
