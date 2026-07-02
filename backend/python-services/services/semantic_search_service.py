@@ -109,6 +109,13 @@ class RAGSettings:
     # if the column is absent. Migration: 20260629_search_vector_english.sql.
     fts_language_en: str = "english"
     fts_en_enabled: bool = True
+    # Optional BM25 row filter by chunk language metadata: when enabled, an
+    # Arabic-routed query only matches rows whose metadata lang is 'ar' (and
+    # the symmetric for English), so English page headers inside Arabic PDFs
+    # can't leak into English BM25 results. Rows WITHOUT the lang field always
+    # pass (generic for tenants that don't tag language).
+    fts_lang_filter_enabled: bool = False
+    lang_metadata_field: str = "lang"
 
 
 @dataclass
@@ -697,6 +704,8 @@ class SemanticSearchService:
                 fts_ar_enabled=settings_dict.get('ragSettings.ftsArEnabled', 'true').lower() == 'true',
                 fts_language_en=self._normalize_fts_language(settings_dict.get('ragSettings.ftsLanguageEn', 'english'), fallback='english'),
                 fts_en_enabled=settings_dict.get('ragSettings.ftsEnEnabled', 'true').lower() == 'true',
+                fts_lang_filter_enabled=settings_dict.get('ragSettings.ftsLangFilterEnabled', 'false').lower() == 'true',
+                lang_metadata_field=settings_dict.get('ragSettings.langMetadataField', 'lang') or 'lang',
             )
 
             # Update cache
@@ -1599,6 +1608,20 @@ class SemanticSearchService:
                 column = "search_vector"
                 fts_language = settings.fts_language if settings else "turkish"
 
+            # Optional row-level language filter (settings-gated, default off):
+            # constrain the language-routed columns to rows tagged with the
+            # matching metadata lang; untagged rows always pass. The field name
+            # is settings-driven but validated as an identifier before use.
+            lang_filter_sql = ""
+            lang_filter_enabled = settings.fts_lang_filter_enabled if settings else False
+            if lang_filter_enabled and (use_ar or use_en):
+                field = (settings.lang_metadata_field if settings else "lang") or "lang"
+                if field.replace("_", "").isalnum() and not field[0].isdigit():
+                    expected = "ar" if use_ar else "en"
+                    lang_filter_sql = (
+                        f" AND (metadata->>'{field}' IS NULL OR metadata->>'{field}' = '{expected}')"
+                    )
+
             # Use plainto_tsquery for robust query parsing (handles any input).
             # The column name comes from a fixed internal whitelist (search_vector /
             # search_vector_ar) — NOT user input — so the f-string is injection-safe; the
@@ -1609,7 +1632,7 @@ class SemanticSearchService:
                        source_id, metadata,
                        ts_rank_cd({column}, plainto_tsquery($4::regconfig, $1), 32) as bm25_score
                 FROM unified_embeddings
-                WHERE {column} @@ plainto_tsquery($4::regconfig, $1)
+                WHERE {column} @@ plainto_tsquery($4::regconfig, $1){lang_filter_sql}
                 ORDER BY bm25_score DESC
                 LIMIT $2
             """, query, limit, max_excerpt, fts_language)

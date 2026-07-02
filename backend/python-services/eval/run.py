@@ -1,21 +1,23 @@
-"""RAG quality eval — runner.
+"""Answer-level eval runner — hits the real chat endpoint.
 
-Loads golden_queries.json, hits the chatbot endpoint for each, writes a snapshot.
+Sends each golden question to the Node backend chat endpoint
+(evalSettings.chatUrl, default http://localhost:8083/api/v2/chat; env
+EVAL_CHAT_URL overrides) with temperature=0 and stream=false, captures the
+answer + sources into a snapshot artifact, and applies the deterministic
+per-item checks (answer_must_contain / answer_must_not_contain /
+expect_refusal). The LLM-judge groundedness scoring is a separate, later stage.
 
-Usage:
-    python -m eval.run                        # write snapshots/proposed.json
-    python -m eval.run --out snapshots/golden.json
-    python -m eval.run --only q1-singlehop-en
-    python -m eval.run --tenant gx10
+This project runs on OpenAI (key in settings 'openai.apiKey'); the old
+local-models-only refusal on cloud API keys is intentionally gone.
 
-Env:
-    CHATBOT_URL   default http://localhost:3001/api/chatbot/query  (Node backend)
-    CHATBOT_AUTH  optional bearer token
-    EMBED_URL     default http://localhost:8002/embedding/embed    (Python service)
+The endpoint requires a JWT (authenticateToken) — pass it via env
+EVAL_CHAT_TOKEN. Retrieval quality is evaluated separately and in-process by
+`python -m eval.run_retrieval` (no HTTP, no auth needed).
 
-Hard rules:
-- temperature=0 always (eval is deterministic; the runner refuses to proceed otherwise)
-- OPENAI_API_KEY / ANTHROPIC_API_KEY in env => REFUSE (eval must run against local models only)
+Exit codes: 0 pass, 1 soft fail, 2 hard fail (unchanged convention).
+
+Usage (from backend/python-services, PYTHONUTF8=1):
+    EVAL_CHAT_TOKEN=<jwt> python -m eval.run [--golden PATH] [--only ID] [--lang en|ar]
 """
 from __future__ import annotations
 
@@ -27,55 +29,58 @@ import sys
 import time
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, Dict, List, Optional
 
 import httpx
 
-EVAL_DIR = Path(__file__).resolve().parent
-GOLDEN_PATH = EVAL_DIR / "golden_queries.json"
-SNAPSHOTS_DIR = EVAL_DIR / "snapshots"
+from eval.config import ARTIFACTS_DIR, GOLDEN_DIR, load_eval_config
 
-CLOUD_KEYS = ("OPENAI_API_KEY", "ANTHROPIC_API_KEY", "GOOGLE_API_KEY", "COHERE_API_KEY")
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+
+# Deterministic refusal markers (English + Arabic). The evidence gate phrasing is
+# settings-driven; these markers cover the default refusal wording families.
+_REFUSAL_MARKERS = (
+    "i don't know",
+    "i cannot answer",
+    "no information",
+    "not found in the provided",
+    "do not contain",
+    "not covered by the sources",
+    "لا تحتوي المصادر",
+    "لا تتوفر معلومات",
+    "لا أستطيع الإجابة",
+)
 
 
-def _refuse_if_cloud_keys_present() -> None:
-    leaked = [k for k in CLOUD_KEYS if os.environ.get(k)]
-    if leaked:
-        sys.stderr.write(
-            f"REFUSED: cloud API keys present in env ({', '.join(leaked)}). "
-            "Eval must run against local models only. Unset them and retry.\n"
-        )
-        sys.exit(2)
+def _looks_like_refusal(answer: str) -> bool:
+    a = (answer or "").lower()
+    return any(m in a for m in _REFUSAL_MARKERS)
 
 
-async def _call_chatbot(client: httpx.AsyncClient, query: dict[str, Any]) -> dict[str, Any]:
-    url = os.environ.get("CHATBOT_URL", "http://localhost:3001/api/chatbot/query")
+async def _call_chat(client: httpx.AsyncClient, url: str, token: Optional[str],
+                     item: Dict[str, Any]) -> Dict[str, Any]:
     headers = {}
-    if tok := os.environ.get("CHATBOT_AUTH"):
-        headers["Authorization"] = f"Bearer {tok}"
-
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
     payload = {
-        "query": query["query"],
-        "tenant": query.get("tenant", "gx10"),
-        "language": query.get("lang", "en"),
+        "message": item["question"],
         "temperature": 0,
+        "language": item.get("lang", "en"),
         "stream": False,
     }
-
     t0 = time.perf_counter()
     try:
-        r = await client.post(url, json=payload, headers=headers, timeout=60.0)
+        r = await client.post(url, json=payload, headers=headers, timeout=120.0)
         r.raise_for_status()
         body = r.json()
-        latency_ms = int((time.perf_counter() - t0) * 1000)
+        answer = body.get("response") or body.get("answer") or ""
         return {
             "ok": True,
-            "answer": body.get("answer", ""),
-            "citations": body.get("citations", []),
-            "refusal": bool(body.get("refusal", False)) or _looks_like_refusal(body.get("answer", "")),
-            "model": body.get("model"),
-            "latency_ms": latency_ms,
-            "raw": body,
+            "answer": answer,
+            "sources": body.get("sources", []),
+            "refusal": _looks_like_refusal(answer),
+            "latency_ms": int((time.perf_counter() - t0) * 1000),
         }
     except (httpx.HTTPError, ValueError) as e:
         return {
@@ -85,75 +90,95 @@ async def _call_chatbot(client: httpx.AsyncClient, query: dict[str, Any]) -> dic
         }
 
 
-_REFUSAL_MARKERS = (
-    "i don't know",
-    "i cannot answer",
-    "no information",
-    "not found in the provided",
-    "bilmiyorum",
-    "veri bulunamadı",
-)
+def _check_item(item: Dict[str, Any], out: Dict[str, Any]) -> List[str]:
+    """Deterministic per-item failures (empty list = pass)."""
+    if not out.get("ok"):
+        return [f"chat call failed: {out.get('error')}"]
+    expected = item.get("expected", {})
+    answer = out.get("answer", "")
+    fails: List[str] = []
+    missing = [s for s in expected.get("answer_must_contain", []) if s and s.lower() not in answer.lower()]
+    if missing:
+        fails.append(f"missing required facets: {missing}")
+    present = [s for s in expected.get("answer_must_not_contain", []) if s and s.lower() in answer.lower()]
+    if present:
+        fails.append(f"forbidden content present: {present}")
+    if bool(expected.get("expect_refusal")) != bool(out.get("refusal")):
+        fails.append(f"refusal mismatch: expected={expected.get('expect_refusal')} actual={out.get('refusal')}")
+    return fails
 
 
-def _looks_like_refusal(answer: str) -> bool:
-    a = (answer or "").lower()
-    return any(m in a for m in _REFUSAL_MARKERS)
+async def run(golden_path: Path, only: Optional[str], lang: Optional[str], out_path: Optional[Path]) -> int:
+    cfg = await load_eval_config()
+    url = cfg.chat_url
+    token = os.environ.get("EVAL_CHAT_TOKEN", "").strip() or None
+    if not token:
+        print("WARN: EVAL_CHAT_TOKEN not set — the chat endpoint requires a JWT and calls will likely 401")
 
-
-async def run(out_path: Path, only: str | None, tenant: str | None) -> int:
-    _refuse_if_cloud_keys_present()
-
-    with GOLDEN_PATH.open("r", encoding="utf-8") as f:
-        golden = json.load(f)
-
-    queries = golden["queries"]
+    with golden_path.open("r", encoding="utf-8") as f:
+        items = json.load(f)["items"]
     if only:
-        queries = [q for q in queries if q["id"] == only]
-    if tenant:
-        queries = [q for q in queries if q.get("tenant") == tenant]
-    if not queries:
-        sys.stderr.write("No queries matched the filters.\n")
-        return 1
+        items = [i for i in items if i["id"] == only]
+    if lang:
+        items = [i for i in items if i.get("lang") == lang]
+    if not items:
+        sys.stderr.write("No golden items matched the filters.\n")
+        return 2
 
-    out_path.parent.mkdir(parents=True, exist_ok=True)
-    results: list[dict[str, Any]] = []
-
+    results: List[Dict[str, Any]] = []
+    n_hard = 0
     async with httpx.AsyncClient() as client:
-        for q in queries:
-            print(f"  → {q['id']} ({q.get('lang')}/{q.get('tenant')})", flush=True)
-            res = await _call_chatbot(client, q)
-            results.append({"query_id": q["id"], "input": q, "output": res})
+        for item in items:
+            out = await _call_chat(client, url, token, item)
+            fails = _check_item(item, out)
+            if fails:
+                n_hard += 1
+            results.append({"query_id": item["id"], "input": item, "output": out, "failures": fails})
+            status = "OK" if not fails else "FAIL"
+            print(f"  [{status}] {item['id']} ({out.get('latency_ms')}ms)"
+                  + (f" -> {'; '.join(fails)}" if fails else ""))
 
     snapshot = {
-        "version": 1,
+        "version": 2,
         "captured_at": datetime.now(timezone.utc).isoformat(),
-        "chatbot_url": os.environ.get("CHATBOT_URL", "http://localhost:3001/api/chatbot/query"),
-        "git_sha": _git_sha(),
+        "chat_url": url,
+        "golden_path": str(golden_path),
         "results": results,
     }
+    if out_path is None:
+        ARTIFACTS_DIR.mkdir(parents=True, exist_ok=True)
+        ts = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+        out_path = ARTIFACTS_DIR / f"answers_{ts}.json"
+    out_path.parent.mkdir(parents=True, exist_ok=True)
     with out_path.open("w", encoding="utf-8") as f:
         json.dump(snapshot, f, ensure_ascii=False, indent=2)
-    print(f"\nWrote {out_path} ({len(results)} queries)")
-    return 0
 
-
-def _git_sha() -> str | None:
-    import subprocess
-    try:
-        return subprocess.check_output(
-            ["git", "rev-parse", "--short", "HEAD"], cwd=EVAL_DIR, text=True
-        ).strip()
-    except Exception:
-        return None
+    print(f"\nWrote {out_path} ({len(results)} items, {n_hard} failing)")
+    return 2 if n_hard else 0
 
 
 def main() -> int:
-    p = argparse.ArgumentParser(description=__doc__)
-    p.add_argument("--out", default=str(SNAPSHOTS_DIR / "proposed.json"))
-    p.add_argument("--only", help="Run a single query by id")
-    p.add_argument("--tenant", help="Filter to one tenant")
+    p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    p.add_argument("--golden", help="Golden set path (default eval/golden/<goldenSet>.json or its .draft.json)")
+    p.add_argument("--only", help="Run a single item by id")
+    p.add_argument("--lang", choices=("en", "ar"), help="Filter to one language")
+    p.add_argument("--out", help="Snapshot output path (default eval/artifacts/answers_<ts>.json)")
     args = p.parse_args()
-    return asyncio.run(run(Path(args.out), args.only, args.tenant))
+
+    async def _run() -> int:
+        if args.golden:
+            golden_path = Path(args.golden)
+        else:
+            cfg = await load_eval_config()
+            final = GOLDEN_DIR / f"{cfg.golden_set}.json"
+            draft = GOLDEN_DIR / f"{cfg.golden_set}.draft.json"
+            golden_path = final if final.exists() else draft
+        if not golden_path.exists():
+            sys.stderr.write(f"Golden set not found: {golden_path} — run `python -m eval.seed_golden` first.\n")
+            return 2
+        return await run(golden_path, args.only, args.lang, Path(args.out) if args.out else None)
+
+    return asyncio.run(_run())
 
 
 if __name__ == "__main__":

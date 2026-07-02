@@ -1,0 +1,1188 @@
+{
+  "version": 1,
+  "goldenSet": "uae_v1",
+  "generated_at": "2026-07-02T09:33:21.516015+00:00",
+  "generator": {
+    "script": "eval.seed_golden",
+    "judge_model": "gpt-4o-mini",
+    "llm_usage": {
+      "prompt_tokens": 25364,
+      "completion_tokens": 2338,
+      "calls": 21
+    },
+    "law_pairs": 18,
+    "status": "DRAFT — every non-adversarial item needs human verification"
+  },
+  "items": [
+    {
+      "id": "tax-28-2022-publishing-03-art32-en",
+      "lang": "en",
+      "domain": "tax",
+      "question": "How many business days do I have to submit an objection after being notified of the Authority's decision?",
+      "paired_with": "tax-28-2022-publishing-03-art32-ar",
+      "expected": {
+        "law_name_contains": "No. 28 of 2022",
+        "law_key": null,
+        "article_no": "32",
+        "answer_must_contain": [
+          "40",
+          "business days",
+          "objection",
+          "Authority's decision"
+        ],
+        "answer_must_not_contain": [],
+        "expect_refusal": false
+      },
+      "tags": [
+        "single-hop"
+      ],
+      "notes": "LLM-drafted, needs human verification",
+      "seed": {
+        "source_name": "Federal Decree-Law No. 28 of 2022 - publishing 03 12 2025",
+        "source_id": 18278
+      }
+    },
+    {
+      "id": "tax-28-2022-publishing-03-art32-ar",
+      "lang": "ar",
+      "domain": "tax",
+      "question": "كم عدد أيام العمل التي يجب أن أقدم فيها الاعتراض بعد إبلاغي بقرار الهيئة؟",
+      "paired_with": "tax-28-2022-publishing-03-art32-en",
+      "expected": {
+        "law_name_contains": "No. 28 of 2022",
+        "law_key": null,
+        "article_no": "32",
+        "answer_must_contain": [
+          "40",
+          "أيام عمل",
+          "الاعتراض",
+          "قرار الهيئة"
+        ],
+        "answer_must_not_contain": [],
+        "expect_refusal": false
+      },
+      "tags": [
+        "single-hop"
+      ],
+      "notes": "LLM-drafted, needs human verification",
+      "seed": {
+        "source_name": "Federal Decree-Law No. 28 of 2022 - publishing 03 12 2025 - Arabic",
+        "source_id": 19913
+      }
+    },
+    {
+      "id": "tax-28-2022-publishing-03-art33-en",
+      "lang": "en",
+      "domain": "tax",
+      "question": "How many business days does the Committee have to make a decision on an objection?",
+      "paired_with": "tax-28-2022-publishing-03-art33-ar",
+      "expected": {
+        "law_name_contains": "No. 28 of 2022",
+        "law_key": null,
+        "article_no": "33",
+        "answer_must_contain": [
+          "20",
+          "business days",
+          "Committee",
+          "decision"
+        ],
+        "answer_must_not_contain": [],
+        "expect_refusal": false
+      },
+      "tags": [
+        "single-hop"
+      ],
+      "notes": "LLM-drafted, needs human verification",
+      "seed": {
+        "source_name": "Federal Decree-Law No. 28 of 2022 - publishing 03 12 2025",
+        "source_id": 18278
+      }
+    },
+    {
+      "id": "tax-28-2022-publishing-03-art33-ar",
+      "lang": "ar",
+      "domain": "tax",
+      "question": "كم عدد أيام العمل التي تمتلكها اللجنة للبت في الاعتراض؟",
+      "paired_with": "tax-28-2022-publishing-03-art33-en",
+      "expected": {
+        "law_name_contains": "No. 28 of 2022",
+        "law_key": null,
+        "article_no": "33",
+        "answer_must_contain": [
+          "20",
+          "يوم عمل",
+          "اللجنة",
+          "البت"
+        ],
+        "answer_must_not_contain": [],
+        "expect_refusal": false
+      },
+      "tags": [
+        "single-hop"
+      ],
+      "notes": "LLM-drafted, needs human verification",
+      "seed": {
+        "source_name": "Federal Decree-Law No. 28 of 2022 - publishing 03 12 2025 - Arabic",
+        "source_id": 19913
+      }
+    },
+    {
+      "id": "tax-28-2022-publishing-03-art34-en",
+      "lang": "en",
+      "domain": "tax",
+      "question": "What is the deadline to appeal a decision from the Committee if the amount exceeds 100,000 Dirhams?",
+      "paired_with": "tax-28-2022-publishing-03-art34-ar",
+      "expected": {
+        "law_name_contains": "No. 28 of 2022",
+        "law_key": null,
+        "article_no": "34",
+        "answer_must_contain": [
+          "40",
+          "Business Days",
+          "Competent Court",
+          "appealed"
+        ],
+        "answer_must_not_contain": [],
+        "expect_refusal": false
+      },
+      "tags": [
+        "single-hop"
+      ],
+      "notes": "LLM-drafted, needs human verification",
+      "seed": {
+        "source_name": "Federal Decree-Law No. 28 of 2022 - publishing 03 12 2025",
+        "source_id": 18279
+      }
+    },
+    {
+      "id": "tax-28-2022-publishing-03-art34-ar",
+      "lang": "ar",
+      "domain": "tax",
+      "question": "ما هي المدة المحددة للطعن في قرار اللجنة إذا كانت القيمة تتجاوز 100,000 درهم؟",
+      "paired_with": "tax-28-2022-publishing-03-art34-en",
+      "expected": {
+        "law_name_contains": "No. 28 of 2022",
+        "law_key": null,
+        "article_no": "34",
+        "answer_must_contain": [
+          "40",
+          "يوم عمل",
+          "المحكمة المختصة",
+          "الطعن"
+        ],
+        "answer_must_not_contain": [],
+        "expect_refusal": false
+      },
+      "tags": [
+        "single-hop"
+      ],
+      "notes": "LLM-drafted, needs human verification",
+      "seed": {
+        "source_name": "Federal Decree-Law No. 28 of 2022 - publishing 03 12 2025 - Arabic",
+        "source_id": 19913
+      }
+    },
+    {
+      "id": "tax-corporate-tax-taxation-corporations-art48-en",
+      "lang": "en",
+      "domain": "tax",
+      "question": "What is the deadline for a Taxable Person to settle the Corporate Tax Payable under the Decree-Law?",
+      "paired_with": "tax-corporate-tax-taxation-corporations-art48-ar",
+      "expected": {
+        "law_name_contains": "No. 47 of 2022",
+        "law_key": null,
+        "article_no": "48",
+        "answer_must_contain": [
+          "9 months",
+          "end of the relevant Tax Period"
+        ],
+        "answer_must_not_contain": [],
+        "expect_refusal": false
+      },
+      "tags": [
+        "single-hop"
+      ],
+      "notes": "LLM-drafted, needs human verification",
+      "seed": {
+        "source_name": "Corporate Tax Law (Taxation of Corporations and Businesses) — Federal Decree-Law No. 47 of 2022 — EN",
+        "source_id": 17258
+      }
+    },
+    {
+      "id": "tax-corporate-tax-taxation-corporations-art48-ar",
+      "lang": "ar",
+      "domain": "tax",
+      "question": "ما هو الموعد النهائي الذي يجب على الشخص الخاضع للضريبة تسديد ضريبة الشركات المستحقة بموجب المرسوم بقانون؟",
+      "paired_with": "tax-corporate-tax-taxation-corporations-art48-en",
+      "expected": {
+        "law_name_contains": "No. 47 of 2022",
+        "law_key": null,
+        "article_no": "48",
+        "answer_must_contain": [
+          "9 أشهر",
+          "نهاية الفترة الضريبية المعنية"
+        ],
+        "answer_must_not_contain": [],
+        "expect_refusal": false
+      },
+      "tags": [
+        "single-hop"
+      ],
+      "notes": "LLM-drafted, needs human verification",
+      "seed": {
+        "source_name": "Corporate Tax Law (Taxation of Corporations and Businesses) — Federal Decree-Law No. 47 of 2022 — AR",
+        "source_id": 18607
+      }
+    },
+    {
+      "id": "tax-corporate-tax-taxation-corporations-art45-en",
+      "lang": "en",
+      "domain": "tax",
+      "question": "What is the Withholding Tax rate applicable to certain income as specified in Article 45?",
+      "paired_with": "tax-corporate-tax-taxation-corporations-art45-ar",
+      "expected": {
+        "law_name_contains": "No. 47 of 2022",
+        "law_key": null,
+        "article_no": "45",
+        "answer_must_contain": [
+          "0%",
+          "Withholding Tax",
+          "income",
+          "Cabinet"
+        ],
+        "answer_must_not_contain": [],
+        "expect_refusal": false
+      },
+      "tags": [
+        "single-hop"
+      ],
+      "notes": "LLM-drafted, needs human verification",
+      "seed": {
+        "source_name": "Corporate Tax Law (Taxation of Corporations and Businesses) — Federal Decree-Law No. 47 of 2022 — EN",
+        "source_id": 17257
+      }
+    },
+    {
+      "id": "tax-corporate-tax-taxation-corporations-art45-ar",
+      "lang": "ar",
+      "domain": "tax",
+      "question": "ما هي نسبة الضريبة المقتطعة المطبقة على بعض الدخل كما هو محدد في المادة 45؟",
+      "paired_with": "tax-corporate-tax-taxation-corporations-art45-en",
+      "expected": {
+        "law_name_contains": "No. 47 of 2022",
+        "law_key": null,
+        "article_no": "45",
+        "answer_must_contain": [
+          "0%",
+          "الضريبة المقتطعة",
+          "الدخل",
+          "مجلس الوزراء"
+        ],
+        "answer_must_not_contain": [],
+        "expect_refusal": false
+      },
+      "tags": [
+        "single-hop"
+      ],
+      "notes": "LLM-drafted, needs human verification",
+      "seed": {
+        "source_name": "Corporate Tax Law (Taxation of Corporations and Businesses) — Federal Decree-Law No. 47 of 2022 — AR",
+        "source_id": 18607
+      }
+    },
+    {
+      "id": "labour-difc-employment-difc-2-art59-en",
+      "lang": "en",
+      "domain": "labour",
+      "question": "What is the minimum duration for which an employee must have a disability to be considered under Article 59?",
+      "paired_with": "labour-difc-employment-difc-2-art59-ar",
+      "expected": {
+        "law_name_contains": "No. 2 of 2019",
+        "law_key": null,
+        "article_no": "59",
+        "answer_must_contain": [
+          "twelve (12) months",
+          "disability",
+          "substantial and long term adverse effect"
+        ],
+        "answer_must_not_contain": [],
+        "expect_refusal": false
+      },
+      "tags": [
+        "single-hop"
+      ],
+      "notes": "LLM-drafted, needs human verification",
+      "seed": {
+        "source_name": "DIFC Employment Law — DIFC Law No. 2 of 2019 — EN",
+        "source_id": 17077
+      }
+    },
+    {
+      "id": "labour-difc-employment-difc-2-art59-ar",
+      "lang": "ar",
+      "domain": "labour",
+      "question": "ما هي الحد الأدنى من المدة التي يجب أن يكون فيها الموظف معاقًا ليتم اعتباره بموجب المادة 59؟",
+      "paired_with": "labour-difc-employment-difc-2-art59-en",
+      "expected": {
+        "law_name_contains": "No. 2 of 2019",
+        "law_key": null,
+        "article_no": "59",
+        "answer_must_contain": [
+          "اثني عشر (12) شهرًا",
+          "إعاقة",
+          "أثر سلبي كبير وطويل الأمد"
+        ],
+        "answer_must_not_contain": [],
+        "expect_refusal": false
+      },
+      "tags": [
+        "single-hop"
+      ],
+      "notes": "LLM-drafted, needs human verification",
+      "seed": {
+        "source_name": "DIFC Employment Law — DIFC Law No. 2 of 2019 — AR (translated)",
+        "source_id": 17133
+      }
+    },
+    {
+      "id": "labour-labour-regulation-labour-relations-art52-en",
+      "lang": "en",
+      "domain": "labour",
+      "question": "What is the deadline for the employer to pay the worker's entitlements after the contract termination?",
+      "paired_with": "labour-labour-regulation-labour-relations-art52-ar",
+      "expected": {
+        "law_name_contains": "No. 33 of 2021",
+        "law_key": null,
+        "article_no": "52",
+        "answer_must_contain": [
+          "14",
+          "fourteen days",
+          "contract termination",
+          "entitlements"
+        ],
+        "answer_must_not_contain": [],
+        "expect_refusal": false
+      },
+      "tags": [
+        "single-hop"
+      ],
+      "notes": "LLM-drafted, needs human verification",
+      "seed": {
+        "source_name": "Labour Law (Regulation of Labour Relations) — Federal Decree-Law No. 33 of 2021 — EN",
+        "source_id": 18148
+      }
+    },
+    {
+      "id": "labour-labour-regulation-labour-relations-art52-ar",
+      "lang": "ar",
+      "domain": "labour",
+      "question": "ما هو الموعد النهائي الذي يجب على صاحب العمل دفع مستحقات العامل بعد انتهاء العقد؟",
+      "paired_with": "labour-labour-regulation-labour-relations-art52-en",
+      "expected": {
+        "law_name_contains": "No. 33 of 2021",
+        "law_key": null,
+        "article_no": "52",
+        "answer_must_contain": [
+          "أربعة عشر",
+          "يومًا",
+          "انتهاء العقد",
+          "المستحقات"
+        ],
+        "answer_must_not_contain": [],
+        "expect_refusal": false
+      },
+      "tags": [
+        "single-hop"
+      ],
+      "notes": "LLM-drafted, needs human verification",
+      "seed": {
+        "source_name": "Labour Law (Regulation of Labour Relations) — Federal Decree-Law No. 33 of 2021 — AR",
+        "source_id": 18340
+      }
+    },
+    {
+      "id": "labour-labour-regulation-labour-relations-art53-en",
+      "lang": "en",
+      "domain": "labour",
+      "question": "How many days does the employer have to pay the worker's entitlements after the contract is terminated?",
+      "paired_with": "labour-labour-regulation-labour-relations-art53-ar",
+      "expected": {
+        "law_name_contains": "No. 33 of 2021",
+        "law_key": null,
+        "article_no": "53",
+        "answer_must_contain": [
+          "14",
+          "days",
+          "employer",
+          "worker's entitlements"
+        ],
+        "answer_must_not_contain": [],
+        "expect_refusal": false
+      },
+      "tags": [
+        "single-hop"
+      ],
+      "notes": "LLM-drafted, needs human verification",
+      "seed": {
+        "source_name": "Labour Law (Regulation of Labour Relations) — Federal Decree-Law No. 33 of 2021 — EN",
+        "source_id": 18148
+      }
+    },
+    {
+      "id": "labour-labour-regulation-labour-relations-art53-ar",
+      "lang": "ar",
+      "domain": "labour",
+      "question": "كم عدد الأيام التي يجب على صاحب العمل دفع مستحقات العامل بعد انتهاء العقد؟",
+      "paired_with": "labour-labour-regulation-labour-relations-art53-en",
+      "expected": {
+        "law_name_contains": "No. 33 of 2021",
+        "law_key": null,
+        "article_no": "53",
+        "answer_must_contain": [
+          "أربعة عشر",
+          "يومًا",
+          "صاحب العمل",
+          "مستحقات العامل"
+        ],
+        "answer_must_not_contain": [],
+        "expect_refusal": false
+      },
+      "tags": [
+        "single-hop"
+      ],
+      "notes": "LLM-drafted, needs human verification",
+      "seed": {
+        "source_name": "Labour Law (Regulation of Labour Relations) — Federal Decree-Law No. 33 of 2021 — AR",
+        "source_id": 18340
+      }
+    },
+    {
+      "id": "labour-labour-regulation-labour-relations-art25-en",
+      "lang": "en",
+      "domain": "labour",
+      "question": "What is the maximum percentage that can be deducted from a worker's remuneration for loans granted to them?",
+      "paired_with": "labour-labour-regulation-labour-relations-art25-ar",
+      "expected": {
+        "law_name_contains": "No. 33 of 2021",
+        "law_key": null,
+        "article_no": "25",
+        "answer_must_contain": [
+          "maximum monthly deduction percentage",
+          "20%",
+          "5%"
+        ],
+        "answer_must_not_contain": [],
+        "expect_refusal": false
+      },
+      "tags": [
+        "single-hop"
+      ],
+      "notes": "LLM-drafted, needs human verification",
+      "seed": {
+        "source_name": "Labour Law (Regulation of Labour Relations) — Federal Decree-Law No. 33 of 2021 — EN",
+        "source_id": 18126
+      }
+    },
+    {
+      "id": "labour-labour-regulation-labour-relations-art25-ar",
+      "lang": "ar",
+      "domain": "labour",
+      "question": "ما هي النسبة القصوى التي يمكن اقتطاعها من أجر العامل للقروض الممنوحة له؟",
+      "paired_with": "labour-labour-regulation-labour-relations-art25-en",
+      "expected": {
+        "law_name_contains": "No. 33 of 2021",
+        "law_key": null,
+        "article_no": "25",
+        "answer_must_contain": [
+          "الحد الأقصى للاستقطاع الشهري",
+          "عشرين في المئة",
+          "خمسة في المئة"
+        ],
+        "answer_must_not_contain": [],
+        "expect_refusal": false
+      },
+      "tags": [
+        "single-hop"
+      ],
+      "notes": "LLM-drafted, needs human verification",
+      "seed": {
+        "source_name": "Labour Law (Regulation of Labour Relations) — Federal Decree-Law No. 33 of 2021 — AR",
+        "source_id": 18320
+      }
+    },
+    {
+      "id": "labour-labour-regulation-labour-relations-art54-en",
+      "lang": "en",
+      "domain": "labour",
+      "question": "What is the maximum claim amount for a dispute that the Ministry can settle?",
+      "paired_with": "labour-labour-regulation-labour-relations-art54-ar",
+      "expected": {
+        "law_name_contains": "No. 33 of 2021",
+        "law_key": null,
+        "article_no": "54",
+        "answer_must_contain": [
+          "AED 50,000",
+          "fifty thousand Dirhams"
+        ],
+        "answer_must_not_contain": [],
+        "expect_refusal": false
+      },
+      "tags": [
+        "single-hop"
+      ],
+      "notes": "LLM-drafted, needs human verification",
+      "seed": {
+        "source_name": "Labour Law (Regulation of Labour Relations) — Federal Decree-Law No. 33 of 2021 — EN",
+        "source_id": 18148
+      }
+    },
+    {
+      "id": "labour-labour-regulation-labour-relations-art54-ar",
+      "lang": "ar",
+      "domain": "labour",
+      "question": "ما هو الحد الأقصى لمبلغ المطالبة في نزاع يمكن للوزارة تسويته؟",
+      "paired_with": "labour-labour-regulation-labour-relations-art54-en",
+      "expected": {
+        "law_name_contains": "No. 33 of 2021",
+        "law_key": null,
+        "article_no": "54",
+        "answer_must_contain": [
+          "50,000 درهم",
+          "خمسون ألف درهم"
+        ],
+        "answer_must_not_contain": [],
+        "expect_refusal": false
+      },
+      "tags": [
+        "single-hop"
+      ],
+      "notes": "LLM-drafted, needs human verification",
+      "seed": {
+        "source_name": "Labour Law (Regulation of Labour Relations) — Federal Decree-Law No. 33 of 2021 — AR",
+        "source_id": 18340
+      }
+    },
+    {
+      "id": "civil-commercial-commercial-companies-32-2021-art126-en",
+      "lang": "en",
+      "domain": "civil-commercial",
+      "question": "How many working days do entities have to allocate shares to subscribers after closing the subscription?",
+      "paired_with": "civil-commercial-commercial-companies-32-2021-art126-ar",
+      "expected": {
+        "law_name_contains": "No. 32 of 2021",
+        "law_key": null,
+        "article_no": "126",
+        "answer_must_contain": [
+          "5",
+          "five",
+          "Working Days",
+          "allocate the shares"
+        ],
+        "answer_must_not_contain": [],
+        "expect_refusal": false
+      },
+      "tags": [
+        "single-hop"
+      ],
+      "notes": "LLM-drafted, needs human verification",
+      "seed": {
+        "source_name": "Commercial Companies Law — Federal Decree-Law No. 32 of 2021 — EN",
+        "source_id": 16272
+      }
+    },
+    {
+      "id": "civil-commercial-commercial-companies-32-2021-art126-ar",
+      "lang": "ar",
+      "domain": "civil-commercial",
+      "question": "كم عدد أيام العمل التي يجب على الكيانات تخصيص الأسهم للمكتتبين بعد إغلاق الاكتتاب؟",
+      "paired_with": "civil-commercial-commercial-companies-32-2021-art126-en",
+      "expected": {
+        "law_name_contains": "No. 32 of 2021",
+        "law_key": null,
+        "article_no": "126",
+        "answer_must_contain": [
+          "5",
+          "خمسة",
+          "أيام عمل",
+          "تخصيص الأسهم"
+        ],
+        "answer_must_not_contain": [],
+        "expect_refusal": false
+      },
+      "tags": [
+        "single-hop"
+      ],
+      "notes": "LLM-drafted, needs human verification",
+      "seed": {
+        "source_name": "Commercial Companies Law — Federal Decree-Law No. 32 of 2021 — AR (translated)",
+        "source_id": 16447
+      }
+    },
+    {
+      "id": "civil-commercial-commercial-companies-32-2021-art152-en",
+      "lang": "en",
+      "domain": "civil-commercial",
+      "question": "What percentage of the company's capital can be involved in a transaction with related parties without board approval?",
+      "paired_with": "civil-commercial-commercial-companies-32-2021-art152-ar",
+      "expected": {
+        "law_name_contains": "No. 32 of 2021",
+        "law_key": null,
+        "article_no": "152",
+        "answer_must_contain": [
+          "5%",
+          "capital",
+          "board of directors",
+          "transaction"
+        ],
+        "answer_must_not_contain": [],
+        "expect_refusal": false
+      },
+      "tags": [
+        "single-hop"
+      ],
+      "notes": "LLM-drafted, needs human verification",
+      "seed": {
+        "source_name": "Commercial Companies Law — Federal Decree-Law No. 32 of 2021 — EN",
+        "source_id": 16284
+      }
+    },
+    {
+      "id": "civil-commercial-commercial-companies-32-2021-art152-ar",
+      "lang": "ar",
+      "domain": "civil-commercial",
+      "question": "ما هي النسبة المئوية من رأس مال الشركة التي يمكن أن تتضمنها صفقة مع الأطراف ذات العلاقة دون موافقة مجلس الإدارة؟",
+      "paired_with": "civil-commercial-commercial-companies-32-2021-art152-en",
+      "expected": {
+        "law_name_contains": "No. 32 of 2021",
+        "law_key": null,
+        "article_no": "152",
+        "answer_must_contain": [
+          "5%",
+          "رأس المال",
+          "مجلس الإدارة",
+          "صفقة"
+        ],
+        "answer_must_not_contain": [],
+        "expect_refusal": false
+      },
+      "tags": [
+        "single-hop"
+      ],
+      "notes": "LLM-drafted, needs human verification",
+      "seed": {
+        "source_name": "Commercial Companies Law — Federal Decree-Law No. 32 of 2021 — AR (translated)",
+        "source_id": 16455
+      }
+    },
+    {
+      "id": "civil-commercial-commercial-companies-32-2021-art180-en",
+      "lang": "en",
+      "domain": "civil-commercial",
+      "question": "What is the maximum percentage of the company's capital that a proxy can hold when representing multiple shareholders at the general assembly?",
+      "paired_with": "civil-commercial-commercial-companies-32-2021-art180-ar",
+      "expected": {
+        "law_name_contains": "No. 32 of 2021",
+        "law_key": null,
+        "article_no": "180",
+        "answer_must_contain": [
+          "5%"
+        ],
+        "answer_must_not_contain": [],
+        "expect_refusal": false
+      },
+      "tags": [
+        "single-hop"
+      ],
+      "notes": "LLM-drafted, needs human verification",
+      "seed": {
+        "source_name": "Commercial Companies Law — Federal Decree-Law No. 32 of 2021 — EN",
+        "source_id": 16302
+      }
+    },
+    {
+      "id": "civil-commercial-commercial-companies-32-2021-art180-ar",
+      "lang": "ar",
+      "domain": "civil-commercial",
+      "question": "ما هي النسبة القصوى من رأس مال الشركة التي يمكن أن يحملها الوكيل عند تمثيل عدد من المساهمين في الجمعية العامة؟",
+      "paired_with": "civil-commercial-commercial-companies-32-2021-art180-en",
+      "expected": {
+        "law_name_contains": "No. 32 of 2021",
+        "law_key": null,
+        "article_no": "180",
+        "answer_must_contain": [
+          "5%"
+        ],
+        "answer_must_not_contain": [],
+        "expect_refusal": false
+      },
+      "tags": [
+        "single-hop"
+      ],
+      "notes": "LLM-drafted, needs human verification",
+      "seed": {
+        "source_name": "Commercial Companies Law — Federal Decree-Law No. 32 of 2021 — AR (translated)",
+        "source_id": 16471
+      }
+    },
+    {
+      "id": "civil-commercial-commercial-companies-32-2021-art258-en",
+      "lang": "en",
+      "domain": "civil-commercial",
+      "question": "What is the minimum issued capital required for a company according to Article 258?",
+      "paired_with": "civil-commercial-commercial-companies-32-2021-art258-ar",
+      "expected": {
+        "law_name_contains": "No. 32 of 2021",
+        "law_key": null,
+        "article_no": "258",
+        "answer_must_contain": [
+          "5,000,000",
+          "five million dirhams",
+          "paid in full"
+        ],
+        "answer_must_not_contain": [],
+        "expect_refusal": false
+      },
+      "tags": [
+        "single-hop"
+      ],
+      "notes": "LLM-drafted, needs human verification",
+      "seed": {
+        "source_name": "Commercial Companies Law — Federal Decree-Law No. 32 of 2021 — EN",
+        "source_id": 16339
+      }
+    },
+    {
+      "id": "civil-commercial-commercial-companies-32-2021-art258-ar",
+      "lang": "ar",
+      "domain": "civil-commercial",
+      "question": "ما هو الحد الأدنى لرأس المال المصدر المطلوب للشركة وفقًا للمادة 258؟",
+      "paired_with": "civil-commercial-commercial-companies-32-2021-art258-en",
+      "expected": {
+        "law_name_contains": "No. 32 of 2021",
+        "law_key": null,
+        "article_no": "258",
+        "answer_must_contain": [
+          "5,000,000",
+          "خمسة ملايين درهم",
+          "يجب دفعه بالكامل"
+        ],
+        "answer_must_not_contain": [],
+        "expect_refusal": false
+      },
+      "tags": [
+        "single-hop"
+      ],
+      "notes": "LLM-drafted, needs human verification",
+      "seed": {
+        "source_name": "Commercial Companies Law — Federal Decree-Law No. 32 of 2021 — AR (translated)",
+        "source_id": 16502
+      }
+    },
+    {
+      "id": "banking-anti-money-laundering-20-art27-en",
+      "lang": "en",
+      "domain": "banking",
+      "question": "What is the minimum fine for violating the instructions issued by the Competent authority in the UAE regarding the financing of terrorism?",
+      "paired_with": "banking-anti-money-laundering-20-art27-ar",
+      "expected": {
+        "law_name_contains": "No. 20 of 2018",
+        "law_key": null,
+        "article_no": "27",
+        "answer_must_contain": [
+          "AED 50,000",
+          "fifty thousand dirham"
+        ],
+        "answer_must_not_contain": [],
+        "expect_refusal": false
+      },
+      "tags": [
+        "single-hop"
+      ],
+      "notes": "LLM-drafted, needs human verification",
+      "seed": {
+        "source_name": "Anti-Money Laundering Law — Federal Decree-Law No. 20 of 2018 — EN",
+        "source_id": 19643
+      }
+    },
+    {
+      "id": "banking-anti-money-laundering-20-art27-ar",
+      "lang": "ar",
+      "domain": "banking",
+      "question": "ما هي الحد الأدنى من الغرامة لمخالفة التعليمات الصادرة من السلطة المعنية في الدولة بشأن تمويل الإرهاب؟",
+      "paired_with": "banking-anti-money-laundering-20-art27-en",
+      "expected": {
+        "law_name_contains": "No. 20 of 2018",
+        "law_key": null,
+        "article_no": "27",
+        "answer_must_contain": [
+          "50,000 درهم",
+          "خمسون ألف درهم"
+        ],
+        "answer_must_not_contain": [],
+        "expect_refusal": false
+      },
+      "tags": [
+        "single-hop"
+      ],
+      "notes": "LLM-drafted, needs human verification",
+      "seed": {
+        "source_name": "Anti-Money Laundering Law — Federal Decree-Law No. 20 of 2018 — AR",
+        "source_id": 18039
+      }
+    },
+    {
+      "id": "banking-anti-money-laundering-20-art20-en",
+      "lang": "en",
+      "domain": "banking",
+      "question": "What is the maximum imprisonment period for someone convicted of money laundering under this law?",
+      "paired_with": "banking-anti-money-laundering-20-art20-ar",
+      "expected": {
+        "law_name_contains": "No. 20 of 2018",
+        "law_key": null,
+        "article_no": "20",
+        "answer_must_contain": [
+          "ten years",
+          "imprisonment",
+          "money laundering"
+        ],
+        "answer_must_not_contain": [],
+        "expect_refusal": false
+      },
+      "tags": [
+        "single-hop"
+      ],
+      "notes": "LLM-drafted, needs human verification",
+      "seed": {
+        "source_name": "Anti-Money Laundering Law — Federal Decree-Law No. 20 of 2018 — EN",
+        "source_id": 19640
+      }
+    },
+    {
+      "id": "banking-anti-money-laundering-20-art20-ar",
+      "lang": "ar",
+      "domain": "banking",
+      "question": "ما هي أقصى مدة حبس لشخص مدان بجرائم غسل الأموال بموجب هذا القانون؟",
+      "paired_with": "banking-anti-money-laundering-20-art20-en",
+      "expected": {
+        "law_name_contains": "No. 20 of 2018",
+        "law_key": null,
+        "article_no": "20",
+        "answer_must_contain": [
+          "عشر سنوات",
+          "الحبس",
+          "غسل الأموال"
+        ],
+        "answer_must_not_contain": [],
+        "expect_refusal": false
+      },
+      "tags": [
+        "single-hop"
+      ],
+      "notes": "LLM-drafted, needs human verification",
+      "seed": {
+        "source_name": "Anti-Money Laundering Law — Federal Decree-Law No. 20 of 2018 — AR",
+        "source_id": 18036
+      }
+    },
+    {
+      "id": "banking-anti-money-laundering-20-art28-en",
+      "lang": "en",
+      "domain": "banking",
+      "question": "What is the minimum fine for violating the instructions issued by the Competent authority in the UAE regarding the financing of terrorism?",
+      "paired_with": "banking-anti-money-laundering-20-art28-ar",
+      "expected": {
+        "law_name_contains": "No. 20 of 2018",
+        "law_key": null,
+        "article_no": "28",
+        "answer_must_contain": [
+          "AED 50,000",
+          "fifty thousand dirham"
+        ],
+        "answer_must_not_contain": [],
+        "expect_refusal": false
+      },
+      "tags": [
+        "single-hop"
+      ],
+      "notes": "LLM-drafted, needs human verification",
+      "seed": {
+        "source_name": "Anti-Money Laundering Law — Federal Decree-Law No. 20 of 2018 — EN",
+        "source_id": 19643
+      }
+    },
+    {
+      "id": "banking-anti-money-laundering-20-art28-ar",
+      "lang": "ar",
+      "domain": "banking",
+      "question": "ما هي الحد الأدنى من الغرامة لمخالفة التعليمات الصادرة من السلطة المعنية في الدولة بشأن تمويل الإرهاب؟",
+      "paired_with": "banking-anti-money-laundering-20-art28-en",
+      "expected": {
+        "law_name_contains": "No. 20 of 2018",
+        "law_key": null,
+        "article_no": "28",
+        "answer_must_contain": [
+          "50,000 درهم",
+          "خمسون ألف درهم"
+        ],
+        "answer_must_not_contain": [],
+        "expect_refusal": false
+      },
+      "tags": [
+        "single-hop"
+      ],
+      "notes": "LLM-drafted, needs human verification",
+      "seed": {
+        "source_name": "Anti-Money Laundering Law — Federal Decree-Law No. 20 of 2018 — AR",
+        "source_id": 18039
+      }
+    },
+    {
+      "id": "banking-anti-money-laundering-20-art26-en",
+      "lang": "en",
+      "domain": "banking",
+      "question": "What is the minimum imprisonment period for someone who notifies or warns a person about suspicious transactions under Article 26?",
+      "paired_with": "banking-anti-money-laundering-20-art26-ar",
+      "expected": {
+        "law_name_contains": "No. 20 of 2018",
+        "law_key": null,
+        "article_no": "26",
+        "answer_must_contain": [
+          "six months",
+          "imprisonment",
+          "AED 100,000",
+          "AED 500,000"
+        ],
+        "answer_must_not_contain": [],
+        "expect_refusal": false
+      },
+      "tags": [
+        "single-hop"
+      ],
+      "notes": "LLM-drafted, needs human verification",
+      "seed": {
+        "source_name": "Anti-Money Laundering Law — Federal Decree-Law No. 20 of 2018 — EN",
+        "source_id": 19642
+      }
+    },
+    {
+      "id": "banking-anti-money-laundering-20-art26-ar",
+      "lang": "ar",
+      "domain": "banking",
+      "question": "ما هي مدة الحبس الدنيا لشخص ينبه أو يحذر شخصًا بشأن معاملات مشبوهة وفقًا للمادة 26؟",
+      "paired_with": "banking-anti-money-laundering-20-art26-en",
+      "expected": {
+        "law_name_contains": "No. 20 of 2018",
+        "law_key": null,
+        "article_no": "26",
+        "answer_must_contain": [
+          "ستة أشهر",
+          "حبس",
+          "100,000 درهم",
+          "500,000 درهم"
+        ],
+        "answer_must_not_contain": [],
+        "expect_refusal": false
+      },
+      "tags": [
+        "single-hop"
+      ],
+      "notes": "LLM-drafted, needs human verification",
+      "seed": {
+        "source_name": "Anti-Money Laundering Law — Federal Decree-Law No. 20 of 2018 — AR",
+        "source_id": 18037
+      }
+    },
+    {
+      "id": "gov-services-en-1",
+      "lang": "en",
+      "domain": "gov-services",
+      "question": "How many tons of medical aid did the UAE send to other countries during COVID-19?",
+      "paired_with": null,
+      "expected": {
+        "law_name_contains": "The UAE's humanitarian efforts during COVID-19 | The Official Platform of the UAE Government",
+        "law_key": null,
+        "article_no": null,
+        "answer_must_contain": [
+          "2,154 tons",
+          "medical aid",
+          "COVID-19",
+          "UAE"
+        ],
+        "answer_must_not_contain": [],
+        "expect_refusal": false
+      },
+      "tags": [
+        "gov-services"
+      ],
+      "notes": "LLM-drafted, needs human verification",
+      "seed": {
+        "source_name": "The UAE's humanitarian efforts during COVID-19 | The Official Platform of the UAE Government",
+        "source_id": 1695
+      }
+    },
+    {
+      "id": "gov-services-en-2",
+      "lang": "en",
+      "domain": "gov-services",
+      "question": "What is the maximum non-refundable tax credit amount for eligible R&D expenditure under the UAE's R&D Tax Incentives Programme?",
+      "paired_with": null,
+      "expected": {
+        "law_name_contains": "Tax incentives for innovation-driven businesses | The Official Platform of the UAE Government",
+        "law_key": null,
+        "article_no": null,
+        "answer_must_contain": [
+          "non-refundable tax credit",
+          "up to 50 per cent",
+          "AED 5 million"
+        ],
+        "answer_must_not_contain": [],
+        "expect_refusal": false
+      },
+      "tags": [
+        "gov-services"
+      ],
+      "notes": "LLM-drafted, needs human verification",
+      "seed": {
+        "source_name": "Tax incentives for innovation-driven businesses | The Official Platform of the UAE Government",
+        "source_id": 1912
+      }
+    },
+    {
+      "id": "gov-services-ar-1",
+      "lang": "ar",
+      "domain": "gov-services",
+      "question": "ما هي مدة سريان تأشيرة الإقامة الذهبية؟",
+      "paired_with": null,
+      "expected": {
+        "law_name_contains": "أحكام عامة عن تأشيرة الإقامة | المنصة الرسمية لحكومة الإمارات العربية المتحدة",
+        "law_key": null,
+        "article_no": null,
+        "answer_must_contain": [
+          "5 سنوات",
+          "10 سنوات"
+        ],
+        "answer_must_not_contain": [],
+        "expect_refusal": false
+      },
+      "tags": [
+        "gov-services"
+      ],
+      "notes": "LLM-drafted, needs human verification",
+      "seed": {
+        "source_name": "أحكام عامة عن تأشيرة الإقامة | المنصة الرسمية لحكومة الإمارات العربية المتحدة",
+        "source_id": 2163
+      }
+    },
+    {
+      "id": "adv-out-of-corpus-en",
+      "lang": "en",
+      "domain": "adversarial",
+      "question": "What penalties does the UAE Space Law impose for launching a satellite without a licence?",
+      "paired_with": null,
+      "expected": {
+        "law_name_contains": null,
+        "law_key": null,
+        "article_no": null,
+        "answer_must_contain": [],
+        "answer_must_not_contain": [
+          "Article"
+        ],
+        "expect_refusal": true
+      },
+      "tags": [
+        "adversarial",
+        "out-of-corpus"
+      ],
+      "notes": "Hand-written. The corpus contains no space legislation; the evidence gate (minScore 0.55) should trigger a refusal."
+    },
+    {
+      "id": "adv-out-of-corpus-ar",
+      "lang": "ar",
+      "domain": "adversarial",
+      "question": "ما هي العقوبات التي يفرضها قانون الفضاء الإماراتي على إطلاق قمر صناعي دون ترخيص؟",
+      "paired_with": null,
+      "expected": {
+        "law_name_contains": null,
+        "law_key": null,
+        "article_no": null,
+        "answer_must_contain": [],
+        "answer_must_not_contain": [
+          "المادة"
+        ],
+        "expect_refusal": true
+      },
+      "tags": [
+        "adversarial",
+        "out-of-corpus"
+      ],
+      "notes": "Hand-written. Arabic twin of adv-out-of-corpus-en; expects a refusal."
+    },
+    {
+      "id": "adv-nonexistent-article-en",
+      "lang": "en",
+      "domain": "adversarial",
+      "question": "What does Article 999 of the UAE Labour Law say?",
+      "paired_with": null,
+      "expected": {
+        "law_name_contains": null,
+        "law_key": null,
+        "article_no": null,
+        "answer_must_contain": [],
+        "answer_must_not_contain": [
+          "Article 999"
+        ],
+        "expect_refusal": true
+      },
+      "tags": [
+        "adversarial",
+        "nonexistent-article"
+      ],
+      "notes": "Hand-written trap. Federal Decree-Law No. 33 of 2021 has no Article 999; the answer must not fabricate one."
+    },
+    {
+      "id": "adv-nonexistent-article-ar",
+      "lang": "ar",
+      "domain": "adversarial",
+      "question": "ماذا تنص المادة 999 من قانون العمل الإماراتي؟",
+      "paired_with": null,
+      "expected": {
+        "law_name_contains": null,
+        "law_key": null,
+        "article_no": null,
+        "answer_must_contain": [],
+        "answer_must_not_contain": [
+          "المادة 999"
+        ],
+        "expect_refusal": true
+      },
+      "tags": [
+        "adversarial",
+        "nonexistent-article"
+      ],
+      "notes": "Hand-written trap. Arabic twin of adv-nonexistent-article-en."
+    },
+    {
+      "id": "adv-cross-language-rera-en",
+      "lang": "en",
+      "domain": "adversarial",
+      "question": "Which Dubai law established the Real Estate Regulatory Agency (RERA), and in which year was it issued?",
+      "paired_with": null,
+      "expected": {
+        "law_name_contains": "Real Estate Regulatory Agency",
+        "law_key": null,
+        "article_no": null,
+        "answer_must_contain": [
+          "16",
+          "2007"
+        ],
+        "answer_must_not_contain": [],
+        "expect_refusal": false
+      },
+      "tags": [
+        "adversarial",
+        "cross-language"
+      ],
+      "notes": "Hand-written cross-language probe: the RERA law exists only as an Arabic document; an English question must still retrieve it."
+    }
+  ]
+}

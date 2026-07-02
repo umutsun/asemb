@@ -25,37 +25,73 @@ function getMetricsService(): SystemMetricsService {
 // no source_type/relationship filter, so it works for any ingested data (laws,
 // docs, web pages). Returns nodes + links for an interactive force-directed view
 // (GET /api/v2/dashboard/graph). Node `group` = source_table for coloring.
+// Group graph nodes by structured law identity (metadata.law_key) instead of
+// source_name, collapsing the EN and AR copies of a law into one node with a
+// clean law_title label. Settings-driven (dashboard.graphGroupByLawKey),
+// single-place default: off.
+async function isGraphGroupedByLawKey(): Promise<boolean> {
+  try {
+    const r = await lsembPool.query(`SELECT value FROM settings WHERE key = 'dashboard.graphGroupByLawKey'`);
+    return String(r.rows[0]?.value ?? '').toLowerCase() === 'true';
+  } catch {
+    return false;
+  }
+}
+
 router.get('/graph', async (req: Request, res: Response) => {
   try {
     const limit = Math.min(parseInt(String(req.query.limit ?? '600')) || 600, 2000);
+    const groupByLawKey = await isGraphGroupedByLawKey();
+    // Optional language split for mixed corpora (e.g. Arabic + English). Language is derived
+    // from the presence of Arabic-script characters in chunk content, so no `language` column /
+    // schema change is needed and it stays domain-agnostic. lang=ar -> both endpoints Arabic;
+    // lang=en -> both endpoints non-Arabic; anything else (all) -> no filter. The AR pattern is a
+    // fixed constant (no injection) and `lang` is matched by strict equality (never interpolated).
+    const lang = String(req.query.lang ?? 'all').toLowerCase();
+    // Arabic Unicode block [U+0600..U+06FF] as a regex character class, built from code points so
+    // the source stays ASCII and Postgres receives real Arabic chars — matching depends only on the
+    // UTF-8 corpus, not on advanced-regex \u support or standard_conforming_strings.
+    const AR = '[' + String.fromCharCode(0x0600) + '-' + String.fromCharCode(0x06FF) + ']';
+    let langFilter = '';
+    if (lang === 'ar') langFilter = `AND src.content ~ '${AR}' AND tgt.content ~ '${AR}'`;
+    else if (lang === 'en') langFilter = `AND src.content !~ '${AR}' AND tgt.content !~ '${AR}'`;
+    // Node identity: source_name, or the structured law_key when grouping is
+    // enabled (EN+AR copies collapse; label prefers the clean law_title).
+    const srcKey = groupByLawKey
+      ? `COALESCE(NULLIF(src.metadata->>'law_key',''), src.source_name)` : `src.source_name`;
+    const tgtKey = groupByLawKey
+      ? `COALESCE(NULLIF(tgt.metadata->>'law_key',''), tgt.source_name)` : `tgt.source_name`;
     const edgeRows = await lsembPool.query(
-      `SELECT src.source_name AS source, src.source_table AS source_tbl,
-              tgt.source_name AS target, tgt.source_table AS target_tbl,
+      `SELECT ${srcKey} AS source, src.source_table AS source_tbl,
+              MIN(COALESCE(NULLIF(src.metadata->>'law_title',''), src.source_name)) AS source_label,
+              ${tgtKey} AS target, tgt.source_table AS target_tbl,
+              MIN(COALESCE(NULLIF(tgt.metadata->>'law_title',''), tgt.source_name)) AS target_label,
               count(*)::int AS weight
        FROM chunk_relationships cr
        JOIN unified_embeddings src ON src.id = cr.source_chunk_id
        JOIN unified_embeddings tgt ON tgt.id = cr.target_chunk_id
-       WHERE src.source_name <> tgt.source_name
-       GROUP BY 1,2,3,4
+       WHERE ${srcKey} <> ${tgtKey}
+       ${langFilter}
+       GROUP BY 1,2,4,5
        ORDER BY weight DESC
        LIMIT $1`,
       [limit]
     );
-    const nodeMap = new Map<string, { id: string; group: string; val: number; refs: number }>();
-    const bump = (id: string, group: string, w: number, isTarget: boolean) => {
+    const nodeMap = new Map<string, { id: string; label: string; group: string; val: number; refs: number }>();
+    const bump = (id: string, label: string, group: string, w: number, isTarget: boolean) => {
       let n = nodeMap.get(id);
-      if (!n) { n = { id, group: group || 'other', val: 0, refs: 0 }; nodeMap.set(id, n); }
+      if (!n) { n = { id, label: label || id, group: group || 'other', val: 0, refs: 0 }; nodeMap.set(id, n); }
       n.val += w;
       if (isTarget) n.refs += w;
     };
     const links = edgeRows.rows.map((r: any) => {
-      bump(r.source, r.source_tbl, r.weight, false);
-      bump(r.target, r.target_tbl, r.weight, true);
+      bump(r.source, r.source_label, r.source_tbl, r.weight, false);
+      bump(r.target, r.target_label, r.target_tbl, r.weight, true);
       return { source: r.source, target: r.target, weight: r.weight };
     });
     const nodes = Array.from(nodeMap.values()).map((n) => ({
       id: n.id,
-      label: n.id.length > 60 ? n.id.slice(0, 57) + '…' : n.id,
+      label: n.label.length > 60 ? n.label.slice(0, 57) + '…' : n.label,
       group: n.group,
       val: Math.max(1, Math.round(Math.log2(n.val + 1))),
       refs: n.refs,
@@ -64,6 +100,409 @@ router.get('/graph', async (req: Request, res: Response) => {
   } catch (e: any) {
     console.error('[dashboard/graph]', e?.message);
     res.status(500).json({ error: 'Failed to build knowledge graph' });
+  }
+});
+
+// ============================================================================
+// Knowledge Graph — Corpus Health / "Gaps" (surface + act to strengthen the graph)
+// ----------------------------------------------------------------------------
+// Grounded in the chunk_relationships schema: a relationship whose target_chunk_id is
+// NULL is a *dangling* reference — the source cites something (target_reference /
+// target_law_code) that is not yet in the corpus. Those are the visible "broken" edges
+// (e.g. a law citing "Entry & Residence of Foreigners" that hasn't been ingested). Weak
+// links are low-confidence machine-extracted edges awaiting human verification. Orphans
+// are ingested sources that participate in no relationship at all. Resolving/verifying
+// these is exactly what strengthens the graph.
+// ============================================================================
+
+// Allowed relationship types — mirror the chunk_relationships CHECK constraint.
+const RELATIONSHIP_TYPES = ['references', 'amends', 'parent_of', 'related_to', 'supersedes', 'interprets'];
+// Arabic Unicode block — used to split a mixed corpus by script (no language column needed).
+const AR_RANGE = '[' + String.fromCharCode(0x0600) + '-' + String.fromCharCode(0x06FF) + ']';
+
+// Confidence threshold below which a resolved relationship is treated as "weak" and shown for
+// verification. Settings-driven (relationships.confidenceThreshold), single-place default.
+async function getConfidenceThreshold(): Promise<number> {
+  try {
+    const r = await lsembPool.query(`SELECT value FROM settings WHERE key = 'relationships.confidenceThreshold'`);
+    const v = parseFloat(r.rows[0]?.value);
+    return Number.isFinite(v) ? v : 0.7;
+  } catch {
+    return 0.7;
+  }
+}
+
+// Same language rule as /graph: derive from Arabic-script presence in content. Returns a SQL
+// fragment (safe constant) constraining the given alias, or '' for the combined graph.
+function langClause(lang: string, alias: string): string {
+  if (lang === 'ar') return `AND ${alias}.content ~ '${AR_RANGE}'`;
+  if (lang === 'en') return `AND ${alias}.content !~ '${AR_RANGE}'`;
+  return '';
+}
+
+// GET /api/v2/dashboard/graph/gaps?lang=&limit= — corpus-health gaps users can act on:
+// dangling references, weak links, orphan sources, plus a completeness summary.
+router.get('/graph/gaps', async (req: Request, res: Response) => {
+  try {
+    const limit = Math.min(parseInt(String(req.query.limit ?? '50')) || 50, 200);
+    const threshold = await getConfidenceThreshold();
+    const lang = String(req.query.lang ?? 'all').toLowerCase();
+    const srcLang = langClause(lang, 'src');
+    const ueLang = langClause(lang, 'ue');
+
+    // Summary counts across all relationships (health-score inputs).
+    const summaryQ = await lsembPool.query(
+      `SELECT
+         count(*)::int AS total,
+         count(*) FILTER (WHERE target_chunk_id IS NOT NULL)::int AS resolved,
+         count(*) FILTER (WHERE target_chunk_id IS NULL
+                            AND COALESCE(metadata->>'external','') <> 'true')::int AS unresolved,
+         count(*) FILTER (WHERE target_chunk_id IS NOT NULL
+                            AND confidence < $1 AND extracted_by <> 'manual')::int AS weak
+       FROM chunk_relationships`,
+      [threshold]
+    );
+    const s = summaryQ.rows[0] || {};
+    const resolved = s.resolved || 0;
+    const unresolved = s.unresolved || 0;
+    const completeness = (resolved + unresolved) > 0 ? resolved / (resolved + unresolved) : 1;
+
+    // Dangling references, grouped by the cited target so one "quest" resolves all its mentions.
+    const unresolvedRefs = await lsembPool.query(
+      `SELECT
+         COALESCE(NULLIF(cr.target_law_code, ''), NULLIF(cr.target_reference, ''), '?') AS ref_key,
+         MAX(cr.target_law_code) AS target_law_code,
+         MAX(cr.target_article_number) AS target_article_number,
+         MAX(cr.target_reference) AS target_reference,
+         count(*)::int AS mentions,
+         count(DISTINCT src.source_name)::int AS citing_sources,
+         MIN(src.source_name) AS example_source
+       FROM chunk_relationships cr
+       JOIN unified_embeddings src ON src.id = cr.source_chunk_id
+       WHERE cr.target_chunk_id IS NULL
+         AND COALESCE(cr.metadata->>'external','') <> 'true'
+         ${srcLang}
+       GROUP BY ref_key
+       ORDER BY mentions DESC
+       LIMIT $1`,
+      [limit]
+    );
+
+    // Weak (low-confidence, machine-extracted) links awaiting verification.
+    const weakLinks = await lsembPool.query(
+      `SELECT cr.id, src.source_name AS source, tgt.source_name AS target,
+              cr.relationship_type, cr.confidence, cr.extracted_by
+       FROM chunk_relationships cr
+       JOIN unified_embeddings src ON src.id = cr.source_chunk_id
+       JOIN unified_embeddings tgt ON tgt.id = cr.target_chunk_id
+       WHERE cr.confidence < $1 AND cr.extracted_by <> 'manual'
+         ${srcLang}
+       ORDER BY cr.confidence ASC
+       LIMIT $2`,
+      [threshold, limit]
+    );
+
+    // Orphans: ingested sources that participate in NO relationship (need extraction/linking).
+    const orphans = await lsembPool.query(
+      `SELECT ue.source_name, MIN(ue.source_table) AS source_table, count(*)::int AS chunks
+       FROM unified_embeddings ue
+       WHERE NOT EXISTS (
+               SELECT 1 FROM chunk_relationships cr
+               WHERE cr.source_chunk_id = ue.id OR cr.target_chunk_id = ue.id)
+         ${ueLang}
+       GROUP BY ue.source_name
+       ORDER BY chunks DESC
+       LIMIT $1`,
+      [limit]
+    );
+
+    res.json({
+      summary: {
+        total: s.total || 0,
+        resolved,
+        unresolved,
+        weak: s.weak || 0,
+        completeness,
+        confidenceThreshold: threshold,
+      },
+      unresolvedRefs: unresolvedRefs.rows,
+      weakLinks: weakLinks.rows,
+      orphans: orphans.rows,
+      orphansCapped: orphans.rowCount === limit,
+      limit,
+    });
+  } catch (e: any) {
+    console.error('[dashboard/graph/gaps]', e?.message);
+    res.status(500).json({ error: 'Failed to load graph gaps' });
+  }
+});
+
+// GET /api/v2/dashboard/graph/node-gaps?source=<source_name> — the gaps for ONE source, so a user
+// browsing the graph can act on the node they clicked: the dangling references it makes, the weak
+// links it participates in, and whether it is an orphan (no relationships at all). Read-only; same
+// shape family as /graph/gaps.
+router.get('/graph/node-gaps', async (req: Request, res: Response) => {
+  try {
+    const source = String(req.query.source ?? '').trim();
+    if (!source) return res.status(400).json({ error: 'source is required' });
+    const threshold = await getConfidenceThreshold();
+
+    // Dangling references THIS source makes (grouped by cited target, like /graph/gaps).
+    const danglingRefs = await lsembPool.query(
+      `SELECT
+         COALESCE(NULLIF(cr.target_law_code, ''), NULLIF(cr.target_reference, ''), '?') AS ref_key,
+         MAX(cr.target_law_code) AS target_law_code,
+         MAX(cr.target_article_number) AS target_article_number,
+         MAX(cr.target_reference) AS target_reference,
+         count(*)::int AS mentions
+       FROM chunk_relationships cr
+       JOIN unified_embeddings src ON src.id = cr.source_chunk_id
+       WHERE src.source_name = $1
+         AND cr.target_chunk_id IS NULL
+         AND COALESCE(cr.metadata->>'external', '') <> 'true'
+       GROUP BY ref_key
+       ORDER BY mentions DESC
+       LIMIT 50`,
+      [source]
+    );
+
+    // Weak links this source is part of, in either direction.
+    const weakLinks = await lsembPool.query(
+      `SELECT cr.id, src.source_name AS source, tgt.source_name AS target,
+              cr.relationship_type, cr.confidence, cr.extracted_by,
+              (src.source_name = $1) AS outgoing
+       FROM chunk_relationships cr
+       JOIN unified_embeddings src ON src.id = cr.source_chunk_id
+       JOIN unified_embeddings tgt ON tgt.id = cr.target_chunk_id
+       WHERE (src.source_name = $1 OR tgt.source_name = $1)
+         AND cr.confidence < $2 AND cr.extracted_by <> 'manual'
+       ORDER BY cr.confidence ASC
+       LIMIT 50`,
+      [source, threshold]
+    );
+
+    // Source table + edge counts + orphan flag (no relationship row touches any of its chunks).
+    const meta = await lsembPool.query(
+      `SELECT
+         (SELECT MIN(source_table) FROM unified_embeddings WHERE source_name = $1) AS source_table,
+         (SELECT count(*)::int FROM chunk_relationships cr
+            JOIN unified_embeddings s ON s.id = cr.source_chunk_id
+            WHERE s.source_name = $1 AND cr.target_chunk_id IS NOT NULL) AS outgoing_edges,
+         (SELECT count(*)::int FROM chunk_relationships cr
+            JOIN unified_embeddings t ON t.id = cr.target_chunk_id
+            WHERE t.source_name = $1) AS incoming_edges,
+         (SELECT count(*)::int FROM chunk_relationships cr
+            JOIN unified_embeddings u ON (u.id = cr.source_chunk_id OR u.id = cr.target_chunk_id)
+            WHERE u.source_name = $1) AS any_edges`,
+      [source]
+    );
+    const m = meta.rows[0] || {};
+
+    res.json({
+      source,
+      source_table: m.source_table || null,
+      isOrphan: (m.any_edges || 0) === 0,
+      outgoingEdges: m.outgoing_edges || 0,
+      incomingEdges: m.incoming_edges || 0,
+      danglingRefs: danglingRefs.rows,
+      weakLinks: weakLinks.rows,
+    });
+  } catch (e: any) {
+    console.error('[dashboard/graph/node-gaps]', e?.message);
+    res.status(500).json({ error: 'Failed to load node gaps' });
+  }
+});
+
+// GET /api/v2/dashboard/graph/node-info?source=<source_name> — the actual content behind ONE
+// source: chunk count, origin URL, a first-chunk snippet, and its top extracted entities. Lets
+// a user clicking a graph node inspect what the source says, not just how it connects.
+// Read-only; same shape family as /graph/node-gaps.
+router.get('/graph/node-info', async (req: Request, res: Response) => {
+  try {
+    const source = String(req.query.source ?? '').trim();
+    if (!source) return res.status(400).json({ error: 'source is required' });
+
+    // Chunk count, table/type, origin URL and first-chunk snippet, all scoped to this source.
+    const meta = await lsembPool.query(
+      `SELECT
+         (SELECT count(*)::int FROM unified_embeddings WHERE source_name = $1) AS chunks,
+         (SELECT MIN(source_table) FROM unified_embeddings WHERE source_name = $1) AS source_table,
+         (SELECT MIN(source_type) FROM unified_embeddings WHERE source_name = $1) AS source_type,
+         (SELECT metadata->>'url' FROM unified_embeddings
+            WHERE source_name = $1 AND metadata->>'url' IS NOT NULL LIMIT 1) AS url,
+         (SELECT LEFT(content, 280) FROM unified_embeddings
+            WHERE source_name = $1 ORDER BY id LIMIT 1) AS snippet`,
+      [source]
+    );
+    const m = meta.rows[0] || {};
+
+    // Top extracted entities across this source's chunks, grouped by type (capped per type below).
+    const entitiesQ = await lsembPool.query(
+      `SELECT ce.entity_type, ce.entity_value, count(*)::int AS n
+       FROM chunk_entities ce
+       JOIN unified_embeddings ue ON ue.id = ce.chunk_id
+       WHERE ue.source_name = $1
+       GROUP BY ce.entity_type, ce.entity_value
+       ORDER BY count(*) DESC
+       LIMIT 40`,
+      [source]
+    );
+    const entities: Record<string, Array<{ value: string; n: number }>> = {};
+    for (const row of entitiesQ.rows) {
+      if (!entities[row.entity_type]) entities[row.entity_type] = [];
+      if (entities[row.entity_type].length < 6) entities[row.entity_type].push({ value: row.entity_value, n: row.n });
+    }
+
+    res.json({
+      source,
+      chunks: m.chunks || 0,
+      source_table: m.source_table || null,
+      source_type: m.source_type || null,
+      url: m.url || null,
+      snippet: m.snippet || null,
+      entities,
+    });
+  } catch (e: any) {
+    console.error('[dashboard/graph/node-info]', e?.message);
+    res.status(500).json({ error: 'Failed to load node info' });
+  }
+});
+
+// GET /api/v2/dashboard/graph/sources?q= — distinct source names for the "link to existing
+// source" picker used when resolving a dangling reference.
+router.get('/graph/sources', async (req: Request, res: Response) => {
+  try {
+    const q = String(req.query.q ?? '').trim();
+    const limit = Math.min(parseInt(String(req.query.limit ?? '20')) || 20, 50);
+    const rows = await lsembPool.query(
+      `SELECT source_name, MIN(source_table) AS source_table, count(*)::int AS chunks
+       FROM unified_embeddings
+       WHERE ($1 = '' OR source_name ILIKE '%' || $1 || '%')
+       GROUP BY source_name
+       ORDER BY (source_name ILIKE $1 || '%') DESC, chunks DESC
+       LIMIT $2`,
+      [q, limit]
+    );
+    res.json({ sources: rows.rows });
+  } catch (e: any) {
+    console.error('[dashboard/graph/sources]', e?.message);
+    res.status(500).json({ error: 'Failed to search sources' });
+  }
+});
+
+// POST /api/v2/dashboard/graph/relationships/:id/verify — human verification of a machine-
+// extracted edge. action: confirm (trust it), reject (remove it), retype (fix its type).
+router.post('/graph/relationships/:id/verify', authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const id = parseInt(req.params.id, 10);
+    if (!Number.isInteger(id)) return res.status(400).json({ error: 'Invalid relationship id' });
+    const { action, relationshipType } = req.body || {};
+
+    if (action === 'reject') {
+      const r = await lsembPool.query(`DELETE FROM chunk_relationships WHERE id = $1`, [id]);
+      if (r.rowCount === 0) return res.status(404).json({ error: 'Relationship not found' });
+      return res.json({ success: true, action, removed: r.rowCount });
+    }
+
+    if (action === 'confirm' || action === 'retype') {
+      let type: string | null = null;
+      if (action === 'retype') {
+        if (!RELATIONSHIP_TYPES.includes(relationshipType)) {
+          return res.status(400).json({ error: 'Invalid relationship type' });
+        }
+        type = relationshipType;
+      }
+      const r = await lsembPool.query(
+        `UPDATE chunk_relationships
+            SET confidence = 1.0,
+                extracted_by = 'manual',
+                relationship_type = COALESCE($2, relationship_type),
+                updated_at = CURRENT_TIMESTAMP
+          WHERE id = $1
+          RETURNING id`,
+        [id, type]
+      );
+      if (r.rowCount === 0) return res.status(404).json({ error: 'Relationship not found' });
+      return res.json({ success: true, action, id });
+    }
+
+    return res.status(400).json({ error: 'Invalid action' });
+  } catch (e: any) {
+    console.error('[dashboard/graph/relationships/verify]', e?.message);
+    res.status(500).json({ error: 'Failed to verify relationship' });
+  }
+});
+
+// POST /api/v2/dashboard/graph/references/resolve — resolve a dangling reference. Either link
+// every matching unresolved edge to an existing source ("link"), or mark it as an intentional
+// external reference so it stops showing as a gap ("external"). Matching is by law code (+article
+// when given), otherwise by the raw reference text.
+router.post('/graph/references/resolve', authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { action, targetLawCode, targetReference, targetSourceName } = req.body || {};
+
+    // Match the whole quest group exactly as /graph/gaps grouped it: by law code (covers all of
+    // its articles — the graph is source-level, so article precision is irrelevant here), else by
+    // the raw reference text.
+    const where: string[] = ['target_chunk_id IS NULL'];
+    const params: any[] = [];
+    if (targetLawCode) {
+      params.push(targetLawCode); where.push(`target_law_code = $${params.length}`);
+    } else if (targetReference) {
+      params.push(targetReference); where.push(`target_reference = $${params.length}`);
+    } else {
+      return res.status(400).json({ error: 'A target law code or reference is required' });
+    }
+    const whereSql = where.join(' AND ');
+
+    if (action === 'external') {
+      const r = await lsembPool.query(
+        `UPDATE chunk_relationships
+            SET metadata = jsonb_set(COALESCE(metadata, '{}'::jsonb), '{external}', 'true'),
+                updated_at = CURRENT_TIMESTAMP
+          WHERE ${whereSql}`,
+        params
+      );
+      return res.json({ success: true, action, updated: r.rowCount });
+    }
+
+    if (action === 'link') {
+      if (!targetSourceName) return res.status(400).json({ error: 'targetSourceName is required to link' });
+      // Any chunk of the chosen source resolves the edge to the right node (the graph aggregates
+      // by source_name), so pick a representative chunk.
+      const chunk = await lsembPool.query(
+        `SELECT id FROM unified_embeddings WHERE source_name = $1 ORDER BY id LIMIT 1`,
+        [targetSourceName]
+      );
+      if (chunk.rowCount === 0) return res.status(404).json({ error: 'Target source not found' });
+      params.push(chunk.rows[0].id);
+      try {
+        const r = await lsembPool.query(
+          `UPDATE chunk_relationships
+              SET target_chunk_id = $${params.length},
+                  extracted_by = 'manual',
+                  confidence = 1.0,
+                  updated_at = CURRENT_TIMESTAMP
+            WHERE ${whereSql}`,
+          params
+        );
+        return res.json({ success: true, action, linked: r.rowCount, targetSourceName });
+      } catch (err: any) {
+        // Unique-index collision means an equivalent resolved edge already exists — the dangling
+        // rows are redundant, so drop them; the gap is resolved either way.
+        if (err?.code === '23505') {
+          // whereSql matches only the still-dangling rows; drop the chunk-id param we appended.
+          const del = await lsembPool.query(`DELETE FROM chunk_relationships WHERE ${whereSql}`, params.slice(0, -1));
+          return res.json({ success: true, action, linked: 0, deduped: del.rowCount, targetSourceName });
+        }
+        throw err;
+      }
+    }
+
+    return res.status(400).json({ error: 'Invalid action' });
+  } catch (e: any) {
+    console.error('[dashboard/graph/references/resolve]', e?.message);
+    res.status(500).json({ error: 'Failed to resolve reference' });
   }
 });
 
