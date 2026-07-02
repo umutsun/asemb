@@ -10298,7 +10298,13 @@ RULES:
 6. Every question must be written in {languageName}
 
 Return ONLY a JSON array with exactly {count} questions, no other text.`;
-      const languageNames: Record<string, string> = { en: 'English', ar: 'Modern Standard Arabic', tr: 'Turkish' };
+      // Language display names: default here (single place), overridable via
+      // settings 'prompts.languageNames' (JSON map lang-code -> name).
+      let languageNames: Record<string, string> = { en: 'English', ar: 'Modern Standard Arabic', tr: 'Turkish' };
+      try {
+        const rawNames = await settingsService.getSetting('prompts.languageNames');
+        if (rawNames) languageNames = { ...languageNames, ...JSON.parse(rawNames) };
+      } catch { /* keep defaults */ }
       const languageName = languageNames[language] || language;
       const template = (await settingsService.getSetting('prompts.followUpGeneration')) || defaultFollowUpTemplate;
       const prompt = template
@@ -10308,10 +10314,14 @@ Return ONLY a JSON array with exactly {count} questions, no other text.`;
         .replace(/\{responseSummary\}/g, responseSummary)
         .replace(/\{sourceTopics\}/g, sourceTopics);
 
+      const defaultFollowUpSystem = 'You are a helpful assistant that generates follow-up questions in {languageName}.{turkishCharRule} Return ONLY a valid JSON array, no other text.';
       const turkishCharRule = language === 'tr'
         ? ' CRITICAL: Turkish questions must use proper Turkish characters (ş, ç, ğ, ü, ö, ı, İ) - NEVER ASCII equivalents.'
         : '';
-      const systemPrompt = `You are a helpful assistant that generates follow-up questions in ${languageName}.${turkishCharRule} Return ONLY a valid JSON array, no other text.`;
+      const systemTemplate = (await settingsService.getSetting('prompts.followUpGenerationSystem')) || defaultFollowUpSystem;
+      const systemPrompt = systemTemplate
+        .replace(/\{languageName\}/g, languageName)
+        .replace(/\{turkishCharRule\}/g, turkishCharRule);
 
       const response = await llmManager.generateChatResponse(prompt, {
         temperature: 0.7,

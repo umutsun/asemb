@@ -23,6 +23,7 @@ from loguru import logger
 from services.database import get_db
 from services.redis_client import cache_get, cache_set, get_redis
 from services.neo4j_service import neo4j_service
+from services.law_metadata_parser import merge_patterns, parse_law_name
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -34,6 +35,14 @@ DEFAULT_BATCH_SIZE = 50
 DEFAULT_CONFIDENCE_THRESHOLD = 0.7
 MAX_CONTENT_LENGTH = 6000  # Truncate content sent to LLM
 EXTRACTION_CACHE_TTL = 86400  # 24h cache for extraction results
+# Metadata fields tried (in order) when resolving a reference's target law and
+# article to a chunk. Overridable via settings relationships.resolveLawFields /
+# relationships.resolveArticleFields (JSON arrays). law_key is matched first:
+# the target law string is normalized through the shared law-metadata parser
+# ("Federal Decree-Law No. 47 of 2022" -> "federal_decree_law:47:2022").
+DEFAULT_RESOLVE_LAW_FIELDS = ["law_key", "law_code", "law_number"]
+DEFAULT_RESOLVE_ARTICLE_FIELDS = ["article_number"]
+_SAFE_FIELD_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 # WS4-B: how many chunks to extract concurrently inside a batch. Each chunk is
 # one ~7s LLM round-trip; serial processing made full re-extraction take ~20h.
 # Bounded concurrency keeps us well under gpt-4o-mini rate limits. Overridable
@@ -168,6 +177,9 @@ class RelationshipExtractionService:
         # WS4-B: active schema vocabulary cache (entities/relationships), 60s TTL.
         self._schema_cache: Optional[Dict[str, Any]] = None
         self._schema_cache_time: float = 0
+        # Law-name parser patterns cache (resolver normalization), 60s TTL.
+        self._parser_patterns_cache: Optional[Dict[str, Any]] = None
+        self._parser_patterns_time: float = 0
 
     # ─────────────────────────────────────────────────────────────────
     # Settings & Init
@@ -448,15 +460,27 @@ Rules:
         # Filter by confidence threshold
         references = [r for r in references if r.get("confidence", 0.8) >= confidence_threshold]
 
-        # Determine self-reference law/article to exclude
+        # Determine self-reference law/article to exclude. The chunk may carry
+        # a legacy law_code or a structured law_key; the LLM's target_law is a
+        # free-form name, so normalize it through the parser for comparison.
         self_law = (metadata or {}).get("law_code", "")
+        self_law_key = (metadata or {}).get("law_key", "")
         self_article = str((metadata or {}).get("article_number", ""))
+        parser_patterns = await self._get_parser_patterns()
 
-        # Filter self-references
-        references = [
-            r for r in references
-            if not (r.get("target_law", "") == self_law and str(r.get("target_article", "")) == self_article and self_law)
-        ]
+        def _is_self_reference(r: Dict[str, Any]) -> bool:
+            if str(r.get("target_article", "")) != self_article:
+                return False
+            target = r.get("target_law", "")
+            if self_law and target == self_law:
+                return True
+            if self_law_key:
+                parsed = parse_law_name(target or "", parser_patterns)
+                if parsed.get("law_key") == self_law_key:
+                    return True
+            return False
+
+        references = [r for r in references if not _is_self_reference(r)]
 
         # Store in DB (with schema_id provenance — WS4-B)
         entities_stored = await self._store_entities(chunk_id, entities, schema_id)
@@ -709,6 +733,11 @@ Rules:
         pool = await get_db()
         stored = 0
         async with pool.acquire() as conn:
+            # The citing chunk's language steers same-language target resolution
+            # (EN chunks should link to the EN copy of the cited law).
+            source_lang = await conn.fetchval(
+                "SELECT metadata->>'lang' FROM unified_embeddings WHERE id = $1", chunk_id
+            )
             for ref in references:
                 try:
                     target_law = ref.get("target_law", "")
@@ -716,13 +745,13 @@ Rules:
                     rel_type = ref.get("type", "references")
                     confidence = ref.get("confidence", 0.8)
                     context = ref.get("context", "")
-                    raw_ref = f"{target_law} Madde {target_article}" if target_law and target_article else context[:200]
+                    raw_ref = f"{target_law} art. {target_article}" if target_law and target_article else context[:200]
 
                     # Try to resolve target_chunk_id immediately
                     target_chunk_id = None
                     if target_law and target_article:
                         target_chunk_id = await self._resolve_single_reference(
-                            conn, target_law, target_article
+                            conn, target_law, target_article, source_lang
                         )
 
                     await conn.execute("""
@@ -752,18 +781,77 @@ Rules:
 
         return stored
 
-    async def _resolve_single_reference(
-        self, conn, law_code: str, article_number: str
-    ) -> Optional[int]:
-        """Try to find target chunk in unified_embeddings by law_code + article_number."""
+    async def _get_resolve_fields(self) -> Tuple[List[str], List[str]]:
+        """Metadata fields used for target resolution, from settings with the
+        defaults defined once at module level. Field names are validated as
+        identifiers because they are interpolated into jsonb accessors."""
+        settings = await self._get_settings()
+
+        def _fields(raw, default):
+            try:
+                vals = json.loads(raw) if isinstance(raw, str) else (raw or default)
+            except (json.JSONDecodeError, TypeError):
+                vals = default
+            return [f for f in vals if isinstance(f, str) and _SAFE_FIELD_RE.match(f)] or default
+
+        return (
+            _fields(settings.get('resolveLawFields'), DEFAULT_RESOLVE_LAW_FIELDS),
+            _fields(settings.get('resolveArticleFields'), DEFAULT_RESOLVE_ARTICLE_FIELDS),
+        )
+
+    async def _get_parser_patterns(self) -> Dict[str, Any]:
+        """Law-name parser patterns (module defaults merged with the tenant's
+        ingest.lawMetadataPatterns settings row). Cached for 60s."""
+        now = time.time()
+        if self._parser_patterns_cache and (now - self._parser_patterns_time) < 60:
+            return self._parser_patterns_cache
+        overrides = None
         try:
-            row = await conn.fetchrow("""
-                SELECT id FROM unified_embeddings
-                WHERE metadata->>'law_code' = $1
-                  AND metadata->>'article_number' = $2
-                LIMIT 1
-            """, law_code, str(article_number))
-            return row['id'] if row else None
+            pool = await get_db()
+            raw = await pool.fetchval(
+                "SELECT value FROM settings WHERE key = 'ingest.lawMetadataPatterns'"
+            )
+            if raw:
+                overrides = json.loads(raw) if isinstance(raw, str) else raw
+        except Exception:
+            overrides = None
+        self._parser_patterns_cache = merge_patterns(overrides)
+        self._parser_patterns_time = now
+        return self._parser_patterns_cache
+
+    async def _resolve_single_reference(
+        self, conn, law_code: str, article_number: str, source_lang: Optional[str] = None
+    ) -> Optional[int]:
+        """Find the target chunk for a (law reference, article) pair.
+
+        Tries each configured law field in order; the raw target-law string is
+        additionally normalized to a law_key through the shared parser, so
+        "Federal Decree-Law No. 47 of 2022" resolves even though the stored
+        field is the structured key. Prefers a target in the same language as
+        the citing chunk (EN chunks cite the EN copy of the law).
+        """
+        law_fields, article_fields = await self._get_resolve_fields()
+        parsed = parse_law_name(law_code or "", await self._get_parser_patterns())
+        candidates: List[Tuple[str, str]] = []
+        for field in law_fields:
+            if field == "law_key":
+                if parsed.get("law_key"):
+                    candidates.append(("law_key", parsed["law_key"]))
+            else:
+                candidates.append((field, law_code))
+        try:
+            for field, value in candidates:
+                for article_field in article_fields:
+                    row = await conn.fetchrow(f"""
+                        SELECT id FROM unified_embeddings
+                        WHERE metadata->>'{field}' = $1
+                          AND metadata->>'{article_field}' = $2
+                        ORDER BY (metadata->>'lang' = $3) DESC, id
+                        LIMIT 1
+                    """, value, str(article_number), source_lang or '')
+                    if row:
+                        return row['id']
+            return None
         except Exception:
             return None
 
@@ -1031,11 +1119,22 @@ Rules:
 
     async def resolve_references(self, dry_run: bool = False) -> Dict[str, Any]:
         """
-        Resolve unresolved references by matching target_law_code + target_article_number
-        to unified_embeddings metadata. Uses law code → law number mapping from settings.
+        Resolve unresolved references to target chunks.
+
+        Matching order per reference:
+          1. legacy lawCodeMapping (abbreviation -> law number) on law_number
+          2. the configured resolve fields via _resolve_single_reference
+             (law_key-normalized, same-language preferred)
+          3. optional law-level fallback (settings
+             relationships.resolveLawLevelFallback, default false): link to the
+             cited law's first chunk when the exact article is not indexed,
+             tagged metadata.resolution='law_level'.
         """
         pool = await get_db()
         law_map = await self._load_law_code_mapping()
+        settings = await self._get_settings()
+        law_level_fallback = str(settings.get('resolveLawLevelFallback', 'false')).lower() == 'true'
+        patterns = await self._get_parser_patterns()
 
         # Count unresolved
         total_unresolved = await pool.fetchval("""
@@ -1043,40 +1142,73 @@ Rules:
             WHERE target_chunk_id IS NULL AND target_law_code IS NOT NULL
         """)
 
-        # Get all unresolved references
+        # Get all unresolved references (with the citing chunk's language for
+        # same-language target preference)
         unresolved = await pool.fetch("""
-            SELECT id, target_law_code, target_article_number
-            FROM chunk_relationships
-            WHERE target_chunk_id IS NULL AND target_law_code IS NOT NULL
+            SELECT cr.id, cr.target_law_code, cr.target_article_number,
+                   ue.metadata->>'lang' AS source_lang
+            FROM chunk_relationships cr
+            LEFT JOIN unified_embeddings ue ON ue.id = cr.source_chunk_id
+            WHERE cr.target_chunk_id IS NULL AND cr.target_law_code IS NOT NULL
         """)
 
         resolved_count = 0
-        for ref in unresolved:
-            law_code = ref['target_law_code']
-            article = ref['target_article_number']
-            if not article:
-                continue
+        law_level_count = 0
+        async with pool.acquire() as conn:
+            for ref in unresolved:
+                law_code = ref['target_law_code']
+                article = ref['target_article_number']
+                source_lang = ref['source_lang']
+                target_id = None
+                resolution = 'article'
 
-            # Convert abbreviation to law number via mapping
-            law_number = law_map.get(law_code, law_code)
+                if article:
+                    # 1. Legacy abbreviation mapping (Turkish tenants)
+                    mapped = law_map.get(law_code)
+                    if mapped:
+                        target_id = await conn.fetchval("""
+                            SELECT id FROM unified_embeddings
+                            WHERE metadata->>'law_number' = $1
+                              AND metadata->>'article_number' = $2
+                            ORDER BY (metadata->>'lang' = $3) DESC, id
+                            LIMIT 1
+                        """, mapped, article, source_lang or '')
+                    # 2. Configured fields (law_key-normalized)
+                    if not target_id:
+                        target_id = await self._resolve_single_reference(
+                            conn, law_code, article, source_lang
+                        )
 
-            # Try matching by law_number + article_number in metadata
-            target_id = await pool.fetchval("""
-                SELECT id FROM unified_embeddings
-                WHERE metadata->>'law_number' = $1
-                  AND metadata->>'article_number' = $2
-                LIMIT 1
-            """, law_number, article)
+                # 3. Law-level fallback: the cited law exists but the exact
+                #    article is not indexed (or no article was extracted).
+                if not target_id and law_level_fallback:
+                    parsed = parse_law_name(law_code or "", patterns)
+                    if parsed.get("law_key"):
+                        target_id = await conn.fetchval("""
+                            SELECT id FROM unified_embeddings
+                            WHERE metadata->>'law_key' = $1
+                            ORDER BY (metadata->>'lang' = $2) DESC,
+                                     (metadata->>'article_index')::int NULLS LAST
+                            LIMIT 1
+                        """, parsed["law_key"], source_lang or '')
+                        if target_id:
+                            resolution = 'law_level'
 
-            if target_id and not dry_run:
-                await pool.execute("""
-                    UPDATE chunk_relationships
-                    SET target_chunk_id = $1, updated_at = NOW()
-                    WHERE id = $2
-                """, target_id, ref['id'])
-                resolved_count += 1
-            elif target_id and dry_run:
-                resolved_count += 1
+                if target_id and not dry_run:
+                    await conn.execute("""
+                        UPDATE chunk_relationships
+                        SET target_chunk_id = $1,
+                            metadata = COALESCE(metadata, '{}'::jsonb) || $3::jsonb,
+                            updated_at = NOW()
+                        WHERE id = $2
+                    """, target_id, ref['id'], json.dumps({"resolution": resolution}))
+                    resolved_count += 1
+                    if resolution == 'law_level':
+                        law_level_count += 1
+                elif target_id and dry_run:
+                    resolved_count += 1
+                    if resolution == 'law_level':
+                        law_level_count += 1
 
         if not dry_run and resolved_count > 0:
             workspace_id = os.getenv("TENANT_ID", "default")
