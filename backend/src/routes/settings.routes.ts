@@ -4,6 +4,7 @@
 import { Router, Request, Response } from 'express';
 import { lsembPool } from '../config/database.config';
 import { settingsCache } from '../services/cache.service';
+import { authenticateToken } from '../middleware/auth.middleware';
 // NOTE: `settingsService` is already imported lower in this file (semantic-analyzer section).
 
 const router = Router();
@@ -1053,9 +1054,9 @@ router.get('/key/:key', async (req: Request, res: Response) => {
 });
 
 /**
- * PUT /settings/key/:key - Update a specific setting by key
+ * PUT /settings/key/:key - Update a specific setting by key (authenticated: mutates settings)
  */
-router.put('/key/:key', async (req: Request, res: Response) => {
+router.put('/key/:key', authenticateToken, async (req: Request, res: Response) => {
   try {
     const { key } = req.params;
     const { value, category, description } = req.body;

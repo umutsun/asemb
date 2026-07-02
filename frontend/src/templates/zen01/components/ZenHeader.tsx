@@ -133,15 +133,17 @@ export const ZenHeader: React.FC<ZenHeaderProps> = ({
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <h1 className="text-lg font-semibold text-slate-800 dark:text-slate-100">
+              {/* Colours follow zen01's own `isDark` (not the global `dark:` class) — the two theme
+                  systems can desync, which left a light title on the light header. */}
+              <h1 className={`text-lg font-semibold ${isDark ? 'text-slate-100' : 'text-slate-800'}`}>
                 {chatbotSettings.title || 'Zen Assistant'}
               </h1>
-              <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-md bg-cyan-500/10 dark:bg-cyan-500/20 text-cyan-700 dark:text-cyan-300 border border-cyan-500/20 dark:border-cyan-500/30">
+              <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded-md border ${isDark ? 'bg-cyan-500/20 text-cyan-300 border-cyan-500/30' : 'bg-cyan-500/10 text-cyan-700 border-cyan-500/20'}`}>
                 Build: {process.env.NEXT_PUBLIC_BUILD_TIMESTAMP || 'dev'}
               </span>
             </div>
             {chatbotSettings.subtitle && (
-              <p className="text-xs text-slate-500 dark:text-slate-400">{chatbotSettings.subtitle}</p>
+              <p className={`text-xs ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>{chatbotSettings.subtitle}</p>
             )}
           </div>
         </div>
@@ -151,13 +153,12 @@ export const ZenHeader: React.FC<ZenHeaderProps> = ({
           {/* Theme Toggle with Zen - Single Combined Button */}
           <button
             onClick={handleThemeToggle}
-            className="w-9 h-9 rounded-xl flex items-center justify-center
-              bg-gradient-to-br from-slate-100 to-slate-200 dark:from-slate-800 dark:to-slate-700
-              hover:from-cyan-50 hover:to-purple-50 dark:hover:from-cyan-900/30 dark:hover:to-purple-900/30
-              border border-slate-300 dark:border-slate-600
-              hover:border-cyan-400/50 dark:hover:border-cyan-500/50
-              transition-all duration-300 hover:scale-105 hover:shadow-lg
-              group relative overflow-hidden"
+            className={`w-9 h-9 rounded-xl flex items-center justify-center border
+              transition-all duration-300 hover:scale-105 hover:shadow-lg group relative overflow-hidden ${
+              isDark
+                ? 'bg-gradient-to-br from-slate-800 to-slate-700 border-slate-600 hover:from-cyan-900/30 hover:to-purple-900/30 hover:border-cyan-500/50'
+                : 'bg-gradient-to-br from-slate-100 to-slate-200 border-slate-300 hover:from-cyan-50 hover:to-purple-50 hover:border-cyan-400/50'
+            }`}
             aria-label={isDark ? 'Light mode' : 'Dark mode'}
             title={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
           >
@@ -238,7 +239,7 @@ export const ZenHeader: React.FC<ZenHeaderProps> = ({
             <DropdownMenuTrigger asChild>
               <Button
                 variant="ghost"
-                className="flex items-center gap-2 hover:bg-black/5 dark:hover:bg-white/5"
+                className={`flex items-center gap-2 ${isDark ? 'hover:bg-white/5' : 'hover:bg-black/5'}`}
               >
                 <Avatar className="h-7 w-7 bg-gradient-to-br from-cyan-500 to-purple-600">
                   <AvatarFallback className="text-xs text-white bg-transparent">

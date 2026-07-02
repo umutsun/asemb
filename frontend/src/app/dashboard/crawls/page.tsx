@@ -2122,7 +2122,7 @@ export default function CrawlerDataPage() {
     });
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+    <div className="min-h-screen">
       <div className="flex">
         {/* Main Content */}
         <div className="flex-1 p-6 overflow-y-auto">

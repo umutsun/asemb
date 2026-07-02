@@ -5,10 +5,12 @@
 import { Router, Request, Response } from 'express';
 import axios from 'axios';
 import { logger } from '../utils/logger';
+import { authenticateToken } from '../middleware/auth.middleware';
 
 const router = Router();
 
-const PYTHON_SERVICE_URL = process.env.PYTHON_SERVICE_URL || 'http://localhost:8003';
+// Default to the real Python service port (:8004); env overrides. (:8003 was a stale default.)
+const PYTHON_SERVICE_URL = process.env.PYTHON_SERVICE_URL || 'http://localhost:8004';
 
 /**
  * GET /api/v2/relationships/stats
@@ -46,7 +48,7 @@ router.get('/graph-data', async (req: Request, res: Response) => {
  * POST /api/v2/relationships/resolve
  * Run reference resolution
  */
-router.post('/resolve', async (req: Request, res: Response) => {
+router.post('/resolve', authenticateToken, async (req: Request, res: Response) => {
   try {
     const response = await axios.post(
       `${PYTHON_SERVICE_URL}/api/python/relationships/resolve`,
@@ -64,7 +66,7 @@ router.post('/resolve', async (req: Request, res: Response) => {
  * POST /api/v2/relationships/extract-batch
  * Start batch extraction job
  */
-router.post('/extract-batch', async (req: Request, res: Response) => {
+router.post('/extract-batch', authenticateToken, async (req: Request, res: Response) => {
   try {
     const response = await axios.post(
       `${PYTHON_SERVICE_URL}/api/python/relationships/extract-batch`,
@@ -92,6 +94,25 @@ router.get('/extract-batch/status/:jobId', async (req: Request, res: Response) =
     res.json(response.data);
   } catch (error: any) {
     logger.error('Relationships batch status error:', error.message);
+    res.status(500).json({ error: error.message || 'Python service unreachable' });
+  }
+});
+
+/**
+ * POST /api/v2/relationships/extract-batch/cancel/:jobId
+ * Cancel a running batch extraction job
+ */
+router.post('/extract-batch/cancel/:jobId', authenticateToken, async (req: Request, res: Response) => {
+  try {
+    const { jobId } = req.params;
+    const response = await axios.post(
+      `${PYTHON_SERVICE_URL}/api/python/relationships/extract-batch/cancel/${jobId}`,
+      {},
+      { timeout: 30000 }
+    );
+    res.json(response.data);
+  } catch (error: any) {
+    logger.error('Relationships batch cancel error:', error.message);
     res.status(500).json({ error: error.message || 'Python service unreachable' });
   }
 });

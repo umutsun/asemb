@@ -58,7 +58,8 @@
   /* Text Colors */
   --zen-text-primary: #0f172a;
   --zen-text-secondary: #475569;
-  --zen-text-muted: #94a3b8;
+  /* Muted text: slate-500 (was slate-400 #94a3b8, ~2.8:1 on white — failed WCAG AA). */
+  --zen-text-muted: #64748b;
 
   /* Glassmorphism */
   --zen-glass-bg: rgba(255, 255, 255, 0.8);
@@ -271,10 +272,9 @@
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
 }
 
-/* Header title/subtitle colour is controlled by the JSX Tailwind classes
-   (text-slate-800 dark:text-slate-100 / text-slate-500 dark:text-slate-400), driven by the
-   reliable `.dark` class. Do NOT override with --zen-text-* here — it stayed light in light
-   mode and made the title unreadable on the white header. */
+/* Header title/subtitle/toggle colours are set in ZenHeader.tsx from the zen01 `isDark` prop
+   (NOT the global Tailwind `.dark` class — the two theme systems can desync, which left a light
+   title + a dark toggle on the white header). Do NOT override with --zen-text-* here. */
 
 /* ============================================
    Welcome Screen

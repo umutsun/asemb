@@ -13,6 +13,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Progress } from '@/components/ui/progress';
 import { useToast } from '@/hooks/use-toast';
+import { fetchWithAuth } from '@/lib/auth-fetch';
+import config from '@/config/api.config';
 import {
   Languages,
   Database,
@@ -126,7 +128,7 @@ export default function DataTranslationsPage() {
 
   const loadProviders = async () => {
     try {
-      const response = await fetch('/api/v2/translations/providers');
+      const response = await fetchWithAuth(`${config.api.baseUrl}/api/v2/translations/providers`);
       if (response.ok) {
         const data = await response.json();
         setProviders(data.providers);
@@ -143,7 +145,7 @@ export default function DataTranslationsPage() {
 
   const loadTables = async () => {
     try {
-      const response = await fetch('/api/v2/translations/tables');
+      const response = await fetchWithAuth(`${config.api.baseUrl}/api/v2/translations/tables`);
       if (response.ok) {
         const data = await response.json();
         setTables(data.tables);
@@ -160,7 +162,7 @@ export default function DataTranslationsPage() {
 
   const loadJobs = async () => {
     try {
-      const response = await fetch('/api/v2/translations/jobs');
+      const response = await fetchWithAuth(`${config.api.baseUrl}/api/v2/translations/jobs`);
       if (response.ok) {
         const data = await response.json();
         setJobs(data.jobs);
@@ -177,7 +179,7 @@ export default function DataTranslationsPage() {
 
   const loadStats = async () => {
     try {
-      const response = await fetch('/api/v2/translations/stats');
+      const response = await fetchWithAuth(`${config.api.baseUrl}/api/v2/translations/stats`);
       if (response.ok) {
         const data = await response.json();
         setStats(data.stats);
@@ -197,7 +199,7 @@ export default function DataTranslationsPage() {
 
     setIsPreviewLoading(true);
     try {
-      const response = await fetch('/api/v2/translations/preview', {
+      const response = await fetchWithAuth(`${config.api.baseUrl}/api/v2/translations/preview`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -244,7 +246,7 @@ export default function DataTranslationsPage() {
 
     setIsLoading(true);
     try {
-      const response = await fetch('/api/v2/translations/translate-table', {
+      const response = await fetchWithAuth(`${config.api.baseUrl}/api/v2/translations/translate-table`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -291,7 +293,7 @@ export default function DataTranslationsPage() {
 
   const handleCancelJob = async (jobId: string) => {
     try {
-      const response = await fetch(`/api/v2/translations/job/${jobId}`, {
+      const response = await fetchWithAuth(`${config.api.baseUrl}/api/v2/translations/job/${jobId}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'cancel' })

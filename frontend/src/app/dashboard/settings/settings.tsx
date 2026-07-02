@@ -60,8 +60,7 @@ import {
   Terminal,
   Bug,
   Network,
-  Database,
-  Share2
+  Database
 } from 'lucide-react';
 import {
   getSettingsCategory,
@@ -73,6 +72,7 @@ import {
   getRelationshipsSettings,
   updateSettingsCategory
 } from '../../../lib/api/settings';
+import { authenticatedFetch } from '@/lib/api/client';
 import { API_CONFIG } from '../../../lib/config';
 import { chatTemplates } from '@/templates/registry';
 import debug from '../../../lib/debug';
@@ -6697,7 +6697,7 @@ export default function OptimizedSettingsPage() {
 
     const loadStats = async () => {
       try {
-        const res = await fetch('/api/v2/relationships/stats');
+        const res = await authenticatedFetch('/api/v2/relationships/stats');
         if (res.ok) setStats(await res.json());
       } catch (error) {
         console.error('Failed to load relationship stats:', error);
@@ -6728,7 +6728,7 @@ export default function OptimizedSettingsPage() {
     const handleResolve = async (dryRun: boolean) => {
       setResolving(true);
       try {
-        const res = await fetch('/api/v2/relationships/resolve', {
+        const res = await authenticatedFetch('/api/v2/relationships/resolve', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ dry_run: dryRun }),
@@ -6744,23 +6744,6 @@ export default function OptimizedSettingsPage() {
         toast({ title: 'Error', description: error.message, variant: 'destructive' });
       } finally {
         setResolving(false);
-      }
-    };
-
-    const handleNeo4jSync = async () => {
-      setSaving(true);
-      try {
-        // Trigger the sync script via a specialized endpoint if exists, 
-        // or just notify that it's a backend operation
-        toast({ 
-          title: 'Neo4j Sync Started', 
-          description: 'Initial graph synchronization is running in the background.',
-        });
-        // Implementation note: You would ideally have an endpoint like /api/v2/relationships/sync-neo4j
-      } catch (error: any) {
-        toast({ title: 'Sync Error', description: error.message, variant: 'destructive' });
-      } finally {
-        setSaving(false);
       }
     };
 
@@ -6819,17 +6802,11 @@ export default function OptimizedSettingsPage() {
           <div className="space-y-6">
             <Card>
               <CardHeader>
-                <CardTitle className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <Database className="w-5 h-5 text-blue-500" />
-                    Neo4j Graph Engine
-                  </div>
-                  <Badge variant="outline" className="text-green-600 border-green-200 bg-green-50">
-                    <div className="w-2 h-2 rounded-full bg-green-500 mr-2 animate-pulse" />
-                    Connected
-                  </Badge>
+                <CardTitle className="flex items-center gap-2">
+                  <Database className="w-5 h-5 text-blue-500" />
+                  Graph Retrieval
                 </CardTitle>
-                <CardDescription>High-performance graph retrieval powered by Neo4j</CardDescription>
+                <CardDescription>Boost RAG answers with related chunks from the PostgreSQL knowledge graph</CardDescription>
               </CardHeader>
               <CardContent className="space-y-5">
                 <div className="flex items-center justify-between py-2">
@@ -6904,10 +6881,6 @@ export default function OptimizedSettingsPage() {
                   <Button variant="outline" size="sm" onClick={() => handleResolve(false)} disabled={resolving}>
                     {resolving && <RefreshCw className="w-3 h-3 mr-1 animate-spin" />}
                     Run Resolution
-                  </Button>
-                  <Button size="sm" className="bg-blue-600 hover:bg-blue-700" onClick={handleNeo4jSync} disabled={saving}>
-                    <Share2 className="w-3 h-3 mr-1" />
-                    Sync to Neo4j
                   </Button>
                 </div>
 
