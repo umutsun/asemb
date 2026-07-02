@@ -32,6 +32,7 @@ import asyncpg
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from services.semantic_search_service import SemanticSearchService
+from services.text_chunker import truncate_at_word
 
 # Configuration
 DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://postgres:Luwi2025SecurePGx7749@localhost:5432/vergilex_lsemb")
@@ -150,9 +151,9 @@ def parse_articles(content: str, law_name: str) -> List[Dict]:
         # Prepend law name and article number for context
         full_content = f"{law_name}\n\nMadde {article_number}\n\n{article_content}"
 
-        # Truncate if too long
+        # Truncate if too long — on a word boundary, not mid-word.
         if len(full_content) > CHUNK_MAX_LENGTH:
-            full_content = full_content[:CHUNK_MAX_LENGTH] + "..."
+            full_content = truncate_at_word(full_content, CHUNK_MAX_LENGTH)
 
         articles.append({
             'article_number': article_number,

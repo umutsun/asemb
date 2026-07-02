@@ -1,0 +1,11 @@
+# LSEMB MCP server — isolated deps (own venv, e.g. .venv-mcp on Python 3.10+).
+# Kept separate from the main service requirements so the modern `mcp` SDK can
+# pull a newer pydantic without disturbing the pinned python-services stack.
+
+mcp>=1.12,<2          # Model Context Protocol SDK (FastMCP + streamable HTTP)
+asyncpg>=0.29,<0.31   # Postgres (job-state tables)
+redis>=5.0,<6         # app/cache DB (live progress, crawl batch state)
+celery>=5.3,<6        # control client: inspect / revoke / send_task
+httpx>=0.27           # proxy to Node (:8083) and Python (:8004) control endpoints
+python-dotenv>=1.0    # load .env.lsemb
+uvicorn[standard]>=0.24
