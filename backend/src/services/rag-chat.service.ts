@@ -187,6 +187,7 @@ interface ChatOptions {
   mediaContext?: MediaContext;  // query-time image/audio upload (P3 multimodal)
   enableSemanticAnalysis?: boolean;
   trackUserInsights?: boolean;
+  debugSanitizer?: boolean;     // attach the sanitizer/claim-verification summary to _debug.sanitizerReport (eval use)
 }
 
 export class RAGChatService {
@@ -195,6 +196,10 @@ export class RAGChatService {
   private routingSchema: RAGRoutingSchema = DEFAULT_RAG_ROUTING_SCHEMA;
   private routingSchemaLoadedAt: number = 0;
   private readonly SCHEMA_CACHE_TTL = 60000; // 1 minute cache
+  // Last sanitizer outcome for the debugSanitizer passthrough: written by
+  // sanitizeProsedurClaims, reset + read within the same processMessage call.
+  // (Per-request scratch on a singleton — good enough for eval/debug use.)
+  private lastSanitizerReport: Record<string, any> | null = null;
 
   constructor() {
     this.llmManager = LLMManager.getInstance();
@@ -5346,8 +5351,10 @@ Yani beyanname ile ödeme arasında **2 günlük** bir fark vardır.`;
 
       // 🛡️ PROSEDÜR CLAIM SANITIZER v9: critical claims verified in ALL sentences
       // v12.14 FIX: Skip sanitizer for hardcoded deadline responses (known correct values, not hallucinations)
+      this.lastSanitizerReport = null; // reset per request (debugSanitizer passthrough)
       if (deadlineHardcodedApplied) {
         console.log(`🛡️ [v12.14] DEADLINE_SANITIZER_BYPASS: Skipping sanitizer for hardcoded deadline response`);
+        this.lastSanitizerReport = { enabled: false, skipped: 'deadline_hardcoded_bypass' };
       } else {
         finalResponse = this.sanitizeProsedurClaims(finalResponse, limitedSources, domainConfig.sanitizerConfig, domainConfig.lawCodes);
       }
@@ -5524,7 +5531,11 @@ Yani beyanname ile ödeme arasında **2 günlük** bir fark vardır.`;
           exactMatchCount: articleQuery.exact_match_count,
           wrongMatchCount: articleQuery.wrong_match_count
         } : null,
-        _debug: debugInfo // 📊 Debug field for regression testing
+        // 📊 Debug field for regression testing. debugSanitizer additionally
+        // exposes the sanitizer/claim-verification summary (eval passthrough).
+        _debug: options.debugSanitizer
+          ? { ...debugInfo, sanitizerReport: this.lastSanitizerReport }
+          : debugInfo
       };
     } catch (error) {
       console.error('RAG chat error:', error);
@@ -7319,6 +7330,21 @@ Please verify the article number or check official sources.`;
     // Use provided config or fall back to defaults
     const sanitizerConfig = config || DEFAULT_SANITIZER_CONFIG;
 
+    // debugSanitizer passthrough: summary of what this pass found/verified/removed
+    // (counts + samples only — reuses the counters the sanitizer already keeps).
+    const sanitizerReport: Record<string, any> = {
+      enabled: !!sanitizerConfig.enabled,
+      sentencesChecked: 0,
+      claimsFound: 0,
+      verifiedCitations: 0,
+      unverifiedCitationsKept: 0,
+      removedSentences: 0,
+      keptWithCitations: 0,
+      sources: sources.length,
+      removedSamples: [] as Array<{ reason: string; excerpt: string }>
+    };
+    this.lastSanitizerReport = sanitizerReport;
+
     // Check if sanitizer is enabled
     if (!sanitizerConfig.enabled) {
       console.log('[SANITIZER] Disabled via schema config');
@@ -7917,6 +7943,7 @@ Please verify the article number or check official sources.`;
       for (const sentence of sentences) {
         const trimmedSentence = sentence.trim();
         if (!trimmedSentence) continue;
+        sanitizerReport.sentencesChecked++;
 
         // PHASE 1: Extract citations
         const citationNums = extractCitations(trimmedSentence);
@@ -7929,6 +7956,7 @@ Please verify the article number or check official sources.`;
           if (verification.verified) {
             processedSentences.push(trimmedSentence);
             keptWithGroundingCount++;
+            sanitizerReport.verifiedCitations++;
             if (sanitizerConfig.logRemovals) {
               console.log(`[SANITIZER] KEPT (verified): "${trimmedSentence.substring(0, 60)}..." - ${verification.reason}`);
             }
@@ -7936,6 +7964,7 @@ Please verify the article number or check official sources.`;
             // CITATION LAUNDERING DETECTED → KEEP with warning (v12.49)
             processedSentences.push(trimmedSentence);
             keptWithGroundingCount++;
+            sanitizerReport.unverifiedCitationsKept++;
             console.log(`[SANITIZER] KEPT (citation-present, unverified): "${trimmedSentence.substring(0, 80)}..."`);
             console.log(`   ${verification.reason}`);
           }
@@ -7946,8 +7975,12 @@ Please verify the article number or check official sources.`;
 
         // Check 3a: Critical claims without citation → REMOVE
         const criticalClaims = detectCriticalClaims(trimmedSentence);
+        sanitizerReport.claimsFound += criticalClaims.length;
         if (criticalClaims.length > 0) {
           removedCount++;
+          if (sanitizerReport.removedSamples.length < 5) {
+            sanitizerReport.removedSamples.push({ reason: 'critical-no-citation', excerpt: trimmedSentence.substring(0, 120) });
+          }
           if (sanitizerConfig.logRemovals) {
             console.log(`[SANITIZER] REMOVED (critical-no-citation): "${trimmedSentence.substring(0, 80)}..."`);
             console.log(`   Critical claims found: [${criticalClaims.map(c => `${c.type}:${c.value}`).join(', ')}]`);
@@ -7959,6 +7992,9 @@ Please verify the article number or check official sources.`;
         const matchedPattern = forbiddenPatterns.find(p => p.test(trimmedSentence));
         if (matchedPattern) {
           removedCount++;
+          if (sanitizerReport.removedSamples.length < 5) {
+            sanitizerReport.removedSamples.push({ reason: 'forbidden-no-citation', excerpt: trimmedSentence.substring(0, 120) });
+          }
           if (sanitizerConfig.logRemovals) {
             console.log(`[SANITIZER] REMOVED (forbidden+no-citation): "${trimmedSentence.substring(0, 80)}..."`);
           }
@@ -7995,6 +8031,10 @@ Please verify the article number or check official sources.`;
     if (removedCount > 0 || keptWithGroundingCount > 0) {
       console.log(`[SANITIZER v9] Summary: removed=${removedCount}, kept=${keptWithGroundingCount}, sources=${sources.length}`);
     }
+
+    // Finalize the debugSanitizer report (mirrors the counters above)
+    sanitizerReport.removedSentences = removedCount;
+    sanitizerReport.keptWithCitations = keptWithGroundingCount;
 
     return result.trim();
   }

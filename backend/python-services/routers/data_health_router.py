@@ -12,6 +12,7 @@ Endpoints:
 """
 
 import os
+import time
 from typing import Optional, List
 from fastapi import APIRouter, HTTPException, Query, Depends
 from pydantic import BaseModel, Field
@@ -29,22 +30,36 @@ router = APIRouter(prefix="/api/python/data-health", tags=["Data Health"])
 # =====================================================
 
 _source_pool: Optional[asyncpg.Pool] = None
+_source_pool_failed_at: float = 0.0
+# After a failed connection attempt, wait this long before retrying so every
+# request does not pay the connect timeout again.
+_SOURCE_POOL_RETRY_SECONDS = 300.0
 
 
-async def get_source_pool() -> asyncpg.Pool:
-    """Get source database pool (vergilex_db, geolex_db, etc.)"""
-    global _source_pool
+async def get_source_pool() -> Optional[asyncpg.Pool]:
+    """Best-effort pool for the source database (vergilex_db, geolex_db, ...).
+
+    Returns None when no source DB is configured or reachable — data health
+    then runs its system-DB-only checks and reports the source-dependent ones
+    as skipped (tenants like bookie only have self-sourced tables and no
+    corresponding *_db source database). Connection failures are cached for
+    _SOURCE_POOL_RETRY_SECONDS to avoid reconnect storms.
+    """
+    global _source_pool, _source_pool_failed_at
 
     if _source_pool is not None:
         return _source_pool
 
-    # Source DB URL from settings or environment
+    now = time.monotonic()
+    if _source_pool_failed_at and (now - _source_pool_failed_at) < _SOURCE_POOL_RETRY_SECONDS:
+        return None
+
+    # Source DB URL from environment, or guessed from the DATABASE_URL pattern
     source_db_url = os.getenv("SOURCE_DATABASE_URL")
 
     if not source_db_url:
-        # Try to build from DATABASE_URL pattern
         # DATABASE_URL: postgresql://user:pass@host:port/vergilex_lsemb
-        # SOURCE_DB: postgresql://user:pass@host:port/vergilex_db
+        # SOURCE_DB:    postgresql://user:pass@host:port/vergilex_db
         db_url = os.getenv("DATABASE_URL", "")
         if db_url:
             # Replace database name suffix
@@ -57,7 +72,10 @@ async def get_source_pool() -> asyncpg.Pool:
                 source_db_url = db_url
 
     if not source_db_url:
-        raise ValueError("SOURCE_DATABASE_URL not configured")
+        logger.warning("No SOURCE_DATABASE_URL configured and DATABASE_URL gives no "
+                       "candidate - source-dependent data-health checks disabled")
+        _source_pool_failed_at = now
+        return None
 
     try:
         _source_pool = await asyncpg.create_pool(
@@ -66,15 +84,17 @@ async def get_source_pool() -> asyncpg.Pool:
             max_size=10,
             command_timeout=60,
         )
-        logger.info(f"✅ Source DB connected")
+        logger.info("Source DB connected")
         return _source_pool
     except Exception as e:
-        logger.error(f"❌ Source DB connection failed: {e}")
-        raise
+        logger.warning(f"Source DB unreachable ({e}) - running system-DB-only "
+                       "data-health checks; source-dependent checks will be reported as skipped")
+        _source_pool_failed_at = now
+        return None
 
 
 async def get_data_health_service() -> DataHealthService:
-    """Get data health service with both pools"""
+    """Get the data health service. The source pool is optional (may be None)."""
     system_pool = await get_db()
     source_pool = await get_source_pool()
     return DataHealthService(system_pool, source_pool)
@@ -85,11 +105,18 @@ async def get_data_health_service() -> DataHealthService:
 # =====================================================
 
 class HealthReportResponse(BaseModel):
-    """Veri sağlığı raporu response"""
+    """Data-health report response. The newer blocks are optional/additive so
+    existing consumers keep working unchanged."""
     generated_at: str
     summary: dict
     tables: dict
     recommendations: List[str]
+    size_info: Optional[dict] = None
+    metadata_coverage: Optional[dict] = None
+    pairing_gaps: Optional[dict] = None
+    graph_health: Optional[dict] = None
+    skipped_checks: Optional[List[str]] = None
+    config: Optional[dict] = None
 
 
 class FixMetadataRequest(BaseModel):
@@ -157,8 +184,10 @@ async def get_health_report(
     service: DataHealthService = Depends(get_data_health_service)
 ):
     """
-    Genel veri sağlığı raporu.
-    Tüm tablolar için orphan, missing metadata, duplicate sayılarını döner.
+    Overall data-health report: orphan / missing-metadata / duplicate counts per
+    table, plus the additive metadata-coverage, pairing-gap and graph-health
+    blocks. Source-DB-dependent checks are skipped (and listed in
+    `skipped_checks`) when the source DB is unreachable.
     """
     try:
         report = await service.generate_health_report()

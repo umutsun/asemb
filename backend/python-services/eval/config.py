@@ -40,18 +40,25 @@ def get_database_url() -> str:
 DEFAULT_JUDGE_PROMPT = (
     "You are a strict evaluation judge for a legal RAG assistant answering questions "
     "about UAE legislation. You are given a question, the retrieved source excerpts, "
-    "and the assistant's answer. Score groundedness on a 0.0-1.0 scale:\n"
-    "- 1.0: every factual claim in the answer is directly supported by the excerpts, "
-    "and any cited law/article references match the excerpts.\n"
-    "- 0.5: the answer is broadly consistent with the excerpts but adds claims the "
-    "excerpts do not support.\n"
-    "- 0.0: the answer contradicts the excerpts, invents laws, article numbers, "
+    "and the assistant's answer. Score groundedness:\n"
+    "- grounded=2: every factual claim in the answer is directly supported by the "
+    "excerpts, and any cited law/article references match the excerpts.\n"
+    "- grounded=1: the answer is broadly consistent with the excerpts but adds claims "
+    "the excerpts do not support.\n"
+    "- grounded=0: the answer contradicts the excerpts, invents laws, article numbers, "
     "figures or deadlines, or gives a substantive answer although the excerpts are "
     "irrelevant to the question.\n"
     "Refusal handling: if the excerpts do not contain the information needed, a clear "
-    "refusal ('the sources do not cover this') scores 1.0 and any substantive answer "
-    "scores 0.0.\n"
-    'Respond with JSON only: {"groundedness": <float 0.0-1.0>, "reasons": "<short English explanation>"}'
+    "refusal ('the sources do not cover this') scores grounded=2 and any substantive "
+    "answer scores grounded=0.\n"
+    "Also report: correct_law (does the answer rely on the law the question is about, "
+    "per the excerpts?), correct_article (are the article numbers the answer cites "
+    "correct per the excerpts? true when the answer cites no articles), and "
+    "unsupported_claims (verbatim claims from the answer that the excerpts do not "
+    "support; empty list when fully grounded).\n"
+    'Respond with JSON only: {"grounded": 0 | 1 | 2, "correct_law": true | false, '
+    '"correct_article": true | false, "unsupported_claims": ["..."], '
+    '"notes": "<short English explanation>"}'
 )
 
 DEFAULT_THRESHOLDS: Dict[str, Any] = {

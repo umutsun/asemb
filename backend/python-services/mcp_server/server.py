@@ -9,6 +9,7 @@ already-correct side effects instead of re-implementing flag semantics.
 Run:  python -m mcp_server      (from backend/python-services)
 """
 
+import json
 import logging
 import time
 from typing import Optional
@@ -417,6 +418,253 @@ async def recent_errors(limit: int = 20) -> dict:
             "WHERE status = 'failed' ORDER BY id DESC LIMIT $1", limit
         )
 
+    return out
+
+
+def _data_health_defaults():
+    """In-code fallbacks for the dataHealth.* settings keys.
+
+    The single source of truth for these defaults is services/data_health.py
+    (Hard Rule #2: default in one place). The import is guarded because the MCP
+    server may run in a lightweight venv; when it fails we degrade to
+    settings-rows-only (no duplicated dict here).
+    """
+    try:
+        from services.data_health import (
+            DEFAULT_METADATA_FIELDS, DEFAULT_PAIRING, DEFAULT_SELF_SOURCED_TABLES,
+        )
+        return DEFAULT_METADATA_FIELDS, DEFAULT_PAIRING, DEFAULT_SELF_SOURCED_TABLES
+    except Exception:
+        return None, None, None
+
+
+async def _json_setting(key: str, fallback):
+    """settings-table JSON value for `key`, or `fallback` when the row is
+    absent/malformed. Returns (value, source) with source in
+    settings|default|missing."""
+    raw = await infra.get_setting(key)
+    if raw is not None:
+        try:
+            return json.loads(raw), "settings"
+        except (json.JSONDecodeError, TypeError) as e:
+            log.warning("settings row %s is not valid JSON (%s) - using default", key, e)
+    if fallback is not None:
+        return fallback, "default"
+    return None, "missing"
+
+
+@mcp.tool()
+async def data_health_summary() -> dict:
+    """Read-only data-health summary for the RAG corpus (system DB only):
+    per-table required-metadata coverage (dataHealth.metadataFields), pairing
+    gaps such as laws missing their EN or AR version (dataHealth.pairing),
+    knowledge-graph resolution / entity-extraction coverage, and plain-English
+    recommendations. Configuration comes from the settings table with in-code
+    defaults from services/data_health.py."""
+    if not await infra.table_exists("unified_embeddings"):
+        return {"error": "unified_embeddings table not found"}
+
+    default_fields, default_pairing, _default_self = _data_health_defaults()
+    metadata_fields, fields_source = await _json_setting("dataHealth.metadataFields", default_fields)
+    pairing, pairing_source = await _json_setting("dataHealth.pairing", default_pairing)
+
+    out: dict = {
+        "config_sources": {
+            "dataHealth.metadataFields": fields_source,
+            "dataHealth.pairing": pairing_source,
+        },
+        "totals": {
+            "embeddings": await _safe_val("SELECT COUNT(*) FROM unified_embeddings"),
+            "by_table": await _safe_fetch(
+                "SELECT source_table, COUNT(*) AS rows FROM unified_embeddings "
+                "GROUP BY source_table ORDER BY rows DESC LIMIT 15"
+            ),
+        },
+    }
+    recommendations: list[str] = []
+
+    # Required-metadata coverage per configured table+field
+    coverage: dict = {}
+    for table, fields in (metadata_fields or {}).items():
+        if table == "default":
+            continue
+        total = await _safe_val(
+            "SELECT COUNT(*) FROM unified_embeddings WHERE LOWER(source_table) = LOWER($1)", table
+        )
+        if not total:
+            continue
+        field_stats = {}
+        for field in fields:
+            cnt = await _safe_val(
+                "SELECT COUNT(*) FROM unified_embeddings "
+                "WHERE LOWER(source_table) = LOWER($1) AND metadata ? $2", table, str(field)
+            ) or 0
+            pct = round(cnt / total * 100, 2)
+            field_stats[str(field)] = {"count": cnt, "pct": pct}
+            if pct < 50:
+                recommendations.append(
+                    f"Metadata key '{field}' covers only {pct}% of '{table}' rows - "
+                    "run the metadata backfill."
+                )
+        coverage[table] = {"total_rows": total, "fields": field_stats}
+    out["metadata_coverage"] = coverage
+
+    # Pairing gaps (e.g. law_key groups missing one of lang en/ar)
+    if pairing and pairing.get("enabled"):
+        grp = str(pairing.get("groupField", "law_key"))
+        dim = str(pairing.get("dimensionField", "lang"))
+        expected = [str(v) for v in pairing.get("expected", ["en", "ar"])]
+        src = str(pairing.get("sourceTable", "uae_legislation"))
+        gaps = await _safe_fetch(
+            "SELECT grp, dims FROM ("
+            "  SELECT metadata->>$2 AS grp, array_agg(DISTINCT metadata->>$3) AS dims"
+            "  FROM unified_embeddings"
+            "  WHERE LOWER(source_table) = LOWER($1)"
+            "    AND metadata->>$2 IS NOT NULL AND metadata->>$3 IS NOT NULL"
+            "  GROUP BY 1"
+            ") g WHERE NOT (dims @> $4::text[]) ORDER BY grp",
+            src, grp, dim, expected,
+        )
+        out["pairing_gaps"] = {
+            "enabled": True,
+            "source_table": src,
+            "group_field": grp,
+            "expected": expected,
+            "gap_count": len(gaps),
+            "examples": [
+                {"group": g["grp"], "present": g["dims"],
+                 "missing": sorted(set(expected) - set(g["dims"] or []))}
+                for g in gaps[:10]
+            ],
+        }
+        if gaps:
+            recommendations.append(
+                f"{len(gaps)} {grp} groups in '{src}' are missing one of {expected} - "
+                "ingest the missing language versions."
+            )
+    else:
+        out["pairing_gaps"] = {"enabled": False}
+
+    # Knowledge-graph health
+    graph: dict = {"available": False}
+    if await infra.table_exists("chunk_relationships"):
+        graph["available"] = True
+        total_rel = await _safe_val("SELECT COUNT(*) FROM chunk_relationships") or 0
+        resolved = await _safe_val(
+            "SELECT COUNT(*) FROM chunk_relationships WHERE target_chunk_id IS NOT NULL"
+        ) or 0
+        rate = round(resolved / total_rel, 4) if total_rel else None
+        graph["relationships"] = {"total": total_rel, "resolved": resolved, "resolution_rate": rate}
+        if total_rel and rate is not None and rate < 0.5:
+            recommendations.append(
+                f"Only {rate:.0%} of chunk_relationships are resolved - run the reference resolver."
+            )
+    if await infra.table_exists("chunk_entities"):
+        graph["available"] = True
+        tables = [t.lower() for t in (metadata_fields or {}).keys() if t != "default"]
+        if tables:
+            total_chunks = await _safe_val(
+                "SELECT COUNT(*) FROM unified_embeddings WHERE LOWER(source_table) = ANY($1::text[])",
+                tables,
+            ) or 0
+            covered = await _safe_val(
+                "SELECT COUNT(DISTINCT ue.id) FROM unified_embeddings ue "
+                "JOIN chunk_entities ce ON ce.chunk_id = ue.id "
+                "WHERE LOWER(ue.source_table) = ANY($1::text[])",
+                tables,
+            ) or 0
+            cov = round(covered / total_chunks * 100, 2) if total_chunks else None
+            graph["extraction"] = {
+                "source_tables": tables,
+                "total_chunks": total_chunks,
+                "chunks_with_entities": covered,
+                "coverage_pct": cov,
+            }
+            if total_chunks and cov is not None and cov < 50:
+                recommendations.append(
+                    f"Entity extraction covers only {cov}% of chunks - run/resume the extraction job."
+                )
+    out["graph_health"] = graph
+
+    if not recommendations:
+        recommendations.append("Data health looks good.")
+    out["recommendations"] = recommendations
+    return out
+
+
+def _parse_summary(value):
+    """eval_runs.summary arrives as a JSON string from asyncpg (no codec set)."""
+    if isinstance(value, str):
+        try:
+            return json.loads(value)
+        except (json.JSONDecodeError, TypeError):
+            return None
+    return value if isinstance(value, dict) else None
+
+
+def _numeric_leaves(obj, prefix: str = "") -> dict:
+    """Flatten numeric leaves of a nested summary dict ('overall.recall_at_5': 0.8)."""
+    out: dict = {}
+    if isinstance(obj, dict):
+        for k, v in obj.items():
+            key = f"{prefix}.{k}" if prefix else str(k)
+            if isinstance(v, bool):
+                continue
+            if isinstance(v, (int, float)):
+                out[key] = v
+            elif isinstance(v, dict):
+                out.update(_numeric_leaves(v, key))
+    return out
+
+
+@mcp.tool()
+async def eval_overview(limit: int = 5) -> dict:
+    """Summaries of the last N eval runs (eval_runs / eval_results tables) with
+    pass counts and a metric delta vs the previous run of the same kind.
+    Read-only; returns a note when the eval tables are not migrated yet."""
+    if not await infra.table_exists("eval_runs"):
+        return {
+            "available": False,
+            "note": "eval_runs table not found - apply "
+                    "backend/database/migrations/20260702_eval_runs.sql",
+        }
+    limit = max(1, min(limit, 25))
+    runs = await _safe_fetch(
+        "SELECT id, kind, golden_set, git_sha, started_at, finished_at, summary, total_cost_usd "
+        "FROM eval_runs ORDER BY started_at DESC NULLS LAST LIMIT $1", limit
+    )
+    out: dict = {"available": True, "run_count": len(runs), "runs": []}
+    for r in runs:
+        entry = dict(r)
+        entry["summary"] = _parse_summary(r.get("summary"))
+        if await infra.table_exists("eval_results"):
+            counts = await _safe_fetch(
+                "SELECT passed, COUNT(*) AS n FROM eval_results "
+                "WHERE run_id = $1::uuid GROUP BY passed", r["id"]
+            )
+            entry["results"] = {
+                "passed": sum(c["n"] for c in counts if c["passed"] is True),
+                "failed": sum(c["n"] for c in counts if c["passed"] is False),
+                "unknown": sum(c["n"] for c in counts if c["passed"] is None),
+            }
+        # Delta vs the previous run of the same kind (numeric summary leaves).
+        # started_at arrives ISO-serialized from infra.clean, hence the text cast.
+        prev = []
+        if r.get("started_at"):
+            prev = await _safe_fetch(
+                "SELECT summary FROM eval_runs "
+                "WHERE kind = $1 AND started_at < $2::text::timestamptz "
+                "ORDER BY started_at DESC LIMIT 1", r.get("kind"), str(r.get("started_at"))
+            )
+        if prev:
+            cur_m = _numeric_leaves(entry["summary"] or {})
+            prev_m = _numeric_leaves(_parse_summary(prev[0].get("summary")) or {})
+            entry["delta_vs_previous"] = {
+                k: round(cur_m[k] - prev_m[k], 4)
+                for k in sorted(set(cur_m) & set(prev_m))
+                if cur_m[k] != prev_m[k]
+            }
+        out["runs"].append(entry)
     return out
 
 

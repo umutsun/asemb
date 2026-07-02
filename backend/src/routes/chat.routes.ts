@@ -86,6 +86,7 @@ router.post('/api/v2/chat', authenticateToken, async (req: AuthenticatedRequest,
       responseStyle,
       enableSemanticAnalysis = false,
       trackUserInsights = false,
+      debugSanitizer = false, // eval passthrough: expose _debug.sanitizerReport
       stream = false,
       clientId
     } = req.body;
@@ -174,7 +175,8 @@ router.post('/api/v2/chat', authenticateToken, async (req: AuthenticatedRequest,
       language,
       responseStyle,
       enableSemanticAnalysis,
-      trackUserInsights
+      trackUserInsights,
+      debugSanitizer: debugSanitizer === true
     });
 
     console.log('Chat response:', {

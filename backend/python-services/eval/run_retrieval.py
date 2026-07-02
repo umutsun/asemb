@@ -33,7 +33,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from eval.config import ARTIFACTS_DIR, GOLDEN_DIR, load_eval_config
+from eval import report
+from eval.config import GOLDEN_DIR, load_eval_config
 from eval.matchers import find_match_rank
 
 if hasattr(sys.stdout, "reconfigure"):
@@ -94,10 +95,25 @@ async def _attach_source_names(pool, results: List[Dict[str, Any]]) -> None:
 
 
 async def run(golden_path: Path, only: Optional[str], lang: Optional[str], k_override: Optional[int]) -> int:
+    code, _artifact = await run_scored(golden_path, only, lang, k_override)
+    return code
+
+
+async def run_scored(
+    golden_path: Path,
+    only: Optional[str],
+    lang: Optional[str],
+    k_override: Optional[int],
+    persist: bool = True,
+) -> tuple:
+    """Core retrieval eval. Returns (exit_code, artifact) so orchestrators
+    (eval.run_all) can reuse the metrics; `persist=False` skips the eval_runs
+    row when the caller persists a combined run itself."""
     # services.* import deferred to runtime so `--help` works without the venv deps.
     from services.database import get_db, init_db
     from services.semantic_search_service import SemanticSearchService
 
+    started_at = report.utc_now()
     cfg = await load_eval_config()
     k = k_override or cfg.retrieval_k
     mode = cfg.matcher_mode
@@ -110,7 +126,7 @@ async def run(golden_path: Path, only: Optional[str], lang: Optional[str], k_ove
         items = [i for i in items if i.get("lang") == lang]
     if not items:
         sys.stderr.write("No golden items matched the filters.\n")
-        return 2
+        return 2, {}
 
     runnable = [i for i in items if not i.get("expected", {}).get("expect_refusal")]
     skipped = [i["id"] for i in items if i.get("expected", {}).get("expect_refusal")]
@@ -205,21 +221,44 @@ async def run(golden_path: Path, only: Optional[str], lang: Optional[str], k_ove
         "soft_fails": soft_fails,
         "rows": rows,
     }
-    ARTIFACTS_DIR.mkdir(parents=True, exist_ok=True)
-    ts = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
-    out = ARTIFACTS_DIR / f"retrieval_{ts}.json"
-    with out.open("w", encoding="utf-8") as f:
-        json.dump(artifact, f, ensure_ascii=False, indent=2)
+    out = report.write_artifact("retrieval", artifact)
     print(f"\nartifact: {out}")
 
-    if hard_fails:
+    if persist:
+        # DB persistence is best-effort: when the eval_runs tables are absent
+        # report.persist_run warns and returns None (artifact/exit unchanged).
+        run_id = await report.persist_run(
+            kind="retrieval",
+            golden_set=golden_path.stem,
+            config={"matcher_mode": mode, "k": k, "thresholds": thresholds,
+                    "filters": {"only": only, "lang": lang}},
+            summary={"overall": overall, "by_lang": by_lang, "by_domain": by_domain,
+                     "metadata_coverage": metadata_coverage,
+                     "hard_fails": hard_fails, "soft_fails": soft_fails},
+            results=[
+                {
+                    "question_id": r["id"],
+                    "lang": r["lang"],
+                    "passed": r["rank"] is not None and r["rank"] <= 5,
+                    "metrics": {k_: r[k_] for k_ in
+                                ("rank", "n_results", "domain", "top1_title", "top1_score",
+                                 "expected_law", "expected_article")},
+                }
+                for r in rows
+            ],
+            started_at=started_at,
+        )
+        if run_id:
+            print(f"eval_runs id: {run_id}")
+
+    code = report.exit_code(hard_fails, soft_fails)
+    if code == 2:
         print("HARD FAIL: " + "; ".join(hard_fails))
-        return 2
-    if soft_fails:
+    elif code == 1:
         print("SOFT FAIL: " + "; ".join(soft_fails))
-        return 1
-    print("PASS")
-    return 0
+    else:
+        print("PASS")
+    return code, artifact
 
 
 def _group(rows: List[Dict[str, Any]], key: str) -> Dict[str, List[Dict[str, Any]]]:

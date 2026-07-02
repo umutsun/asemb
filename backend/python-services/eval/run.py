@@ -59,7 +59,8 @@ def _looks_like_refusal(answer: str) -> bool:
 
 
 async def _call_chat(client: httpx.AsyncClient, url: str, token: Optional[str],
-                     item: Dict[str, Any]) -> Dict[str, Any]:
+                     item: Dict[str, Any],
+                     extra_payload: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
     headers = {}
     if token:
         headers["Authorization"] = f"Bearer {token}"
@@ -69,6 +70,9 @@ async def _call_chat(client: httpx.AsyncClient, url: str, token: Optional[str],
         "language": item.get("lang", "en"),
         "stream": False,
     }
+    if extra_payload:
+        # e.g. {"debugSanitizer": True} so _debug.sanitizerReport comes back
+        payload.update(extra_payload)
     t0 = time.perf_counter()
     try:
         r = await client.post(url, json=payload, headers=headers, timeout=120.0)
@@ -80,6 +84,7 @@ async def _call_chat(client: httpx.AsyncClient, url: str, token: Optional[str],
             "answer": answer,
             "sources": body.get("sources", []),
             "refusal": _looks_like_refusal(answer),
+            "debug": body.get("_debug"),
             "latency_ms": int((time.perf_counter() - t0) * 1000),
         }
     except (httpx.HTTPError, ValueError) as e:
