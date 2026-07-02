@@ -37,6 +37,20 @@ export function preprocessMarkdown(content: string): string {
   result = result.replace(/\*\*\s*(\d{1,2})\s*-{1,3}\s*\*\*\s*/g, '$1. ');
   result = result.replace(/\*\*\s*(\d{1,2})\s*-{1,3}\s+/g, '$1. ');
 
+  // ═══ STEP 0b: Reunite a bold closer stranded on its own line ═══
+  // LLMs sometimes emit the closing ** of a bold span on the next line:
+  //   "**Answer: … 24 months.\n**"  → the lone ** renders as a literal "**" (the exact artifact
+  // seen in the modern theme). When a ** sits alone on a line (nothing after it but the line end),
+  // attach it to the previous line so the span closes inline. Precise on purpose: it only fires for
+  // a truly lone **, so it never mis-closes a legitimate inline "**bold**".
+  result = result.replace(/([^\s*])[ \t]*\n+[ \t]*\*\*[ \t]*(?=\n|$)/g, '$1**');
+
+  // ═══ STEP 0c: Reattach a list number stranded on its own line ═══
+  // "1.\n\nAn arbitration agreement..." (number alone, its content on the next line) →
+  // "1. An arbitration agreement...", so ReactMarkdown renders a real list item instead of a
+  // stray "1." trailing the previous paragraph + a separate paragraph.
+  result = result.replace(/(^|\n)[ \t]*(\d{1,2})\.[ \t]*\n+[ \t]*(?=\S)/g, '$1$2. ');
+
   // ═══ STEP 1: Fix broken bold headers (language-agnostic) ═══
   // "**2.\nHeader:**" → "**2. Header:**"
   result = result.replace(/\*\*(\d)\.\s*\n\s*/g, '**$1. ');

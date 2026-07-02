@@ -3,7 +3,7 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
-import { User, Bot, Clock, Volume2, Pause, Loader2, ExternalLink, FileText } from 'lucide-react';
+import { User, Bot, Clock, Volume2, Pause, Loader2 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { ZenTypingIndicator } from './ZenTypingIndicator';
@@ -922,9 +922,10 @@ export const ZenMessage: React.FC<ZenMessageProps> = ({
                     return truncated.trim() + '…';
                   }
                   // Not truncated but ends mid-sentence (a chunk cut): trim back to the last full
-                  // sentence, as long as that keeps most of the text.
+                  // sentence so the card never shows a dangling half-sentence, as long as that
+                  // still keeps a meaningful amount of text.
                   const endIdx = lastSentenceEnd(combined);
-                  if (endIdx !== -1 && endIdx < combined.length - 1 && endIdx > combined.length * 0.6) {
+                  if (endIdx !== -1 && endIdx < combined.length - 1 && endIdx > combined.length * 0.45) {
                     return combined.substring(0, endIdx + 1);
                   }
                   return combined;
@@ -942,13 +943,6 @@ export const ZenMessage: React.FC<ZenMessageProps> = ({
                 if (!originLabel && meta?.url) {
                   try { originLabel = new URL(meta.url).hostname.replace(/^www\./, ''); } catch { /* ignore */ }
                 }
-
-                // "Go to source" link — the original document (law PDF, gov page, crawl origin).
-                const sourceUrl = String(
-                  meta?.url || meta?.source_url || (source as any).url || ''
-                ).trim();
-                const isPdf = /\.pdf($|\?)/i.test(sourceUrl)
-                  || String(meta?.file_type || '').toLowerCase() === 'pdf';
 
                 return (
                   <div
@@ -1003,21 +997,6 @@ export const ZenMessage: React.FC<ZenMessageProps> = ({
                       </p>
                     )}
 
-                    {/* Go to source — opens the original law PDF / page in a new tab.
-                        stopPropagation so it doesn't also trigger the card's onSourceClick. */}
-                    {sourceUrl && (
-                      <a
-                        href={sourceUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        onClick={(e) => e.stopPropagation()}
-                        title={sourceUrl}
-                        className="inline-flex items-center gap-1 mt-1.5 text-[11px] font-medium text-cyan-600 dark:text-cyan-400 hover:text-cyan-700 dark:hover:text-cyan-300 hover:underline"
-                      >
-                        {isPdf ? <FileText className="w-3 h-3" /> : <ExternalLink className="w-3 h-3" />}
-                        {isPdf ? t('chat.citation.openPdf', 'Open PDF') : t('chat.citation.goToSource', 'Go to source')}
-                      </a>
-                    )}
                   </div>
                 );
               })}

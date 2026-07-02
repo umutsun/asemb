@@ -271,14 +271,10 @@
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
 }
 
-/* Header text colors */
-.zen01-header h1 {
-  color: var(--zen-text-primary);
-}
-
-.zen01-header p {
-  color: var(--zen-text-secondary);
-}
+/* Header title/subtitle colour is controlled by the JSX Tailwind classes
+   (text-slate-800 dark:text-slate-100 / text-slate-500 dark:text-slate-400), driven by the
+   reliable `.dark` class. Do NOT override with --zen-text-* here — it stayed light in light
+   mode and made the title unreadable on the white header. */
 
 /* ============================================
    Welcome Screen
