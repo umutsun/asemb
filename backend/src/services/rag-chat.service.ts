@@ -185,6 +185,8 @@ interface ChatOptions {
   maxTokens?: number;
   pdfContext?: PdfContext;
   mediaContext?: MediaContext;  // query-time image/audio upload (P3 multimodal)
+  enableSemanticAnalysis?: boolean;
+  trackUserInsights?: boolean;
 }
 
 export class RAGChatService {
@@ -868,7 +870,13 @@ export class RAGChatService {
       if (answerInstruction) sections.push(answerInstruction);
       if (groundingRulesText) sections.push(`GROUNDING RULES:\n${groundingRulesText}`);
       if (citationInstructions) sections.push(`INLINE CITATION RULES:\n${citationInstructions}`);
-      sections.push(`FORMATTING:\n- Use **bold** for key terms\n- Leave blank lines between paragraphs`);
+      sections.push(`FORMATTING (clean Markdown — the UI renders Markdown, so malformed marks show as literal characters):
+- Bold with **double asterisks** that OPEN and CLOSE on the SAME line, e.g. **1,000 AED**. Never split a bold across lines and never leave a lone ** on its own line.
+- Numbered lists: put each item on its own line starting with "1. " (digit, period, space); leave a blank line before the list.
+- Bulleted lists: put each item on its own line starting with "- " (dash, space).
+- Separate every paragraph and every list with a blank line.
+- Use "## Heading" on its own line for section headings — not a bold line that wraps.
+- No raw HTML and no stray single * characters.`);
       sections.push(`LENGTH:\n- TARGET: ${articleLength} chars\n- MINIMUM: ${minLength} chars`);
       sections.push(`PROHIBITED:
 - Do NOT write "This is out of scope" or "No sources found" (backend handles this)
@@ -905,7 +913,13 @@ export class RAGChatService {
       if (answerInstruction) sections.push(answerInstruction);
       if (groundingRulesText) sections.push(`GROUNDING RULES:\n${groundingRulesText}`);
       if (citationInstructions) sections.push(`INLINE CITATION RULES:\n${citationInstructions}`);
-      sections.push(`FORMATTING:\n- Use **bold** for key terms\n- Leave blank lines between paragraphs`);
+      sections.push(`FORMATTING (clean Markdown — the UI renders Markdown, so malformed marks show as literal characters):
+- Bold with **double asterisks** that OPEN and CLOSE on the SAME line, e.g. **1,000 AED**. Never split a bold across lines and never leave a lone ** on its own line.
+- Numbered lists: put each item on its own line starting with "1. " (digit, period, space); leave a blank line before the list.
+- Bulleted lists: put each item on its own line starting with "- " (dash, space).
+- Separate every paragraph and every list with a blank line.
+- Use "## Heading" on its own line for section headings — not a bold line that wraps.
+- No raw HTML and no stray single * characters.`);
       sections.push(`LENGTH:\n- TARGET: ${articleLength} chars\n- MINIMUM: ${minLength} chars`);
       sections.push(`PROHIBITED:
 - Do NOT write "This is out of scope" or "No sources found" (backend handles this)
@@ -1644,7 +1658,10 @@ Using the relevant legal sources from database:
         console.log(`[PDF+RAG] Search query: "${searchQuery.substring(0, 100)}..."`);
 
         // Search unified embeddings
-        const searchResults = await this.searchUnifiedEmbeddings(searchQuery, pdfRagMaxResults);
+        const useUnifiedEmbeddings = process.env.USE_UNIFIED_EMBEDDINGS === 'true';
+        const searchResults = useUnifiedEmbeddings
+          ? await semanticSearch.unifiedSemanticSearch(searchQuery, pdfRagMaxResults)
+          : await semanticSearch.hybridSearch(searchQuery, pdfRagMaxResults);
 
         if (searchResults && searchResults.length > 0) {
           ragSources = searchResults.map((r: any) => ({
@@ -1702,14 +1719,21 @@ ${questionLabel}: ${message}`;
       }
     );
 
-    // Save message to conversation
+    // Markdown/citation repairs — same post-processing as the standard chat
+    // path (previously skipped for PDF answers). With no RAG sources the
+    // hallucinated-citation stripper is a no-op, so pure-PDF mode is safe.
+    const fixedContent = this.fixMarkdownAndCitations(response.content, ragSources);
+
+    // Save message to conversation (the repaired content, so persisted
+    // history matches what the client displays)
     try {
-      await this.saveMessage(conversationId, 'user', message, { pdfFilename: pdfContext.filename });
-      await this.saveMessage(conversationId, 'assistant', response.content, {
-        model: activeModel,
-        pdfFilename: pdfContext.filename,
-        ragSourceCount: ragSources.length
-      });
+      await this.saveMessage(conversationId, 'user', message, [{ pdfFilename: pdfContext.filename }]);
+      await this.saveMessage(conversationId, 'assistant', fixedContent, [
+        {
+          pdfFilename: pdfContext.filename,
+          ragSourceCount: ragSources.length
+        }
+      ], activeModel);
     } catch (saveError) {
       console.error('[PDF Mode] Failed to save messages:', saveError);
     }
@@ -1717,9 +1741,10 @@ ${questionLabel}: ${message}`;
     console.log(`[PDF Mode] Response generated for: ${pdfContext.filename} (hybrid: ${enableRagWithPdf})`);
 
     return {
-      response: response.content,
+      response: fixedContent,
       sources: ragSources, // Include RAG sources in hybrid mode
       conversationId: conversationId,
+      language: responseLanguage, // lets the frontend render RTL for Arabic
       pdfMode: true,
       pdfFilename: pdfContext.filename,
       hybridMode: enableRagWithPdf && ragSources.length > 0
@@ -2747,7 +2772,7 @@ ${questionLabel}: ${message}`;
 
           // If result mentions different article from same law, demote it heavily
           const hasWrongArticle = mentionedArticles.length > 0 &&
-                                   !mentionedArticles.includes(targetArticle);
+                                   !mentionedArticles.includes(Number(targetArticle));
 
           if (hasWrongArticle) {
             const penalty = -30; // Heavy penalty for wrong article
@@ -3046,6 +3071,19 @@ Bu kaynaklara MUTLAKA atıf yapmalısın. Makale/özelge gibi ikincil kaynaklar 
       });
 
       const passesEvidenceGate = qualityChunks.length >= evidenceGateMinChunks;
+
+      // Evidence summary returned to the client (drives the answer-quality
+      // badge; thresholds included so the frontend never duplicates config).
+      const evidenceSummary = {
+        gatePassed: passesEvidenceGate,
+        bestScore: searchResults.reduce((best, r) => {
+          const raw = r.final_score || r.score || r.similarity_score || 0;
+          return Math.max(best, raw > 1 ? raw / 100 : raw);
+        }, 0),
+        qualityChunkCount: qualityChunks.length,
+        minScore: evidenceGateMinScore,
+        minChunks: evidenceGateMinChunks
+      };
 
       // Debug: Show actual scores being evaluated
       const scoreDebug = searchResults.slice(0, 3).map(r => {
@@ -3962,7 +4000,7 @@ Yani beyanname ile ödeme arasında **2 günlük** bir fark vardır.`;
       if (articleQuery?.detected && !articleQuery.exact_match_found && articleQuery.exact_match_count === 0) {
         const notFoundResponse = this.generateArticleNotFoundResponse(
           articleQuery.law_code,
-          articleQuery.article_number,
+          Number(articleQuery.article_number),
           responseLanguage
         );
         if (notFoundResponse && response.content.length < 200) {
@@ -4629,7 +4667,8 @@ Yani beyanname ile ödeme arasında **2 günlük** bir fark vardır.`;
         enableParallelLLM: settingsMap.get('enable_parallel_llm') === 'true',
         parallelCount: Math.min(parseInt(settingsMap.get('parallel_llm_count') || '3'), 5),
         batchSize: batchSize,
-        query: message // Pass user query for smart snippet extraction
+        query: message, // Pass user query for smart snippet extraction
+        language: effectiveAnswerLang // Localized citation field labels
       });
 
       // ========================================
@@ -5031,7 +5070,7 @@ Yani beyanname ile ödeme arasında **2 günlük** bir fark vardır.`;
                     citation: row.source_name,
                     score: 1.0,
                     relevance: 100,
-                    relevanceText: 'Yüksek',
+                    relevanceText: 'high',
                     _hierarchyWeight: 100,
                     _similarityScore: 1.0,
                     _combinedScore: 1.0,
@@ -5475,6 +5514,7 @@ Yani beyanname ile ödeme arasında **2 günlük** bir fark vardır.`;
         strictMode: settingsMap.get('ragSettings.strictMode') === 'true',
         usage: response.usage, // Token usage from LLM
         refusalDetected: isRefusalResponse, // Flag for debugging
+        evidence: evidenceSummary, // Evidence-gate scores for the quality badge
         // 🎯 Article anchoring metadata for chat interface
         articleQuery: articleQuery ? {
           detected: articleQuery.detected,
@@ -6298,7 +6338,7 @@ Yani beyanname ile ödeme arasında **2 günlük** bir fark vardır.`;
   ): string {
     // 1. Detect deadline intent type (beyanname vs ödeme)
     const intentType = this.detectDeadlineIntent(query);
-    if (!intentType) return response;
+    if (!intentType || intentType === 'ambiguous') return response;
 
     // 2. Check if response is header-only, too short, or missing the deadline token
     const contentWithoutHeaders = response
@@ -7185,7 +7225,7 @@ Please verify the article number or check official sources.`;
   ): string {
     // Only apply to deadline-related queries
     const intentType = this.detectDeadlineIntent(query);
-    if (!intentType) return response;
+    if (!intentType || intentType === 'ambiguous') return response;
 
     // Detect contradiction phrases in response (EXPANDED - catches "bulunmamaktadır" etc.)
     const contradictionPhrases = [
@@ -7305,7 +7345,7 @@ Please verify the article number or check official sources.`;
       const langPackPatterns = langPack.forbiddenPatterns
         .filter(p => !customPatternIds.has(p.id))
         .map(p => ({ ...p, enabled: true }));
-      effectiveForbiddenPatterns = [...langPackPatterns, ...(sanitizerConfig.forbiddenPatterns || [])];
+      effectiveForbiddenPatterns = [...langPackPatterns, ...(sanitizerConfig.forbiddenPatterns || [])] as SanitizerPattern[];
 
       // Merge grounding keywords (union)
       const keywordSet = new Set([
@@ -7385,7 +7425,7 @@ Please verify the article number or check official sources.`;
       // v12.52: Exclude list item numbers (e.g., "1. ", "2. ") from claim detection
       const trimmedSentence = sentence.trim();
       const startsWithListNumber = /^\d+\.\s/.test(trimmedSentence);
-      let numbers = sentence.match(/\d+/g) || [];
+      let numbers: string[] = sentence.match(/\d+/g) || [];
       if (startsWithListNumber && numbers.length > 0) {
         // First number is a list marker, not a claim
         numbers = numbers.slice(1);
@@ -8125,8 +8165,8 @@ Please verify the article number or check official sources.`;
       // ═══════════════════════════════════════════════════════════════
 
       // Get section labels from schema
-      const keywordsSection = routingSchema.articleSections?.find(s => s.id === 'keywords');
-      const assessmentSection = routingSchema.articleSections?.find(s => s.id === 'assessment');
+      const keywordsSection = routingSchema.routes.FOUND.format.articleSections?.find(s => s.id === 'keywords');
+      const assessmentSection = routingSchema.routes.FOUND.format.articleSections?.find(s => s.id === 'assessment');
 
       // NOTE: "Konu" section removed in 2-section format (keywords + assessment only)
       // If you need it back, add to routingSchema.articleSections with id='topic'
@@ -8227,378 +8267,6 @@ Please verify the article number or check official sources.`;
 
     return result;
 
-    // --- REMOVED: ALINTI handling code below is no longer used ---
-    /*
-    const hasAlinti = /\*\*ALINTI\*\*/i.test(result);
-    if (!hasAlinti) {
-      console.log('[FORMAT] Missing **ALINTI** header - adding section');
-
-      // Extract CEVAP section to find key terms mentioned in answer
-      const cevapMatch = result.match(/\*\*CEVAP\*\*\s*([\s\S]*?)(?=\*\*[A-Z]|\n\n\n|$)/i);
-      const answerText = (cevapMatch?.[1] || '').toLowerCase();
-
-      // Key terms to search for in sources (extract from answer)
-      // 🔧 IMPROVED: Extract key terms from answer + domain config
-      const potentialKeyTerms = answerText.match(/\b(?:fotokopi|şube|sube|tasdik|asıl|asil|zorunlu|mecburi|gerekli|levha|vergi|özelge|ozelge|tebliğ|teblig|madde|kanun|asmak|asılır|asilir|bulundur|mümkün|mumkun|yasak|ceza)\b/gi) || [];
-      const keyTermsLower = [...new Set(potentialKeyTerms.map(t => t.toLowerCase()))];
-
-      let alintıContent = '';
-      let bestQuote = '';
-      let bestSource = '';
-      let bestScore = 0;
-      let bestSourceType = '';
-
-      // Search through all results for best matching sentence
-      for (const searchResult of searchResults) {
-        let sourceContent = searchResult.content || searchResult.text || searchResult.excerpt || '';
-        const sourceTitle = searchResult.title || 'Kaynak';
-        const sourceType = searchResult.source_type || searchResult.metadata?.source_type || 'document';
-
-        // 🔧 FIX: Decode HTML entities BEFORE sentence splitting
-        sourceContent = sourceContent
-          .replace(/&nbsp;/gi, ' ')
-          .replace(/&amp;/gi, '&')
-          .replace(/&lt;/gi, '<')
-          .replace(/&gt;/gi, '>')
-          .replace(/&#39;/gi, "'")
-          .replace(/&quot;/gi, '"')
-          .replace(/&#\d+;/gi, '')
-          .replace(/<br\s*\/?>/gi, '. ')
-          .replace(/<\/?(p|div|li|tr|td)>/gi, '. ')
-          .replace(/<[^>]+>/g, ' ')
-          .replace(/\s+/g, ' ')
-          .trim();
-
-        // 🔧 DOCUMENT-TYPE SECTION FINDER: Extract ruling section based on document type
-        // This focuses quote extraction on the actual ruling part of the document
-        const rulingContent = this.extractRulingSection(sourceContent, sourceType);
-        // Use ruling section if found, otherwise use full content
-        const contentForQuotes = rulingContent.length > 50 ? rulingContent : sourceContent;
-
-        // 🔧 FIX: Better Turkish sentence splitting
-        // Split on: period+space+capital, exclamation, question mark
-        // But preserve abbreviations like "vb.", "vs.", "No."
-        const sentences = contentForQuotes
-          .replace(/\b(vb|vs|No|Md|Dr|Prof|vd)\.\s*/gi, '$1<DOT>')
-          .split(/(?<=[.!?])\s+(?=[A-ZÇĞİÖŞÜ])/)
-          .map(s => s.replace(/<DOT>/g, '. '))
-          .filter((s: string) => {
-            const trimmed = s.trim();
-            // 🔧 FIX: Keep "Konu:" sentences - they often contain key rulings!
-            // Only filter out pure metadata headers (Tarih:, Sayı:)
-            return trimmed.length > 40 &&
-                   trimmed.length < 600 &&
-                   !trimmed.match(/^(Tarih|Sayı|Dosya No|T\.C\.):/i) &&
-                   !trimmed.match(/^[A-Z\s]{20,}$/); // All-caps headers only
-          });
-
-        // 🔧 FIX: Also check for "Konu:" content which often has the ruling
-        const konuMatch = sourceContent.match(/Konu:\s*([^.]+(?:\.[^.]+)?)/i);
-        if (konuMatch && konuMatch[1] && konuMatch[1].length > 40) {
-          sentences.push(konuMatch[1].trim());
-        }
-
-        for (const sentence of sentences) {
-          const sentenceLower = sentence.toLowerCase();
-
-          // ========================================
-          // 🚫 HARD FILTER: Non-verdict sentences are NEVER candidates
-          // ========================================
-          // These patterns indicate preamble/question text, NOT rulings.
-          // Unlike penalty-based scoring, these sentences are SKIPPED entirely.
-          const NON_VERDICT_HARD_FILTERS = [
-            /ilgi\s+dilekçe/i,           // "İlgi dilekçenizden..."
-            /dilekçeniz(?:de|den|le)/i,  // "Dilekçenizde..."
-            /sorulmaktadır/i,            // "...sorulmaktadır"
-            /sorulmuştur/i,              // "...sorulmuştur"
-            /tereddüt/i,                 // Any mention of "tereddüt" = not a ruling
-            /talep\s+edilmektedir/i,     // "talep edilmektedir"
-            /bilgi\s+(?:verilmesi|istenmiş)/i,   // "bilgi verilmesi istenmiştir"
-            /(?:yukarıda|aşağıda)\s+(?:belirtilen|açıklanan)/i, // meta-references
-            /(?:hususunda|konusunda)\s+görüş/i,  // "hususunda görüşünüz"
-            /başvuru(?:nuz|da)/i,        // "başvurunuzda..."
-            /talebiniz/i,                // "talebiniz..."
-            /soru(?:nuz|larınız)/i       // "sorunuz..."
-          ];
-
-          // HARD FILTER: Skip this sentence entirely if it matches
-          const isNonVerdict = NON_VERDICT_HARD_FILTERS.some(p => p.test(sentence));
-          if (isNonVerdict) {
-            console.log(`[QUOTE-SCORER] 🚫 HARD FILTER: Skipping non-verdict sentence: "${sentence.substring(0, 40)}..."`);
-            continue; // Skip to next sentence - this one is NOT a candidate
-          }
-
-          // Score based on how many key terms are present
-          let score = 0;
-          for (const term of keyTermsLower) {
-            if (sentenceLower.includes(term)) score += 1;
-          }
-
-          // 🔧 IMPROVED: Higher bonus for authoritative sources
-          const sourceTypeLower = sourceType.toLowerCase();
-          if (sourceTypeLower.includes('ozelge') || sourceTypeLower.includes('özelge')) {
-            score += 3; // Özelge is most authoritative for specific rulings
-          } else if (sourceTypeLower.includes('tebli') || sourceTypeLower.includes('kanun')) {
-            score += 2;
-          } else if (sourceTypeLower.includes('danistay') || sourceTypeLower.includes('danıştay')) {
-            score += 2;
-          }
-
-          // 🔧 AGGRESSIVE: Bonus for verdict-like sentences
-          // These are actual rulings/conclusions
-          const VERDICT_PATTERNS = [
-            /\b(?:mümkündür|mümkün\s+değildir|mümkün\s+bulunmaktadır)\b/i,  // +5
-            /\b(?:zorunludur|mecburidir|gerekir|gerekmektedir)\b/i,         // +5
-            /\b(?:yasaktır|yasaklanmıştır|uygulanamaz)\b/i,                 // +5
-            /\b(?:uygulanır|uygulanacaktır|uygulanmaktadır)\b/i,            // +4
-            /\b(?:kaldırılmıştır|yürürlükten\s+kaldırılmış)\b/i,            // +4
-            /\b(?:asılabilir|asılması\s+(?:mümkündür|gerekir))\b/i,         // +5
-            /\b(?:bulundurulabilir|bulundurulması\s+(?:mümkündür|zorunludur))\b/i, // +5
-            /\b(?:fotokopi(?:si)?\s+(?:ile|olarak)\s+(?:asıl|kullanıl))\b/i // +5 - specific to levha questions
-          ];
-          for (const pattern of VERDICT_PATTERNS) {
-            if (pattern.test(sentence)) {
-              score += 5; // Strong boost for actual rulings
-              break; // Only count once
-            }
-          }
-
-          if (score > bestScore) {
-            bestScore = score;
-            bestQuote = sentence.trim();
-            bestSource = sourceTitle + ' (' + sourceType + ')';
-            bestSourceType = sourceType;
-          }
-        }
-      }
-
-      // 🔧 FIX: Increased threshold + query relevance check
-      const MIN_QUOTE_SCORE = 4;  // Increased from 3
-
-      // 🔒 QUOTE RELEVANCE VALIDATION
-      // Even if score is high, verify quote actually relates to query
-      const queryTerms = (originalQuery || answerText)
-        .toLowerCase()
-        .split(/\s+/)
-        .filter((t: string) => t.length > 3 && !['mümkün', 'zorunlu', 'nedir', 'nasıl', 'hangi', 'kadar'].includes(t));
-
-      const quoteHasQueryRelevance = bestQuote
-        ? queryTerms.some((term: string) => bestQuote.toLowerCase().includes(term))
-        : false;
-
-      // Quote must score >= MIN AND have query term overlap
-      const isValidQuote = bestQuote &&
-        bestScore >= MIN_QUOTE_SCORE &&
-        (quoteHasQueryRelevance || bestScore >= 8);  // Very high score can bypass relevance check
-
-      if (isValidQuote) {
-        // Good quote found - use it
-        alintıContent = '> "' + bestQuote + '..."\n\n' + bestSource;
-        console.log('[FORMAT] ✅ Found relevant quote with score ' + bestScore + ' from ' + bestSourceType + ': ' + bestQuote.substring(0, 50) + '...');
-      } else {
-        // Log why quote was rejected
-        if (bestQuote && bestScore >= MIN_QUOTE_SCORE && !quoteHasQueryRelevance) {
-          console.log('[FORMAT] ❌ Quote rejected: score=' + bestScore + ' but no query term overlap. Query terms: ' + queryTerms.slice(0, 5).join(', '));
-        }
-        // ========================================
-        // 🔒 EVIDENCE-FIRST CONTRACT
-        // ========================================
-        // "No definitive ruling without a citation" - this is the single rule set
-        // The system must never say "no information"; it should show the sources
-        console.log('[FORMAT] 🔒 EVIDENCE-FIRST: No quote found (bestScore=' + bestScore + ') - applying contract');
-
-        // ========================================
-        // 🔒 VERDICT QUESTION DETECTION
-        // ========================================
-        // Uses ORIGINAL user query, NOT LLM response text!
-        // This prevents false negatives when LLM doesn't echo the question.
-        // NOTE: Turkish characters (ı, ğ, ş, ü, ö, ç, İ) are NOT word characters in JS regex!
-        // So \b after Turkish chars fails. Use (?=\s|$|[?!,.)]) instead of trailing \b
-        const TR_END = '(?=\\s|$|[?!,.);:\\]])';  // Turkish-safe word end boundary
-        const VERDICT_QUESTION_PATTERNS = [
-          // === YES/NO VERDICT PATTERNS ===
-          // Turkish-safe: no trailing \b, use TR_END lookahead
-          new RegExp(`\\b(?:mümkün\\s+mü|mümkün\\s+müdür|olabilir\\s+mi)${TR_END}`, 'i'),
-          new RegExp(`\\b(?:zorunlu\\s+mu|mecburi\\s+mi|gerekli\\s+mi|şart\\s+mı)${TR_END}`, 'i'),
-          new RegExp(`\\b(?:zorunda\\s+mı|zorunda\\s+mıdır)${TR_END}`, 'i'),  // "asılmak zorunda mı"
-          new RegExp(`\\b(?:yasak\\s+mı|yasaklandı\\s+mı)${TR_END}`, 'i'),
-          new RegExp(`\\b(?:kaldırıldı\\s+mı|kalktı\\s+mı|yürürlükte\\s+mi)${TR_END}`, 'i'),
-          new RegExp(`\\b(?:kaldırdı\\s+mı|kaldırır\\s+mı|kaldırıyor\\s+mu)${TR_END}`, 'i'),  // Active voice
-          new RegExp(`\\b(?:asılabilir\\s+mi|asılır\\s+mı|bulundurulabilir\\s+mi)${TR_END}`, 'i'),
-          new RegExp(`\\b(?:uygulanır\\s+mı|geçerli\\s+mi)${TR_END}`, 'i'),
-          new RegExp(`\\b(?:var\\s+mı|yok\\s+mu)${TR_END}`, 'i'),
-          // Additional patterns for implicit verdict questions
-          /\b(?:zorunlu(?:luk|luğu)?)\s+var\b/i,  // "zorunluluk var mı"
-          /\b(?:asma|bulundurma)\s+(?:mecburiyeti|zorunluluğu)\b/i,  // "asma zorunluluğu"
-
-          // === PROCEDURAL PATTERNS (Evidence-First required) ===
-          // These questions need specific documentary evidence, not LLM opinions
-          /\b(?:nereye)\s+(?:yazılır|girilir|kaydedilir|bildirilir|beyan\s+edilir)\b/i,  // "nereye yazılır"
-          /\b(?:hangi)\s+(?:alana?|satıra?|koda?|bölüme?|beyanname(?:ye)?)\s+(?:yazılır|girilir)\b/i,  // "hangi alana girilir"
-          /\b(?:hangi)\s+(?:kodu?|satırı?)\b/i,  // "hangi kod", "hangi satır"
-          /\b(?:kaç)\s+(?:gün(?:de)?|ay(?:da)?|yıl(?:da)?|süre(?:de)?)\b/i,  // "kaç gün", "kaç günde"
-          /\b(?:ne\s+zaman(?:a\s+kadar)?|hangi\s+tarih(?:te|e)?)\b/i,  // "ne zaman", "hangi tarihte"
-          /\b(?:süre(?:si)?|vade(?:si)?)\s+(?:ne\s+kadar|kaç)\b/i,  // "süre ne kadar"
-          /\b(?:oran(?:ı)?)\s+(?:kaç|ne\s+kadar|yüzde\s+kaç)\b/i,  // "oranı kaç", "yüzde kaç"
-          /\b(?:limit(?:i)?|tutar(?:ı)?|miktar(?:ı)?)\s+(?:kaç|ne\s+kadar)\b/i,  // "limiti kaç", "tutarı ne kadar"
-          /\b(?:kaçıncı|kaç\s+numaralı)\s+(?:madde|satır|kod|alan)\b/i  // "kaçıncı madde"
-        ];
-
-        // Check ORIGINAL query, not LLM response
-        const queryToCheck = originalQuery || answerText;
-        const isVerdictQuestion = VERDICT_QUESTION_PATTERNS.some(p => p.test(queryToCheck));
-
-        console.log(`[FORMAT] Verdict check: query="${queryToCheck.substring(0, 50)}...", isVerdict=${isVerdictQuestion}`);
-
-        if (isVerdictQuestion && searchResults.length > 0) {
-          // ========================================
-          // 🔒 HARD GATE: Verdict question + no quote = BLOCK ALL HALF-VERDICTS
-          // ========================================
-          // "asılabilir", "mümkün olabilir", "zorunlu olabilir" gibi yarım-hükümler YASAK.
-          // Sadece "hüküm cümlesi seçilemedi" mesajı ve kaynaklar gösterilir.
-          console.log('[FORMAT] 🔒 HARD GATE: Verdict question with no quote - blocking half-verdicts');
-
-          // Build source list (top 3, sorted by hierarchy: Kanun > Tebliğ > Özelge > Danıştay)
-          const sourceHierarchy = ['kanun', 'teblig', 'tebliğ', 'ozelge', 'özelge', 'danistay', 'danıştay', 'sirkuler'];
-
-          // 🔒 FIX #1: Filter out irrelevant document_embeddings (kobi, kosgeb, generic PDFs)
-          const IRRELEVANT_KEYWORDS = ['kobi', 'kosgeb', 'destekleri', 'hibe', 'teşvik programı', 'girişimci'];
-          const relevantSources = [...searchResults].filter(r => {
-            const title = (r.title || '').toLowerCase();
-            const sourceTable = (r.source_table || '').toLowerCase();
-            const content = (r.content || '').toLowerCase().substring(0, 500);
-
-            // Skip document_embeddings with irrelevant keywords
-            if (sourceTable.includes('document_embeddings') || sourceTable.includes('döküman')) {
-              const hasIrrelevantKeyword = IRRELEVANT_KEYWORDS.some(kw =>
-                title.includes(kw) || content.includes(kw)
-              );
-              if (hasIrrelevantKeyword) {
-                console.log(`[FORMAT] Filtering out irrelevant source: ${title.substring(0, 50)}`);
-                return false;
-              }
-            }
-            return true;
-          });
-
-          const sortedSources = relevantSources.sort((a, b) => {
-            const typeA = (a.source_type || a.source_table || '').toLowerCase();
-            const typeB = (b.source_type || b.source_table || '').toLowerCase();
-            const indexA = sourceHierarchy.findIndex(h => typeA.includes(h));
-            const indexB = sourceHierarchy.findIndex(h => typeB.includes(h));
-            return (indexA === -1 ? 99 : indexA) - (indexB === -1 ? 99 : indexB);
-          });
-
-          // 🔒 FIX #2: Use consistent slice size (top 3) for both display AND count
-          const TOP_SOURCE_COUNT = 3;
-
-          // Enhanced source list with relevance context
-          const topSources = sortedSources.slice(0, TOP_SOURCE_COUNT).map((r, i) => {
-            const title = r.title || 'Kaynak';
-            const type = r.source_type || r.source_table || 'Belge';
-            const score = r.similarity_score || r.score || 0;
-            const relevance = score > 0.7 ? '●●●' : score > 0.5 ? '●●○' : '●○○';
-            // Extract date if available
-            const date = r.metadata?.tarih || r.metadata?.date || '';
-            const dateStr = date ? ` (${date})` : '';
-            return `${i + 1}. **${title}**${dateStr}\n   _Tür: ${type} | Eşleşme: ${relevance}_`;
-          }).join('\n\n');
-
-          // Count source types for justification - 🔒 FIX #2: Use same TOP_SOURCE_COUNT
-          const sourceTypeCounts = sortedSources.slice(0, TOP_SOURCE_COUNT).reduce((acc, r) => {
-            const type = (r.source_type || r.source_table || 'diger').toLowerCase();
-            if (type.includes('ozelge') || type.includes('özelge')) acc.ozelge++;
-            else if (type.includes('kanun')) acc.kanun++;
-            else if (type.includes('teblig') || type.includes('tebliğ')) acc.teblig++;
-            else if (type.includes('danistay') || type.includes('danıştay')) acc.danistay++;
-            else acc.diger++;
-            return acc;
-          }, { ozelge: 0, kanun: 0, teblig: 0, danistay: 0, diger: 0 });
-
-          // Build justification based on what we found
-          const foundTypes = [];
-          if (sourceTypeCounts.kanun > 0) foundTypes.push(`${sourceTypeCounts.kanun} kanun`);
-          if (sourceTypeCounts.teblig > 0) foundTypes.push(`${sourceTypeCounts.teblig} tebliğ`);
-          if (sourceTypeCounts.ozelge > 0) foundTypes.push(`${sourceTypeCounts.ozelge} özelge`);
-          if (sourceTypeCounts.danistay > 0) foundTypes.push(`${sourceTypeCounts.danistay} Danıştay kararı`);
-          const foundTypesStr = foundTypes.length > 0 ? foundTypes.join(', ') : 'çeşitli belgeler';
-
-          // 🔒 REPLACE entire response - NO HALF-VERDICTS ALLOWED
-          const evidenceFirstResponse = language === 'tr'
-            ? `**CEVAP**\n🔍 **Arama Sonucu:** Bu konuda ${foundTypesStr} bulundu.\n\n⚠️ **Neden net hüküm yok?**\nBulunan belgelerde sorunuzla doğrudan örtüşen tek bir hüküm cümlesi tespit edilemedi. Bu durum şu nedenlerden kaynaklanabilir:\n• İlgili hüküm belgenin farklı bir bölümünde olabilir\n• Konu birden fazla mevzuatta ele alınmış olabilir\n• Sorunun kapsamı mevcut belgelerden daha spesifik olabilir\n\n📚 **İncelenecek Kaynaklar:**\n${topSources}\n\n_💡 Öneri: Yukarıdaki kaynakların "Sonuç", "Açıklamalar" veya "Hüküm" bölümlerini inceleyiniz._`
-            : `**ANSWER**\n🔍 **Search Result:** Found ${foundTypesStr} on this topic.\n\n⚠️ **Why no clear verdict?**\nNo single ruling sentence directly matching your question was found in the documents. This may be because:\n• The relevant ruling may be in a different section of the document\n• The topic may be addressed in multiple regulations\n• Your question may be more specific than available documents\n\n📚 **Sources to Review:**\n${topSources}\n\n_💡 Tip: Review the "Conclusion", "Explanations" or "Ruling" sections of the sources above._`;
-
-          result = evidenceFirstResponse;
-          alintıContent = language === 'tr'
-            ? '_Net hüküm cümlesi otomatik seçilemedi. Yukarıdaki kaynaklarda ilgili bölüm incelenmelidir._'
-            : '_A clear ruling sentence could not be automatically extracted. Please review the relevant sections in the sources above._';
-
-          // 🔒 FIX #3: Clarify responseType for verdict questions
-          // Verdict + no quote = FOUND (sources exist, just no extractable verdict)
-          // NOT NOT_FOUND (that would mean no relevant sources at all)
-          console.log(`[FORMAT] 🔒 Verdict HARD GATE applied: responseType=FOUND (${sortedSources.length} sources, but no extractable verdict)`);
-
-        } else {
-          // Non-verdict question (tanım, açıklama, nedir, nasıl)
-          // These can show LLM response with disclaimer
-          // BUT we must still strip any definitive verdict words that LLM might have generated
-          console.log('[FORMAT] Non-verdict question - stripping verdicts + adding disclaimer');
-
-          // 🔒 STRIP DEFINITIVE VERDICT WORDS from LLM response
-          // These create false certainty when no supporting quote exists
-          const DEFINITIVE_VERDICT_WORDS = [
-            // Affirmative verdicts
-            [/\b(mümkündür|mümkün\s+bulunmaktadır)\b/gi, 'mümkün olabilir'],
-            [/\b(zorunludur|mecburidir|zorunlu\s+bulunmaktadır)\b/gi, 'zorunlu olabilir'],
-            [/\b(zorunluluğu\s+(?:bulunmaktadır|vardır|devam\s+etmektedir))\b/gi, 'zorunluluğu olabilir'],  // "zorunluluğu bulunmaktadır"
-            [/\b(yasaktır|yasaklanmıştır)\b/gi, 'yasak olabilir'],
-            [/\b(uygulanır|uygulanmaktadır|uygulanacaktır)\b/gi, 'uygulanabilir'],
-            [/\b(kaldırılmıştır|yürürlükten\s+kalkmıştır)\b/gi, 'kaldırılmış olabilir'],
-            [/\b(kaldırmıştır|kaldırmaktadır)\b/gi, 'kaldırmış olabilir'],  // Active voice: "kaldırmıştır"
-            [/\b(gerekir|gerekmektedir|gereklidir)\b/gi, 'gerekebilir'],
-            // Negative verdicts
-            [/\b(mümkün\s+değildir|mümkün\s+bulunmamaktadır)\b/gi, 'mümkün olmayabilir'],
-            [/\b(uygulanamaz|uygulanmaz)\b/gi, 'uygulanmayabilir'],
-            [/\b(gerekmez|gerekmemektedir)\b/gi, 'gerekmeyebilir'],
-            [/\b(zorunluluğu\s+(?:kaldırılmıştır|yoktur|bulunmamaktadır))\b/gi, 'zorunluluğu kaldırılmış olabilir'],  // "zorunluluğu kaldırılmıştır"
-            // Specific verdicts
-            [/\b(asılabilir|asılması\s+mümkündür)\b/gi, 'asılması mümkün olabilir'],
-            [/\b(asılamaz|asılması\s+mümkün\s+değildir)\b/gi, 'asılması mümkün olmayabilir'],
-            [/\b(bulundurulabilir)\b/gi, 'bulundurulabilir olabilir'],
-          ];
-
-          for (const [pattern, replacement] of DEFINITIVE_VERDICT_WORDS) {
-            if ((pattern as RegExp).test(result)) {
-              console.log('[FORMAT] 🔒 Stripping definitive verdict: ' + (pattern as RegExp).source);
-              result = result.replace(pattern as RegExp, replacement as string);
-            }
-          }
-
-          // Add disclaimer for non-verdict questions
-          const noQuoteDisclaimer = language === 'tr'
-            ? '\n\n_⚠️ Bu bilgi kaynaklara dayanmaktadır ancak doğrudan destekleyen alıntı tespit edilememiştir. Kesin bilgi için ilgili mevzuata başvurunuz._'
-            : '\n\n_⚠️ This information is based on sources but no direct supporting quote was found. Please refer to the relevant legislation for definitive information._';
-
-          // Only add disclaimer, do not modify content
-          if (!result.includes('⚠️')) {
-            result = result.replace(
-              /(\*\*CEVAP\*\*\s*[\s\S]*?)(?=\*\*[A-Z]|\n\n\n|$)/i,
-              '$1' + noQuoteDisclaimer
-            );
-          }
-
-          // Set ALINTI content for non-verdict questions (no quote found)
-          alintıContent = language === 'tr'
-            ? '_Kaynaklarda bu konuya ilişkin içerik bulunmakla birlikte, cevabı doğrudan destekleyen kısa ve net bir alıntı tespit edilememiştir._'
-            : '_While sources contain relevant content, no short and clear quote directly supporting this answer was found._';
-        }
-      }
-
-      // Append ALINTI section
-      result = result.trimEnd() + '\n\n**ALINTI**\n' + alintıContent;
-    }
-
-    return result;
   }
 
   // v12.53.1: removeInvalidQuote and validateNumberInQuote REMOVED (ALINTI feature disabled)
@@ -8733,6 +8401,10 @@ Please verify the article number or check official sources.`;
     return entities;
   }
 
+  private getDefaultTopicEntities(): TopicEntity[] {
+    return [];
+  }
+
   /**
    * Extract key terms from question for quote validation
    * Focuses on domain-specific terms and identifiers
@@ -8773,6 +8445,10 @@ Please verify the article number or check official sources.`;
 
     // Deduplicate
     return [...new Set(terms)];
+  }
+
+  private getDefaultKeyTerms(): string[] {
+    return [];
   }
 
   /**
@@ -9866,8 +9542,31 @@ DÜZELTILMIŞ METİN:`;
       parallelCount?: number;
       batchSize?: number;
       query?: string; // User query for smart snippet extraction
+      language?: string; // Response language, resolves localized field labels
     }
   ): Promise<any[]> {
+    // Citation field labels + priority order are tenant config (settings),
+    // not code. Values in ragSettings.fieldLabels may be plain strings or
+    // {en: "...", ar: "..."} objects resolved by response language.
+    const labelLang = settings?.language || 'en';
+    let citationFieldLabels: Record<string, any> = {};
+    let citationPriorityFields: string[] = [];
+    try {
+      const rawLabels = await settingsService.getSetting('ragSettings.fieldLabels');
+      if (rawLabels) citationFieldLabels = JSON.parse(rawLabels);
+    } catch { /* fall through to key names */ }
+    try {
+      const rawPriority = await settingsService.getSetting('ragSettings.citationPriorityFields');
+      if (rawPriority) citationPriorityFields = JSON.parse(rawPriority);
+    } catch { /* fall through to empty */ }
+    const resolveFieldLabel = (key: string): string => {
+      const label = citationFieldLabels[key];
+      if (typeof label === 'string') return label;
+      if (label && typeof label === 'object') {
+        return label[labelLang] || label.en || Object.values(label)[0] as string || key;
+      }
+      return key;
+    };
     const formattedResults = [];
     // PERFORMANCE: Use passed settings or fetch if not provided
     const enableParallelLLM = settings?.enableParallelLLM ?? (await settingsService.getSetting('enable_parallel_llm') === 'true');
@@ -9917,40 +9616,17 @@ DÜZELTILMIŞ METİN:`;
         // Only multiply by 100 if similarity_score is in 0-1 range (< 1)
         const score = r.score || (r.similarity_score && r.similarity_score < 1 ? Math.round(r.similarity_score * 100) : r.similarity_score) || 50;
 
-        // Build proper citation with schema-aware field labels
+        // Build proper citation from the tenant-configured priority fields
         let citation = `[Source ${idx + 1}]`;
-        if (r.metadata) {
-          // Field label mappings for better readability (Turkish display names)
-          const fieldLabels: Record<string, string> = {
-            'tarih': 'Tarih',
-            'kurum': 'Kurum',
-            'makam': 'Makam',
-            'konu': 'Konu',
-            'kategori': 'Kategori',
-            'yil': 'Yıl',
-            'sayi': 'Sayı',
-            'esas_no': 'Esas No',
-            'karar_no': 'Karar No',
-            'karar_tarihi': 'Karar Tarihi',
-            'daire': 'Daire',
-            'yazar': 'Yazar',
-            'baslik': 'Başlık',
-            'ozet': 'Özet'
-          };
-
-          // Priority fields for citation (most informative first)
-          const priorityFields = ['kurum', 'makam', 'tarih', 'konu', 'kategori', 'yil', 'sayi'];
+        if (r.metadata && citationPriorityFields.length > 0) {
           const parts: string[] = [];
-
-          for (const key of priorityFields) {
+          for (const key of citationPriorityFields) {
             const value = r.metadata[key];
             if (value && typeof value === 'string' && value.trim()) {
-              const label = fieldLabels[key] || key;
-              parts.push(`${label}: ${value}`);
+              parts.push(`${resolveFieldLabel(key)}: ${value}`);
               if (parts.length >= 3) break; // Max 3 fields for readability
             }
           }
-
           if (parts.length > 0) {
             citation = parts.join(' | ');
           }
@@ -10114,7 +9790,7 @@ DÜZELTILMIŞ METİN:`;
           citation: prep.citation,
           score: prep.score,
           relevance: prep.score,
-          relevanceText: prep.score > 80 ? 'Yüksek' : prep.score > 60 ? 'Orta' : 'Düşük',
+          relevanceText: prep.score > 80 ? 'high' : prep.score > 60 ? 'medium' : 'low',
           databaseInfo: {
             table: r.source_table || 'documents',
             id: r.id,
@@ -10576,10 +10252,15 @@ DÜZELTILMIŞ METİN:`;
       // 1. First try schema-based pattern matching
       const patternQuestions = await this.generatePatternBasedQuestions(userQuestion, sources);
       // Schema questionPatterns may be authored in another language (e.g. legacy Turkish
-      // templates on this tenant). Only use them when they match the answer language, so
-      // an English answer never gets Turkish follow-ups. (Turkish-script heuristic.)
+      // templates on this tenant). Only use them when their script matches the answer
+      // language, so an English or Arabic answer never gets Turkish follow-ups.
       const looksTurkish = (s: string) => /[çğışöüİ]/.test(s);
-      const patternLangOk = language === 'tr' ? true : !patternQuestions.some(looksTurkish);
+      const looksArabic = (s: string) => /[؀-ۿ]/.test(s);
+      const matchesLanguage = (s: string) =>
+        language === 'ar' ? looksArabic(s)
+        : language === 'tr' ? !looksArabic(s)
+        : !looksTurkish(s) && !looksArabic(s);
+      const patternLangOk = patternQuestions.every(matchesLanguage);
       if (patternQuestions.length >= 2 && patternLangOk) {
         console.log(`[FOLLOW-UP] Using ${patternQuestions.length} pattern-based questions`);
         return patternQuestions.slice(0, 3);
@@ -10597,14 +10278,16 @@ DÜZELTILMIŞ METİN:`;
 
       const llmManager = LLMManager.getInstance();
 
-      const prompt = language === 'en'
-        ? `Based on this Q&A, generate 3 follow-up questions the user might ask next.
+      // One language-agnostic template ('ar' previously fell into a Turkish
+      // prompt). Default lives here; tenants override via the settings row
+      // 'prompts.followUpGeneration' using the same placeholders.
+      const defaultFollowUpTemplate = `Based on this Q&A, generate {count} follow-up questions the user might ask next. Write the questions in {languageName}.
 
-USER'S QUESTION: ${userQuestion}
+USER'S QUESTION: {userQuestion}
 
-AI'S RESPONSE (summary): ${responseSummary}
+AI'S RESPONSE (summary): {responseSummary}
 
-RELATED TOPICS: ${sourceTopics}
+RELATED TOPICS: {sourceTopics}
 
 RULES:
 1. Questions must be SELF-CONTAINED - include the specific topic so they make sense without context
@@ -10612,31 +10295,23 @@ RULES:
 3. Questions should be SPECIFIC and ACTIONABLE
 4. NO vague questions like "tell me more" or "what else?"
 5. Each question should explore a DIFFERENT aspect of the topic
+6. Every question must be written in {languageName}
 
-Return ONLY a JSON array with exactly 3 questions. Example format:
-["What are the specific deadlines for corporate tax filings?", "How does the 50% rate apply to foreign income?", "What documents are required for the tax exemption application?"]`
-        : `Bu soru-cevap etkileşimine göre kullanıcının sorması muhtemel 3 takip sorusu üret.
+Return ONLY a JSON array with exactly {count} questions, no other text.`;
+      const languageNames: Record<string, string> = { en: 'English', ar: 'Modern Standard Arabic', tr: 'Turkish' };
+      const languageName = languageNames[language] || language;
+      const template = (await settingsService.getSetting('prompts.followUpGeneration')) || defaultFollowUpTemplate;
+      const prompt = template
+        .replace(/\{count\}/g, '3')
+        .replace(/\{languageName\}/g, languageName)
+        .replace(/\{userQuestion\}/g, userQuestion)
+        .replace(/\{responseSummary\}/g, responseSummary)
+        .replace(/\{sourceTopics\}/g, sourceTopics);
 
-KULLANICININ SORUSU: ${userQuestion}
-
-YAPAY ZEKANIN YANITI (özet): ${responseSummary}
-
-İLGİLİ KONULAR: ${sourceTopics}
-
-KURALLAR:
-1. Sorular KENDİ BAŞINA ANLAMLI olmalı - konuyu içermeli, bağlam olmadan da anlaşılmalı
-2. Sorular konuşulan konuyu DERİNLEŞTİRMELİ - alakasız konulara geçmemeli
-3. Sorular SPESİFİK ve UYGULANABİLİR olmalı
-4. "Daha fazla bilgi verir misiniz?" gibi MUĞLAK sorular YASAK
-5. Her soru konunun FARKLI bir yönünü keşfetmeli
-6. TÜRKÇE KARAKTERLER ZORUNLU: ş, ç, ğ, ü, ö, ı, İ kullan. ASCII karakter YASAK (yapilir→yapılır, odeme→ödeme, islem→işlem, suresi→süresi, orani→oranı)
-
-SADECE 3 soruluk bir JSON dizisi döndür. Örnek format:
-["Kurumlar vergisi beyanname süreleri nelerdir?", "Yurt dışı gelirler için %50 oranı nasıl uygulanır?", "Vergi muafiyeti başvurusu için hangi belgeler gerekli?"]`;
-
-      const systemPrompt = language === 'tr'
-        ? 'You are a helpful assistant that generates follow-up questions in Turkish. CRITICAL: Use proper Turkish characters (ş, ç, ğ, ü, ö, ı, İ) - NEVER use ASCII equivalents. Return ONLY valid JSON array, no other text.'
-        : 'You are a helpful assistant that generates follow-up questions. Return ONLY valid JSON array, no other text.';
+      const turkishCharRule = language === 'tr'
+        ? ' CRITICAL: Turkish questions must use proper Turkish characters (ş, ç, ğ, ü, ö, ı, İ) - NEVER ASCII equivalents.'
+        : '';
+      const systemPrompt = `You are a helpful assistant that generates follow-up questions in ${languageName}.${turkishCharRule} Return ONLY a valid JSON array, no other text.`;
 
       const response = await llmManager.generateChatResponse(prompt, {
         temperature: 0.7,
@@ -11277,7 +10952,7 @@ UNUT: ${conversationTone} üslubunda YORUMLA, kopyalama. KENDI KELİMELERİNLE a
    * Extracts keywords from source content and titles
    * Does NOT use LLM - pure text extraction from actual source content
    */
-  private extractKeywordsFromSources(query: string, searchResults: any[]): string[] {
+  private extractKeywordsFromSourcesLegacy(query: string, searchResults: any[]): string[] {
     const keywords = new Set<string>();
 
     // Turkish stopwords to exclude - expanded list
@@ -12091,7 +11766,7 @@ UNUT: ${conversationTone} üslubunda YORUMLA, kopyalama. KENDI KELİMELERİNLE a
       let enableDocumentEmbeddings = true; // default true
       try {
         const docEmbeddingSetting = await settingsService.getSetting('ragSettings.enableDocumentEmbeddings');
-        enableDocumentEmbeddings = docEmbeddingSetting === 'true' || docEmbeddingSetting === true;
+        enableDocumentEmbeddings = docEmbeddingSetting === 'true' || (docEmbeddingSetting as any) === true;
       } catch (e) { /* use default */ }
 
       // Get database priority (for unified_embeddings)
@@ -12431,7 +12106,7 @@ UNUT: ${conversationTone} üslubunda YORUMLA, kopyalama. KENDI KELİMELERİNLE a
       tags: tags,
       score: score,
       relevance: score,
-      relevanceText: score > 80 ? 'Yüksek' : score > 60 ? 'Orta' : 'Düşük',
+      relevanceText: score > 80 ? 'high' : score > 60 ? 'medium' : 'low',
       databaseInfo: {
         table: sourceTable,
         id: r.id,
@@ -12471,7 +12146,7 @@ UNUT: ${conversationTone} üslubunda YORUMLA, kopyalama. KENDI KELİMELERİNLE a
       tags: [],
       score: score,
       relevance: score,
-      relevanceText: score > 80 ? 'Yüksek' : score > 60 ? 'Orta' : 'Düşük',
+      relevanceText: score > 80 ? 'high' : score > 60 ? 'medium' : 'low',
       databaseInfo: {
         table: sourceTable,
         id: r.id,

@@ -201,6 +201,28 @@ export function reorderCitations(
 }
 
 /**
+ * Apply the standard citation reorder to a processMessage-style result,
+ * mutating response/sources in place. Shared by /api/v2/chat (JSON + WS)
+ * and the /with-pdf, /with-media routes so the behavior cannot diverge.
+ * Deterministic responses keep all sources as context (v12.51).
+ */
+export function applyCitationReorder(result: {
+  response?: string;
+  sources?: CitationSource[];
+  _debug?: { deterministic?: boolean };
+  [key: string]: any;
+}): void {
+  if (!result?.response || !result.sources?.length) return;
+  const deterministic = result._debug?.deterministic === true;
+  const reordered = reorderCitations(result.response, result.sources, {
+    removeUnused: !deterministic,
+    sortByUsage: true
+  });
+  result.response = reordered.response;
+  result.sources = reordered.sources;
+}
+
+/**
  * Quick check if response has any citations
  */
 export function hasCitations(text: string): boolean {

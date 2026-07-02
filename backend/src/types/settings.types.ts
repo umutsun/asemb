@@ -254,6 +254,7 @@ export interface ArticleSection {
     required: boolean;
     systemGenerated?: boolean;  // true = backend generates, false = LLM writes
     footnoteRequired?: boolean;
+    backendLabel?: string;      // label printed by the backend for system-generated sections
     description?: string;
     descriptionEn?: string;
 }

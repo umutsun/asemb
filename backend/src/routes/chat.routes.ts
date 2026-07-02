@@ -16,7 +16,7 @@ import { PythonIntegrationService } from '../services/python-integration.service
 import crypto from 'crypto';
 import fs from 'fs/promises';
 import path from 'path';
-import { reorderCitations } from '../utils/citation-utils';
+import { reorderCitations, applyCitationReorder } from '../utils/citation-utils';
 
 const router = Router();
 const subscriptionService = new SubscriptionService();
@@ -183,17 +183,8 @@ router.post('/api/v2/chat', authenticateToken, async (req: AuthenticatedRequest,
       responseFirst200: result.response?.substring(0, 200)
     });
 
-    // 📑 Citation reorder: Sort by usage frequency and remove unused
-    // v12.51: For deterministic responses, keep all sources as context
-    const isDeterministicNonStream = (result as any)._debug?.deterministic === true;
-    if (result.response && result.sources?.length > 0) {
-      const reordered = reorderCitations(result.response, result.sources, {
-        removeUnused: !isDeterministicNonStream,
-        sortByUsage: true
-      });
-      result.response = reordered.response;
-      result.sources = reordered.sources;
-    }
+    // Citation reorder: remove unused, renumber sequentially (shared helper)
+    applyCitationReorder(result as any);
 
     // Save enhanced chat interaction with search results and sources
     // This is done asynchronously to not block the response
@@ -229,6 +220,7 @@ router.post('/api/v2/chat', authenticateToken, async (req: AuthenticatedRequest,
               sourcesCount: result.sources?.length || 0,
               processingTime: (result as any).processingTime,
               confidence: (result as any).confidence,
+              evidence: (result as any).evidence, // Evidence-gate scores (quality badge on history reload)
               usage: (result as any).usage // Token usage from LLM response
             }
           );
@@ -881,17 +873,8 @@ async function streamChatResponse(
     // Generate the full response
     const result = await ragChat.processMessage(message, conversationId, userId, options);
 
-    // 📑 Citation reorder: Sort by usage frequency and remove unused
-    // v12.51: For deterministic responses, keep all sources as context
-    const isDeterministicWs = (result as any)._debug?.deterministic === true;
-    if (result.response && result.sources?.length > 0) {
-      const reordered = reorderCitations(result.response, result.sources, {
-        removeUnused: !isDeterministicWs,
-        sortByUsage: true
-      });
-      result.response = reordered.response;
-      result.sources = reordered.sources;
-    }
+    // Citation reorder: remove unused, renumber sequentially (shared helper)
+    applyCitationReorder(result as any);
 
     // Send final response
     if (ws.readyState === ws.OPEN) {
@@ -901,7 +884,9 @@ async function streamChatResponse(
         sources: result.sources,
         conversationId: result.conversationId,
         followUpQuestions: (result as any).followUpQuestions,
-        relatedTopics: result.relatedTopics,
+        relatedTopics: (result as any).relatedTopics,
+        language: (result as any).language,
+        evidence: (result as any).evidence,
         fastMode: (result as any).fastMode || false // Pass fastMode flag to frontend
       }));
     }
@@ -1063,6 +1048,9 @@ router.post('/api/v2/chat/with-pdf',
         pdfContext // Pass PDF context to RAG chat
       });
 
+      // Citation reorder: same pipeline as the plain chat routes
+      applyCitationReorder(result as any);
+
       // Build response with PDF metadata (no cacheKey - ephemeral processing)
       const response = {
         ...result,
@@ -1184,6 +1172,9 @@ router.post('/api/v2/chat/with-media',
         },
       });
 
+      // Citation reorder: same pipeline as the plain chat routes
+      applyCitationReorder(result as any);
+
       const response = {
         ...result,
         mediaAttachment: {
@@ -1242,7 +1233,7 @@ router.get('/api/v2/chat/pdf-settings', authenticateToken, async (req: Authentic
     }
 
     // Enable if EITHER source says true
-    const enabled = ragSettingEnabled === 'true' || ragSettingEnabled === true || chatbotEnabled;
+    const enabled = ragSettingEnabled === 'true' || (ragSettingEnabled as any) === true || chatbotEnabled;
     const maxSizeMB = parseInt(await settingsService.getSetting('ragSettings.maxPdfSizeMB') || '10');
     const maxPages = parseInt(await settingsService.getSetting('ragSettings.maxPdfPages') || '30');
 
@@ -1289,11 +1280,11 @@ router.get('/api/v2/chat/voice-settings', authenticateToken, async (req: Authent
     }
 
     // Enable if ANY source says true
-    const enableVoiceInput = ragVoiceInput === 'true' || ragVoiceInput === true ||
-                            voiceVoiceInput === 'true' || voiceVoiceInput === true ||
+    const enableVoiceInput = ragVoiceInput === 'true' || (ragVoiceInput as any) === true ||
+                            voiceVoiceInput === 'true' || (voiceVoiceInput as any) === true ||
                             chatbotVoiceInput;
-    const enableVoiceOutput = ragVoiceOutput === 'true' || ragVoiceOutput === true ||
-                             voiceVoiceOutput === 'true' || voiceVoiceOutput === true ||
+    const enableVoiceOutput = ragVoiceOutput === 'true' || (ragVoiceOutput as any) === true ||
+                             voiceVoiceOutput === 'true' || (voiceVoiceOutput as any) === true ||
                              chatbotVoiceOutput;
 
     // Get additional voice settings from voiceSettings prefix
