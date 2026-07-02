@@ -33,6 +33,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from services.semantic_search_service import SemanticSearchService
 from services.text_chunker import truncate_at_word
+from services.law_metadata_parser import load_patterns_from_settings, parse_law_name
 
 # Configuration
 DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://postgres:Luwi2025SecurePGx7749@localhost:5432/vergilex_lsemb")
@@ -210,6 +211,18 @@ async def get_next_chunk_id(pool: asyncpg.Pool) -> int:
     return _chunk_id_counter
 
 
+_law_patterns_cache = None
+
+
+async def _get_law_patterns(pool: asyncpg.Pool):
+    """Settings-driven parser patterns, loaded once per run."""
+    global _law_patterns_cache
+    if _law_patterns_cache is None:
+        async with pool.acquire() as conn:
+            _law_patterns_cache = await load_patterns_from_settings(conn)
+    return _law_patterns_cache
+
+
 async def insert_article_chunk(
     pool: asyncpg.Pool,
     chunk: ArticleChunk,
@@ -232,6 +245,13 @@ async def insert_article_chunk(
         "chunk_type": "article",
         "content_hash": hashlib.md5(chunk.content.encode()).hexdigest()[:12]
     }
+
+    # Structured law_key (shared parser; patterns come from the tenant's
+    # 'ingest.lawMetadataPatterns' settings row — no per-tenant values here).
+    parsed = parse_law_name(chunk.law_name or "", await _get_law_patterns(pool))
+    for key in ("law_key", "law_type", "law_year", "parent_law_key"):
+        if parsed.get(key) and not metadata.get(key):
+            metadata[key] = parsed[key]
 
     # Source name for display (max 255 chars for VARCHAR column)
     source_name = f"{chunk.law_name[:150]} - Madde {chunk.article_number}"

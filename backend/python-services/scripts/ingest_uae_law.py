@@ -29,6 +29,13 @@ load_dotenv(Path(__file__).resolve().parents[3] / ".env.lsemb")
 # sys.path because this file is imported from scripts/ as a top-level module.
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from services.text_chunker import split_text  # noqa: E402
+from services.law_metadata_parser import (  # noqa: E402
+    extract_article_number,
+    load_patterns_from_settings,
+    parse_issue_date,
+    parse_law_from_content,
+    parse_law_name,
+)
 
 DATABASE_URL = os.environ["DATABASE_URL"]
 OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "")  # may be empty; real key lives in settings (Hard Rule #1)
@@ -169,6 +176,31 @@ async def ingest_law(pdf_url, source_name, lang="en", prove=True, pdf_bytes=None
         await conn.close()
         return 0
 
+    # Structured law metadata (same contract as scripts/backfill_uae_law_metadata.py):
+    # law_key/type/number/year/title from the name, content fallback for opaque names,
+    # per-chunk article_number with continuation-chunk inheritance.
+    patterns = await load_patterns_from_settings(conn)
+    law_meta = parse_law_name(source_name, patterns)
+    if not law_meta.get("law_key"):
+        fallback = parse_law_from_content(text[:800], lang, patterns)
+        fallback.pop("law_key", None)
+        fallback.pop("confidence", None)
+        name_num = law_meta.get("law_number")
+        if name_num and fallback.get("law_number") not in (None, name_num):
+            fallback = {}
+        for k, v in fallback.items():
+            law_meta.setdefault(k, v)
+        lt, num, yr = (law_meta.get("law_type"), law_meta.get("law_number"),
+                       law_meta.get("law_year"))
+        if lt and num and yr:
+            law_meta["law_key"] = f"{lt}:{num}:{yr}"
+    law_meta.pop("confidence", None)
+    issue_date = parse_issue_date(text[:1500], lang)
+    if issue_date:
+        law_meta["issue_date"] = issue_date
+    print(f"law metadata: {law_meta.get('law_key', 'UNRESOLVED')} | "
+          f"title={law_meta.get('law_title', '')!r}")
+
     # Atomic critical section: an advisory lock serializes the (delete + MAX + insert)
     # so the source_id allocation can't race/collide across concurrent or rapid sequential
     # ingests (the (source_table, source_id) unique constraint is otherwise easy to violate).
@@ -184,9 +216,20 @@ async def ingest_law(pdf_url, source_name, lang="en", prove=True, pdf_bytes=None
             "SELECT COALESCE(MAX(source_id), -1) + 1 FROM unified_embeddings WHERE source_table=$1", SOURCE_TABLE)
         print(f"source_id base for this law: {base}")
 
+        last_article = None
         for idx, (ch, e) in enumerate(zip(chunks, embs)):
-            meta = json.dumps({"source": "uae_ingest", "law": source_name,
-                               "article_index": idx, "url": pdf_url, "lang": lang})
+            meta_dict = {"source": "uae_ingest", "law": source_name,
+                         "article_index": idx, "url": pdf_url, "lang": lang,
+                         "meta_backfill_version": 1, **law_meta}
+            article = extract_article_number(ch, lang, patterns)
+            if article:
+                meta_dict["article_number"] = article
+                meta_dict["article_number_source"] = "header"
+                last_article = article
+            elif last_article:
+                meta_dict["article_number"] = last_article
+                meta_dict["article_number_source"] = "inherited"
+            meta = json.dumps(meta_dict, ensure_ascii=False)
             await conn.execute(
                 """INSERT INTO unified_embeddings
                    (source_table, source_type, source_id, source_name, content, embedding,
