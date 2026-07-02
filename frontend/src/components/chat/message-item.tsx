@@ -26,29 +26,6 @@ const formatFileSize = (bytes: number): string => {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 };
 
-/**
- * Highlights repeating keywords in text with markup
- */
-function highlightRepeatingKeywords(text: string, keywords: string[]): string {
-  if (!keywords || keywords.length === 0) return text;
-
-  // Create a regex pattern for each keyword (case-insensitive)
-  const keywordPatterns = keywords.map(keyword =>
-    new RegExp(`\\b${keyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'gi')
-  );
-
-  let highlightedText = text;
-
-  // Apply highlighting for each keyword
-  keywordPatterns.forEach((pattern) => {
-    highlightedText = highlightedText.replace(pattern, (match) => {
-      return `<mark class="bg-slate-200 dark:bg-slate-700/70 text-slate-800 dark:text-slate-100 px-1 py-0.5 rounded font-medium">${match}</mark>`;
-    });
-  });
-
-  return highlightedText;
-}
-
 // Inline [n] citation-reference processing is shared across templates — see ./citation-refs.
 
 interface MessageItemProps {
@@ -152,58 +129,16 @@ export function MessageItem({ message }: MessageItemProps) {
 
   const responseQuality = getResponseQuality();
 
-  // Extract keywords from sources for highlighting
-  const getKeywordsFromSources = (): string[] => {
-    if (!message.sources || message.sources.length === 0) return [];
-
-    const allKeywords: string[] = [];
-    message.sources.forEach(source => {
-      if (source.sourceTable) {
-        allKeywords.push(source.sourceTable.toLowerCase());
-      }
-      if (source.category) {
-        allKeywords.push(source.category.toLowerCase());
-      }
-      if (source.title) {
-        // Extract potential keywords from title
-        const titleWords = source.title.toLowerCase().split(/\s+/);
-        allKeywords.push(...titleWords.filter(word => word.length > 3));
-      }
-    });
-
-    // Return unique keywords, limited to important ones
-    return [...new Set(allKeywords)].slice(0, 10);
-  };
-
-  const keywords = getKeywordsFromSources();
-
-  // Apply highlighting to the first paragraph of AI response
-  const getProcessedContent = () => {
-    if (isUser || !keywords.length) return message.content;
-
-    // Split content into paragraphs
-    const paragraphs = message.content.split('\n\n');
-    if (paragraphs.length === 0) return message.content;
-
-    // Apply highlighting to the first paragraph only
-    const firstParagraph = highlightRepeatingKeywords(paragraphs[0], keywords);
-    const remainingParagraphs = paragraphs.slice(1).join('\n\n');
-
-    return firstParagraph + (remainingParagraphs ? '\n\n' + remainingParagraphs : '');
-  };
-
-  const processedContent = getProcessedContent();
-  
   return (
     <div className={cn(
       'flex group animate-in slide-in-from-bottom-2 duration-300',
       isUser ? 'justify-end' : 'justify-start'
     )}>
       <div className={cn(
-        'rounded-2xl px-3 py-2.5 sm:px-4 sm:py-3 min-w-0 max-w-[90%] sm:max-w-[80%] shadow-md transition-all duration-200 hover:shadow-lg',
+        'rounded-2xl px-4 py-3 sm:px-5 sm:py-4 min-w-0 max-w-[88%] sm:max-w-[80%] transition-all duration-200',
         isUser
-          ? 'bg-gradient-to-r from-blue-500 to-blue-600 text-white shadow-blue-500/25'
-          : 'bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 border border-gray-100 dark:border-gray-700 hover:border-gray-200 dark:hover:border-gray-600'
+          ? 'bg-gradient-to-br from-blue-500 to-blue-600 text-white shadow-md shadow-blue-500/30'
+          : 'bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 border border-gray-200 dark:border-gray-700 shadow-sm hover:shadow-md hover:border-gray-300 dark:hover:border-gray-600'
       )}>
         {/* Inline bot avatar - removed, now inline with content */}
         {/* Response quality indicator for assistant messages */}
@@ -258,11 +193,9 @@ export function MessageItem({ message }: MessageItemProps) {
           </div>
         ) : (
           <div dir={isRtl ? 'rtl' : 'ltr'} className={cn(
-            'prose prose-sm max-w-none',
-            'prose-headings:text-gray-900 dark:prose-headings:text-gray-100',
-            'prose-headings:font-semibold prose-headings:mt-4 prose-headings:mb-2',
-            'prose-h1:text-lg prose-h2:text-base prose-h3:text-sm',
-            'prose-p:text-gray-700 dark:prose-p:text-gray-300 prose-p:my-2 prose-p:leading-relaxed',
+            'prose max-w-none',
+            'prose-headings:text-gray-900 dark:prose-headings:text-gray-100 prose-headings:font-semibold',
+            'prose-p:text-gray-800 dark:prose-p:text-gray-200 prose-p:my-2 prose-p:leading-relaxed',
             'prose-strong:text-gray-900 dark:prose-strong:text-white prose-strong:font-semibold',
             'prose-ul:my-2 prose-ul:ps-4 prose-li:my-1',
             'prose-ol:my-2 prose-ol:ps-4',
@@ -271,25 +204,25 @@ export function MessageItem({ message }: MessageItemProps) {
             <ReactMarkdown
               remarkPlugins={[remarkGfm]}
               components={{
-                // Custom heading styles
+                // Custom heading styles — sizes relative to prose (16px base)
                 h1: ({ children }) => (
-                  <h1 className="text-lg font-bold text-gray-900 dark:text-white mt-4 mb-2 pb-1 border-b border-gray-200 dark:border-gray-700">
+                  <h1 className="text-xl font-bold text-gray-900 dark:text-white mt-4 mb-2 pb-1 border-b border-gray-200 dark:border-gray-700">
                     {children}
                   </h1>
                 ),
                 h2: ({ children }) => (
-                  <h2 className="text-base font-semibold text-gray-800 dark:text-gray-100 mt-4 mb-2">
+                  <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-100 mt-4 mb-2">
                     {children}
                   </h2>
                 ),
                 h3: ({ children }) => (
-                  <h3 className="text-sm font-semibold text-gray-800 dark:text-gray-200 mt-3 mb-1">
+                  <h3 className="text-base font-semibold text-gray-800 dark:text-gray-200 mt-3 mb-1">
                     {children}
                   </h3>
                 ),
                 // Paragraphs - with clickable citation refs
                 p: ({ children }) => (
-                  <p className="text-gray-700 dark:text-gray-300 my-2 leading-relaxed">
+                  <p className="text-gray-800 dark:text-gray-200 my-2 leading-relaxed">
                     {withCitationRefs(children)}
                   </p>
                 ),
@@ -313,7 +246,7 @@ export function MessageItem({ message }: MessageItemProps) {
                 ),
                 // List items - with clickable citation refs
                 li: ({ children }) => (
-                  <li className="text-gray-700 dark:text-gray-300 ps-1">
+                  <li className="text-gray-800 dark:text-gray-200 ps-1">
                     {withCitationRefs(children)}
                   </li>
                 ),
@@ -380,6 +313,7 @@ export function MessageItem({ message }: MessageItemProps) {
           {/* TTS button for assistant messages */}
           {!isUser && voiceOutputEnabled && message.content && !message.isLoading && (
             <button
+              type="button"
               onClick={handleTTSToggle}
               disabled={isLoading}
               className={cn(

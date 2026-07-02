@@ -154,6 +154,12 @@ export function preprocessMarkdown(content: string): string {
   // Fix "N. -" list format → "N. " (remove redundant dash)
   result = result.replace(/(\d{1,2})\.\s+-\s+/g, '$1. ');
 
+  // ═══ STEP 2c: Break a numbered list item that is embedded inside an ATX heading ═══
+  // "## Marriage Procedure 1. First item 2. Second" — the ## heading absorbs the first list
+  // item. Pull the first numbered item (and everything after) out of the heading line so
+  // ReactMarkdown can render them as separate blocks.
+  result = result.replace(/^(#{1,6}\s+[^\n]+?)\s+(\d{1,2})\.\s+/gm, '$1\n\n$2. ');
+
   // ═══ STEP 3: Fix inline numbered lists ═══
   const inlineListPattern = /(?:[.!?:;]\s*)\d{1,2}\.\s+\S[\s\S]*?(?:\s)\d{1,2}\.\s+\S[\s\S]*?(?:\s)\d{1,2}\.\s+\S/;
   if (inlineListPattern.test(result)) {
@@ -200,6 +206,11 @@ export function preprocessMarkdown(content: string): string {
 
   // ═══ STEP 7: Clean up ═══
   result = result.replace(/\n{3,}/g, '\n\n');
+
+  // ═══ STEP 7b: Remove trailing ATX close markers / stray # at line end ═══
+  // LLMs sometimes emit "sentence. ##" or "bold text ## " at end of a line.
+  // A trailing # preceded by a space is never valid CommonMark — strip it.
+  result = result.replace(/[ \t]+#{1,6}[ \t]*$/gm, '');
 
   // ═══ STEP 8: Balance an orphaned trailing bold marker (odd count of **) ═══
   // Prevents a stray "**" (e.g. left by a mangled marker) from disabling bold rendering.

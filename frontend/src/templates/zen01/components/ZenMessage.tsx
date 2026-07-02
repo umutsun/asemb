@@ -144,32 +144,10 @@ export const ZenMessage: React.FC<ZenMessageProps> = ({
   // Language used for citation-title cleanup and chip label resolution
   const chipLang = contentLang || i18n.language;
 
-  // Debug: Log component version on mount
-  React.useEffect(() => {
-    console.log('[ZenMessage] 🔄 v2026.01.21 - Dynamic suggestion cards', {
-      enableSourceClick,
-      enableKeywordHighlighting,
-      messageId: message.id,
-      sourcesCount: message.sources?.length || 0,
-      minSourcesToShow,
-      showAllSources
-    });
-  }, [message.sources?.length, minSourcesToShow]);
-
   // Extract keywords from last user query for highlighting (only if enabled)
   const highlightKeywords = React.useMemo(() => {
-    if (!enableKeywordHighlighting || !lastUserQuery || isUser) {
-      console.log('[ZenMessage] Keyword highlighting:', {
-        enabled: enableKeywordHighlighting,
-        hasQuery: !!lastUserQuery,
-        isUser,
-        reason: !enableKeywordHighlighting ? 'disabled' : !lastUserQuery ? 'no query' : 'user message'
-      });
-      return [];
-    }
-    const keywords = extractKeywords(lastUserQuery);
-    console.log('[ZenMessage] Extracted keywords:', { query: lastUserQuery, keywords });
-    return keywords;
+    if (!enableKeywordHighlighting || !lastUserQuery || isUser) return [];
+    return extractKeywords(lastUserQuery);
   }, [lastUserQuery, isUser, enableKeywordHighlighting]);
 
   // Use schema-based rendering when schemaId is provided
@@ -280,7 +258,6 @@ export const ZenMessage: React.FC<ZenMessageProps> = ({
                   <Bot className="h-3.5 w-3.5 text-white" />
                 </span>
                 <ZenTypingIndicator />
-                <span className="text-slate-500 dark:text-cyan-400/60 text-sm">{t('chatMessage.analyzing')}</span>
               </div>
             ) : isUser ? (
               <div className="text-slate-700 dark:text-slate-200 leading-relaxed whitespace-pre-wrap">
@@ -317,32 +294,25 @@ export const ZenMessage: React.FC<ZenMessageProps> = ({
                 <ReactMarkdown
                   remarkPlugins={[remarkGfm]}
                   components={{
-                    // Headings — light mode: near-black, clearly heavier than body text;
-                    // dark mode keeps the approved cyan accent.
+                    // Headings — same font size as body (text-sm) so they don't dwarf chat text;
+                    // distinguished only by font weight and color.
                     h1: ({ children }) => (
-                      <h1 className="text-lg font-bold text-slate-900 dark:text-cyan-200 mt-4 mb-2 pb-1 border-b border-slate-200 dark:border-cyan-500/30">
+                      <h1 className="text-sm font-bold text-slate-900 dark:text-cyan-200 mt-3 mb-1">
                         {children}
                       </h1>
                     ),
                     h2: ({ children }) => (
-                      <h2 className="text-base font-bold text-slate-900 dark:text-cyan-300 mt-4 mb-2">
+                      <h2 className="text-sm font-semibold text-slate-900 dark:text-cyan-300 mt-3 mb-1">
                         {children}
                       </h2>
                     ),
                     h3: ({ children }) => (
-                      <h3 className="text-sm font-bold text-slate-900 dark:text-cyan-300 mt-3 mb-1">
+                      <h3 className="text-sm font-semibold text-slate-700 dark:text-cyan-300/80 mt-2 mb-0.5">
                         {children}
                       </h3>
                     ),
                     // Paragraphs with keyword highlighting and citation anchors
                     p: ({ children }) => {
-                      // DEBUG: Log what we receive
-                      console.log('[ZenMessage] p children:', {
-                        type: typeof children,
-                        isArray: Array.isArray(children),
-                        enableSourceClick,
-                        value: typeof children === 'string' ? children.substring(0, 100) : 'not-string'
-                      });
 
                       // Apply keyword highlighting and convert citations to clickable anchors
                       // Supports: [1], [Kaynak 1], [Source 1] formats
@@ -421,7 +391,7 @@ export const ZenMessage: React.FC<ZenMessageProps> = ({
                       };
 
                       return (
-                        <p className="text-slate-700 dark:text-slate-100 leading-relaxed my-6 first:mt-0 last:mb-0" style={{ marginBottom: '1.5em', marginTop: '1.5em' }}>
+                        <p className="text-slate-700 dark:text-slate-100 leading-relaxed my-2 first:mt-0 last:mb-0">
                           {processChildren(children)}
                         </p>
                       );
