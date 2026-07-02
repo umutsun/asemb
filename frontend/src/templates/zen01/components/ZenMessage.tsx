@@ -604,7 +604,7 @@ export const ZenMessage: React.FC<ZenMessageProps> = ({
                 const typeInfo = getSourceTypeInfo(source.sourceTable, source.metadata, citationSettings.sourceTypeLabels);
                 const typeMarkerClass = zenMarkerClass(typeInfo.markerClass);
                 const chips = buildCitationChips(source, chipLang, citationSettings.fieldLabels, citationSettings.priorityFields);
-                const officialUrl = getOfficialSourceUrl(source);
+                const officialUrl = citationSettings.showOfficialSourceLink ? getOfficialSourceUrl(source) : undefined;
                 const meta = source.metadata as any;
 
                 // Build a single clean description paragraph (200-300 chars)
@@ -681,10 +681,13 @@ export const ZenMessage: React.FC<ZenMessageProps> = ({
                   meta?.source_name || meta?.law_title || meta?.law_name || meta?.title || meta?.baslik
                     || (source as any).title || (source as any).citation || ''
                 ), { lang: chipLang }).replace(/\.pdf$/i, '').replace(/\s*[-–]\s*ID:\s*\d+.*$/i, '').replace(/_/g, ' ').trim();
-                // Chunk-derived titles are just the head of the description —
-                // showing both reads as a repeat, so drop the redundant one.
-                let originLabel = isRedundantTitle(sourceName, description) ? '' : sourceName;
-                if (!originLabel && meta?.url) {
+                // Chunk-derived titles are just the head of the description, and
+                // the law name may already sit in a chip — showing either twice
+                // reads as a repeat, so drop the redundant title line.
+                const norm = (s: string) => s.toLowerCase().replace(/\s+/g, ' ').trim();
+                const inChips = chips.some((c) => norm(String(c.value)) === norm(sourceName));
+                let originLabel = (inChips || isRedundantTitle(sourceName, description)) ? '' : sourceName;
+                if (!originLabel && !inChips && meta?.url) {
                   try { originLabel = new URL(meta.url).hostname.replace(/^www\./, ''); } catch { /* ignore */ }
                 }
 

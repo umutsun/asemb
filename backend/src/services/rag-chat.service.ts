@@ -8215,10 +8215,13 @@ Please verify the article number or check official sources.`;
         formattedResponse += `KONU:\n${konuContent}\n\n`;
       }
 
-      // Add backend-generated Anahtar Terimler (from sources, not LLM)
-      // Only add if not a refusal response
-      if (keywordsFromSources.length > 0 && keywordsSection) {
-        const label = keywordsSection.backendLabel || 'ANAHTAR_TERIMLER:';
+      // Add backend-generated key-terms line only when the routing schema
+      // explicitly REQUIRES it (opt-in via a ragRoutingSchema settings
+      // override). The extractor is tuned for Turkish content and produces
+      // stopword noise on English/Arabic corpora, so it must never render by
+      // default.
+      if (keywordsFromSources.length > 0 && keywordsSection?.required === true) {
+        const label = keywordsSection.backendLabel || `${keywordsSection.titleEn || keywordsSection.title}:`;
         formattedResponse += `${label}\n${keywordsFromSources.join(', ')}\n\n`;
       }
 

@@ -24,12 +24,15 @@ export interface CitationSettings {
   sourceTypeLabels?: SourceTypeLabelMap;
   /** chatbot.enableFollowUps — missing means enabled */
   enableFollowUps: boolean;
+  /** ragSettings.showOfficialSourceLink — missing means HIDDEN (no outbound links) */
+  showOfficialSourceLink: boolean;
   /** True once the settings request finished (successfully or not) */
   loaded: boolean;
 }
 
 export const DEFAULT_CITATION_SETTINGS: CitationSettings = {
   enableFollowUps: true,
+  showOfficialSourceLink: false,
   loaded: false,
 };
 
@@ -68,6 +71,8 @@ export async function fetchCitationSettings(): Promise<CitationSettings> {
         result.priorityFields = parseJsonSetting<string[]>(rag.citationPriorityFields);
         result.fieldLabels = parseJsonSetting<FieldLabelMap>(rag.fieldLabels);
         result.sourceTypeLabels = parseJsonSetting<SourceTypeLabelMap>(rag.sourceTypeLabels);
+        result.showOfficialSourceLink =
+          rag.showOfficialSourceLink === true || rag.showOfficialSourceLink === 'true';
       }
 
       if (chatbotRes.ok) {

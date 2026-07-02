@@ -226,7 +226,8 @@ const ModernMessageItem = memo(function ModernMessageItem({
                                 {visibleSources.map(({ source, originalIndex }) => {
                                     const typeInfo = getSourceTypeInfo(source.sourceTable, source.metadata, citationSettings.sourceTypeLabels);
                                     const chips = buildCitationChips(source, chipLang, citationSettings.fieldLabels, citationSettings.priorityFields);
-                                    const officialUrl = getOfficialSourceUrl(source);
+                                    const officialUrl = citationSettings.showOfficialSourceLink
+                                        ? getOfficialSourceUrl(source) : undefined;
                                     return (
                                         <div
                                             key={originalIndex}

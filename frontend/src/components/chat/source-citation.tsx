@@ -297,7 +297,8 @@ export function SourceCitation({ sources, onLoadMore, hasMore = false, showLoadM
                     citationSettings.fieldLabels,
                     citationSettings.priorityFields
                   );
-                  const officialUrl = getOfficialSourceUrl(source);
+                  const officialUrl = citationSettings.showOfficialSourceLink
+                    ? getOfficialSourceUrl(source) : undefined;
                   if (chips.length === 0 && !officialUrl) return null;
                   return (
                     <div className="flex flex-wrap items-center gap-1.5 mt-1.5">

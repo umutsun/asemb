@@ -167,8 +167,11 @@ export function preprocessMarkdown(content: string): string {
   }
 
   // ═══ STEP 4: Fix single newlines between paragraphs (language-agnostic) ═══
+  // (?<!\d) — a period right after a digit is a list marker ("4.") or a number
+  // ("2018."), not a sentence end; breaking there orphans the list number at
+  // the end of the previous paragraph.
   result = result
-    .replace(/([.!?])(\s*\[\d+\])?\n(?!\n)([A-ZÀ-ɏ])/g, '$1$2\n\n$3');
+    .replace(/(?<!\d)([.!?])(\s*\[\d+\])?\n(?!\n)([A-ZÀ-ɏ])/g, '$1$2\n\n$3');
 
   // ═══ STEP 5: Handle warning emoji and dividers ═══
   result = result.replace(/([^\n])(⚠️)/g, '$1\n\n$2');
@@ -181,7 +184,10 @@ export function preprocessMarkdown(content: string): string {
 
   if (!hasBoldHeaders && sentenceCount >= 4 && paragraphCount < 2) {
     let sentenceCounter = 0;
-    result = result.replace(/([.!?])(\s*\[\d+\]*)(\s+)([A-ZÀ-ɏ])/g,
+    // (?<!\d): never treat a list marker ("4.") or bare number as a sentence
+    // end — the every-3rd-sentence break would land AFTER the number and strand
+    // it at the end of the previous paragraph.
+    result = result.replace(/(?<!\d)([.!?])(\s*\[\d+\]*)(\s+)([A-ZÀ-ɏ])/g,
       (_match, punct, citations, _space, nextChar) => {
         sentenceCounter++;
         if (sentenceCounter % 3 === 0) {

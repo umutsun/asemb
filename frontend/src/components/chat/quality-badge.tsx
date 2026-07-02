@@ -45,11 +45,14 @@ export function QualityBadge({ evidence, sourceCount, className = '' }: QualityB
   const { t } = useTranslation();
   const level = getQualityLevel(evidence, sourceCount);
 
+  // A bare "Very good" pill reads as noise — say WHAT is rated ("Sources: Very
+  // good"), with the full explanation in the tooltip.
   return (
     <span
-      className={`inline-flex items-center text-[10px] px-1.5 py-0.5 rounded-full font-medium ${LEVEL_CLASSES[level]} ${className}`}
+      className={`inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-full font-medium ${LEVEL_CLASSES[level]} ${className}`}
       title={t('chatMessage.quality.label')}
     >
+      <span className="opacity-70">{t('chatMessage.quality.label')}:</span>
       {t(`chatMessage.quality.${level}`)}
     </span>
   );
