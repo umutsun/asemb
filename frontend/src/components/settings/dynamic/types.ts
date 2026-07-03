@@ -38,7 +38,8 @@ export interface SchemaField {
 export interface SchemaGroup {
   id: string;
   title: string;
-  component?: 'patterns';
+  /** Key of a bespoke component to embed (see dynamic/embeds.tsx) instead of fields. */
+  component?: string;
   preset?: 'answerSafety';
   fields: SchemaField[];
 }

@@ -347,6 +347,44 @@ export const SETTINGS: SettingDef[] = [
   { key: 'voiceSettings.ttsVoice', category: 'voice', type: 'string', default: 'alloy', description: 'Text-to-speech voice' },
   { key: 'voiceSettings.ttsSpeed', category: 'voice', type: 'number', default: 1, min: 0.25, max: 4, description: 'Text-to-speech speed multiplier' },
   { key: 'voiceSettings.maxRecordingSeconds', category: 'voice', type: 'number', default: 60, min: 5, description: 'Max voice recording length (seconds)' },
+
+  // --- config keys surfaced by the unified settings shell (Stage 1) -----------
+  // These match the keys the legacy tab components read/write; most have no live
+  // row yet (defaulted in the old UI) — defining them here makes them dynamic.
+  { key: 'app.logoUrl', category: 'app', type: 'string', description: 'Application logo URL' },
+
+  { key: 'voyage.apiKey', category: 'llm', type: 'secret', description: 'Voyage AI API key' },
+  { key: 'cohere.apiKey', category: 'llm', type: 'secret', description: 'Cohere API key' },
+  { key: 'xai.apiKey', category: 'llm', type: 'secret', description: 'xAI (Grok) API key' },
+
+  { key: 'security.enableAuth', category: 'security', type: 'boolean', default: true, description: 'Require authentication' },
+  { key: 'security.sessionTimeout', category: 'security', type: 'number', default: 24, min: 1, description: 'Session timeout (hours)' },
+  { key: 'security.rateLimit', category: 'security', type: 'number', default: 100, min: 1, description: 'Rate limit (requests per minute)' },
+
+  { key: 'storage.docsPath', category: 'storage', type: 'string', default: './docs', description: 'Documents storage path' },
+  { key: 'storage.logsPath', category: 'storage', type: 'string', default: './logs', description: 'Logs storage path' },
+
+  { key: 'advanced.upload_json_limit_mb', category: 'advanced', type: 'number', default: 100, min: 1, description: 'Max JSON upload size (MB)' },
+  { key: 'advanced.upload_file_limit_mb', category: 'advanced', type: 'number', default: 100, min: 1, description: 'Max file upload size (MB)' },
+  { key: 'advanced.upload_text_limit_mb', category: 'advanced', type: 'number', default: 1, min: 1, description: 'Max text upload size (MB)' },
+
+  { key: 'smtp.host', category: 'smtp', type: 'string', description: 'SMTP host' },
+  { key: 'smtp.port', category: 'smtp', type: 'number', default: 587, description: 'SMTP port' },
+  { key: 'smtp.secure', category: 'smtp', type: 'boolean', default: true, description: 'Use TLS/SSL' },
+  { key: 'smtp.username', category: 'smtp', type: 'string', description: 'SMTP username' },
+  { key: 'smtp.password', category: 'smtp', type: 'secret', description: 'SMTP password' },
+  { key: 'smtp.fromName', category: 'smtp', type: 'string', default: 'LSEMB', description: 'Email sender name' },
+
+  { key: 'crawler.timeout', category: 'crawler', type: 'number', default: 30, description: 'Crawler request timeout (seconds)' },
+  { key: 'crawler.maxConcurrency', category: 'crawler', type: 'number', default: 5, min: 1, description: 'Crawler max concurrency' },
+  { key: 'crawler.enableJavaScript', category: 'crawler', type: 'boolean', default: true, description: 'Render JavaScript when crawling' },
+  { key: 'crawler.followRedirects', category: 'crawler', type: 'boolean', default: true, description: 'Follow HTTP redirects' },
+  { key: 'crawler.respectRobotsTxt', category: 'crawler', type: 'boolean', default: true, description: 'Respect robots.txt' },
+  { key: 'crawler.proxyUrl', category: 'crawler', type: 'string', description: 'Proxy URL' },
+  { key: 'crawler.proxyUsername', category: 'crawler', type: 'string', description: 'Proxy username' },
+  { key: 'crawler.proxyPassword', category: 'crawler', type: 'secret', description: 'Proxy password' },
+
+  { key: 'relationships.neo4jEnabled', category: 'relationships', type: 'boolean', default: true, description: 'Use Neo4j graph store' },
 ];
 
 // -----------------------------------------------------------------------------

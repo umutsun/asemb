@@ -4,7 +4,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { getSettingsSchema, getSettingsValues, saveSettingsFlat } from '@/lib/api/settings';
-import PatternManagement from '@/components/settings/PatternManagement';
+import { EMBEDS } from './embeds';
 import { FieldRow, Group, AdvancedExpander } from './controls';
 import type { SettingsSchema, SchemaSection, SchemaGroup, ValueMap, Preset } from './types';
 
@@ -24,6 +24,20 @@ function collectKeys(schema: SettingsSchema): string[] {
     Object.keys(p.values).forEach((k) => keys.add(k)),
   );
   return [...keys];
+}
+
+// Registry defaults for every field, so keys with no live DB row still show their
+// default (switch on, port 587, …) instead of empty. Loaded values override these.
+function collectDefaults(schema: SettingsSchema): ValueMap {
+  const out: ValueMap = {};
+  schema.sections.forEach((s) =>
+    s.groups.forEach((g) =>
+      g.fields.forEach((f) => {
+        if (f.default !== undefined) out[f.key] = f.default;
+      }),
+    ),
+  );
+  return out;
 }
 
 function valuesMatch(a: any, b: any): boolean {
@@ -100,8 +114,9 @@ function SectionGroup({
   if (group.preset === 'answerSafety') {
     return <PresetCards presets={schema.presets} values={values} apply={applyPreset} />;
   }
-  if (group.component === 'patterns') {
-    return <PatternManagement />;
+  if (group.component) {
+    const Embed = EMBEDS[group.component];
+    return Embed ? <Embed /> : <div className="p-4 text-sm text-muted-foreground">Unknown panel: {group.component}</div>;
   }
   const normal = group.fields.filter((f) => !f.advanced);
   const advanced = group.fields.filter((f) => f.advanced);
@@ -147,7 +162,7 @@ export default function SettingsShell() {
         setSchema(sc);
         setActive(sc.sections[0]?.id || '');
         const vals = await getSettingsValues(collectKeys(sc));
-        if (!cancelled) setValues(vals);
+        if (!cancelled) setValues({ ...collectDefaults(sc), ...vals });
       } catch (e: any) {
         if (!cancelled) setError(e?.message || 'Failed to load settings');
       } finally {
@@ -208,7 +223,7 @@ export default function SettingsShell() {
   return (
     <div className="grid min-h-[560px] grid-cols-1 overflow-hidden rounded-xl border border-border bg-card md:grid-cols-[212px_1fr]">
       {/* NAV */}
-      <nav className="flex flex-col gap-0.5 border-b border-border bg-muted/30 p-3 md:border-b-0 md:border-r">
+      <nav className="flex flex-col gap-0.5 border-b border-border bg-muted/30 p-3 md:max-h-[85vh] md:overflow-y-auto md:border-b-0 md:border-r">
         {navGroups.map(([grp, secs]) => (
           <React.Fragment key={grp}>
             <div className="px-2.5 pb-1.5 pt-2.5 text-[10.5px] font-semibold uppercase tracking-widest text-muted-foreground">
