@@ -326,12 +326,12 @@
 }
 
 /* ============ Meta row: small-caps muted, quality in brass-toned colors ============
-   Sized and tracked to match the SOURCES section label (.majlis-src-label) so the
-   response-time / answer-quality line reads as the same small-caps heading scale,
-   not a heavier stand-alone row. Quality-level colors (.majlis-q-*) still apply. */
+   Small-caps heading scale, kept a touch smaller than the SOURCES label so the
+   response-time / answer-quality line stays a quiet footnote, not a heavy row.
+   Quality-level colors (.majlis-q-*) still apply. */
 .majlis-meta {
-  font-size: 10.5px;
-  letter-spacing: 0.24em;
+  font-size: 9.5px;
+  letter-spacing: 0.22em;
   text-transform: uppercase;
   color: var(--majlis-muted);
 }

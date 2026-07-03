@@ -1031,6 +1031,7 @@ export class RAGChatService {
       '"summary" is a direct 1-2 sentence answer. Put the rest into "sections" — each with a short "heading" and any of "paragraphs", "steps" (ordered actions) or "bullets" (unordered points). Leave an array empty when it is not needed.',
       'You MAY wrap a few key terms or a leading label in **double asterisks** for bold emphasis. Do NOT use any other Markdown (no "##", no "-" or "1." list markers, no tables) and do NOT put "[1]" citation markers inside any text field.',
       'Ground every block: list the source numbers it relies on in that block\'s "citations" array as integers (referencing the numbered sources above, e.g. 1, 2). Use an empty array only for general statements.',
+      'Cite the MOST SPECIFIC source for each point. When different points are supported by different sources, cite each point to its own source rather than attributing everything to one — but never cite a source that does not actually support the point.',
       'Do not state facts, names, numbers or references that are not supported by the provided sources.'
     ].join('\n');
   }
@@ -1108,6 +1109,38 @@ export class RAGChatService {
       for (const b of section.steps) b.citations = map(b.citations);
       for (const b of section.bullets) b.citations = map(b.citations);
     }
+  }
+
+  /**
+   * Article-style citation numbering: reorder the display sources so the FIRST source
+   * actually cited in the answer becomes [1], the next distinct cited source [2], and so
+   * on (uncited sources follow, keeping their relative order). Structured citations are
+   * renumbered in place to match. This is the structured-mode equivalent of
+   * applyCitationReorder's "remove-unused + renumber sequentially" behaviour, which is
+   * skipped for structured answers at the route level. Returns the reordered sources.
+   */
+  private sequentializeStructuredCitations(answer: StructuredAnswer, sources: any[]): any[] {
+    const seen = new Set<number>();
+    const order: number[] = [];
+    const visit = (cites: number[]) => {
+      for (const c of cites) {
+        if (c >= 1 && c <= sources.length && !seen.has(c)) { seen.add(c); order.push(c); }
+      }
+    };
+    visit(answer.summaryCitations);
+    for (const s of answer.sections) {
+      for (const b of s.paragraphs) visit(b.citations);
+      for (const b of s.steps) visit(b.citations);
+      for (const b of s.bullets) visit(b.citations);
+    }
+    if (order.length === 0) return sources; // nothing cited — leave order untouched
+
+    const newOrder = [...order];
+    for (let i = 1; i <= sources.length; i++) if (!seen.has(i)) newOrder.push(i); // uncited appended
+    const remap = new Map<number, number>();
+    newOrder.forEach((oldIdx, k) => remap.set(oldIdx, k + 1)); // old display index → new 1-based index
+    this.remapStructuredCitations(answer, remap);
+    return newOrder.map((oldIdx) => sources[oldIdx - 1]).filter(Boolean);
   }
 
   /**
@@ -5882,6 +5915,12 @@ Yani beyanname ile ödeme arasında **2 günlük** bir fark vardır.`;
         && !deadlineFixApplied
         && !deadlineHardcodedApplied
         && finalSources.length > 0;
+
+      // Article-style citation numbering for structured answers: the first cited source
+      // becomes [1], the next [2]... and the source list is reordered to match.
+      if (useStructured && structuredAnswer) {
+        finalSources = this.sequentializeStructuredCitations(structuredAnswer, finalSources);
+      }
 
       return {
         // For a structured answer, re-render the Markdown fresh from the (remapped)
