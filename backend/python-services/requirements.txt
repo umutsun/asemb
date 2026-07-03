@@ -26,12 +26,11 @@ neo4j==5.28.0
 # pgai - Automatic Embeddings (will be installed separately)
 # pgai==0.2.0
 
-# Redis for Queue/Cache + RedisVL (semantic cache / vector — Redis Iris OSS path)
-# NOTE: code imports `redis.asyncio as aioredis` (modern redis-py); the standalone
-# aioredis package was unused and is dropped. redis pinned <6 to satisfy celery/kombu 5.3.4,
-# >=5.1 for the Redis 8 Query Engine (FT.*) commands RedisVL relies on.
+# Redis for Queue/Cache + native Query-Engine vector search (Redis 8 / redis-stack FT.*)
+# NOTE: code imports `redis.asyncio` (modern redis-py) and calls raw FT.CREATE/FT.SEARCH via
+# redis.commands.search — the `redisvl` package was pinned but never imported, so it is dropped.
+# redis pinned <6 to satisfy celery/kombu 5.3.4, >=5.1 for the FT.* command client.
 redis>=5.1,<6  # resolution-verified to redis-5.3.1; <6 keeps celery/kombu 5.3.4 happy
-redisvl==0.19.0  # SemanticCache = Iris "LangCache" OSS equivalent (no torch pulled — reuse existing embed path)
 
 # Message Queue
 celery==5.3.4

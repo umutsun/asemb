@@ -4049,13 +4049,21 @@ Lütfen "beyanname" veya "ödeme" yazarak belirtin.`;
         (settingsMap.get('ragSettings.semanticCacheEnabled') || 'false').toString().toLowerCase() === 'true';
       let cacheHit = false;
       let cachedAnswer: string | null = null;
+      // On a hit we reuse the FROZEN structured answer + its sources so the cached
+      // citations ([1],[2]...) stay aligned — we never re-remap/re-retrieve them.
+      let cachedStructured: StructuredAnswer | null = null;
+      let cachedSources: any[] | null = null;
       if (semanticCacheEnabled) {
         try {
           const cached = await pythonIntegration.llmCacheLookup(message, systemPrompt, effectiveAnswerLang);
           if (cached && cached.hit && cached.answer) {
             cachedAnswer = cached.answer;
+            const cs: any = cached.structured;
+            cachedStructured = (cs && typeof cs === 'object' && typeof cs.summary === 'string' && Array.isArray(cs.sections))
+              ? (cs as StructuredAnswer) : null;
+            cachedSources = Array.isArray(cached.sources) ? cached.sources : null;
             cacheHit = true;
-            console.log(`⚡ [llmcache] HIT (sim=${cached.similarity}) — skipped LLM generation`);
+            console.log(`⚡ [llmcache] HIT (sim=${cached.similarity})${cachedStructured ? ' [structured]' : ''} — skipped LLM generation`);
           }
         } catch (e) {
           // fail-safe: ignore cache errors, fall through to normal generation
@@ -4088,7 +4096,8 @@ Lütfen "beyanname" veya "ödeme" yazarak belirtin.`;
       // error falls back to the normal free-Markdown generation — the answer never breaks.
       const structuredOutputEnabled =
         (settingsMap.get('chat.structuredOutput.enabled') || 'false').toString().toLowerCase() === 'true';
-      let structuredAnswer: StructuredAnswer | null = null;
+      // Seed from a structured cache hit (already final — remap/sequentialize are skipped below).
+      let structuredAnswer: StructuredAnswer | null = cacheHit ? cachedStructured : null;
 
       const normalChatOptions = {
         temperature: options.temperature,
@@ -4133,17 +4142,9 @@ Lütfen "beyanname" veya "ödeme" yazarak belirtin.`;
       }
       timings.llm = Date.now() - startLLM;
 
-      // WS2: on a MISS, cache the RAW answer (pre-post-processing) keyed by the question,
-      // gated on confidence so low-score / no-result answers are never cached. Sources are
-      // re-derived fresh per request, so they are intentionally NOT stored. Fire-and-forget.
-      if (!cacheHit && semanticCacheEnabled) {
-        const cacheMinBest = parseFloat(settingsMap.get('ragSettings.semanticCacheMinBestScore') || '0');
-        if ((initialDisplayCount || 0) > 0 && bestScore >= cacheMinBest) {
-          pythonIntegration
-            .llmCacheStore(message, response.content, [], systemPrompt, effectiveAnswerLang, timings.llm)
-            .catch(() => { /* fail-safe */ });
-        }
-      }
+      // WS2 store: moved to just before the FOUND return so we freeze the FINAL answer +
+      // its sources (+ the structured object, for a deterministic citation-aligned hit),
+      // not the raw pre-processed string. See the `llmCacheStore` call near the return.
 
       // ── WS4-A: Agent Memory extraction (promotion). After a fresh (non-cached) answer,
       // extract durable user memories on the configured LLM and dual-write them. Fire-and-forget,
@@ -5731,8 +5732,9 @@ Yani beyanname ile ödeme arasında **2 günlük** bir fark vardır.`;
       }
 
       // Realign structured-answer citations with the reordered/limited display sources,
-      // using the SAME context→display map applied to the Markdown [n] above.
-      if (structuredAnswer && citationRemap.size > 0) {
+      // using the SAME context→display map applied to the Markdown [n] above. Skipped on a
+      // cache hit — the cached structured answer + sources are already final and aligned.
+      if (structuredAnswer && citationRemap.size > 0 && !cacheHit) {
         this.remapStructuredCitations(structuredAnswer, citationRemap);
       }
 
@@ -5921,7 +5923,34 @@ Yani beyanname ile ödeme arasında **2 günlük** bir fark vardır.`;
       // Article-style citation numbering for structured answers: the first cited source
       // becomes [1], the next [2]... and the source list is reordered to match.
       if (useStructured && structuredAnswer) {
-        finalSources = this.sequentializeStructuredCitations(structuredAnswer, finalSources);
+        if (cacheHit && cachedSources) {
+          // Cache hit: the frozen sources were already sequentialized when first stored and
+          // the cached citations reference them — use as-is (no re-numbering / re-retrieval).
+          finalSources = cachedSources;
+        } else {
+          finalSources = this.sequentializeStructuredCitations(structuredAnswer, finalSources);
+        }
+      }
+
+      // WS2 store (miss only): freeze the FINAL answer + its (sequentialized) sources + the
+      // structured object so a near-identical future question skips the LLM and renders the
+      // same citation-aligned structured answer. Fire-and-forget; gated on confidence + FOUND.
+      if (!cacheHit && semanticCacheEnabled && responseType === 'FOUND' && !isRefusalResponse) {
+        const cacheMinBest = parseFloat(settingsMap.get('ragSettings.semanticCacheMinBestScore') || '0');
+        if ((initialDisplayCount || 0) > 0 && bestScore >= cacheMinBest) {
+          const cacheAnswerStr = useStructured ? this.renderStructuredToMarkdown(structuredAnswer!) : finalResponse;
+          // Slim the sources (truncate the big `content` field) so the cached entry stays small.
+          const cacheSources = useStructured
+            ? (finalSources || []).map((s: any) => ({ ...s, content: typeof s.content === 'string' ? s.content.slice(0, 400) : s.content }))
+            : [];
+          pythonIntegration
+            .llmCacheStore(
+              message, cacheAnswerStr, cacheSources,
+              useStructured ? structuredAnswer : null,
+              systemPrompt, effectiveAnswerLang, timings.llm
+            )
+            .catch(() => { /* fail-safe */ });
+        }
       }
 
       return {

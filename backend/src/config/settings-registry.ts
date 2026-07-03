@@ -294,6 +294,8 @@ export const SETTINGS: SettingDef[] = [
   { key: 'ragSettings.semanticCacheEnabled', category: 'rag', type: 'boolean', description: 'Semantic LLM cache enabled' },
   { key: 'ragSettings.semanticCacheThreshold', category: 'rag', type: 'number', description: 'Semantic cache similarity threshold' },
   { key: 'ragSettings.semanticCacheTTL', category: 'rag', type: 'number', description: 'Semantic cache TTL (seconds)' },
+  { key: 'ragSettings.semanticCacheMinBestScore', category: 'rag', type: 'number', description: 'Min retrieval score to cache an answer (skip low-confidence)' },
+  { key: 'ragSettings.semanticCacheMaxAnswerChars', category: 'rag', type: 'number', description: 'Max answer length to cache (chars)' },
   // corpusVersion: runtime-WRITTEN control value (cache scoping), but a first-class
   // config key — must remain writable outside the registry. NOT marked runtime.
   { key: 'ragSettings.corpusVersion', category: 'rag', type: 'string', description: 'Corpus version token (semantic-cache scope key)' },

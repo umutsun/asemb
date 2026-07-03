@@ -28,6 +28,7 @@ class LookupResponse(BaseModel):
     hit: bool = False
     answer: Optional[str] = None
     sources: Optional[List[Any]] = None
+    structured: Optional[Any] = None   # frozen structured answer (None for legacy entries)
     similarity: Optional[float] = None
     distance: Optional[float] = None
 
@@ -36,6 +37,7 @@ class StoreRequest(BaseModel):
     query: str = Field(..., description="User query text")
     answer: str = Field(..., description="Final LLM answer to cache")
     sources: List[Any] = Field(default_factory=list, description="Frozen citation sources")
+    structured: Optional[Any] = Field(None, description="Frozen structured answer (rendered deterministically on a hit)")
     system_prompt: str = Field("", description="Resolved system prompt (scopes the cache)")
     language: str = Field("xx", description="Response language code (scopes the cache)")
     llm_ms: int = Field(0, description="LLM latency of this (miss) generation, for savings stats")
@@ -69,6 +71,7 @@ async def store(request: StoreRequest) -> StoreResponse:
             query=request.query,
             answer=request.answer,
             sources=request.sources,
+            structured=request.structured,
             system_prompt=request.system_prompt,
             language=request.language,
             llm_ms=request.llm_ms,

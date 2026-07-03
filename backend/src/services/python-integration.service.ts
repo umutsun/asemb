@@ -226,7 +226,7 @@ export class PythonIntegrationService {
     query: string,
     systemPrompt: string = '',
     language: string = 'xx'
-  ): Promise<{ hit: boolean; answer?: string; sources?: any[]; similarity?: number; distance?: number }> {
+  ): Promise<{ hit: boolean; answer?: string; sources?: any[]; structured?: any; similarity?: number; distance?: number }> {
     try {
       if (!(await this.isPythonServiceAvailable())) return { hit: false };
       const resp = await this.axiosClient.post(
@@ -246,6 +246,7 @@ export class PythonIntegrationService {
     query: string,
     answer: string,
     sources: any[] = [],
+    structured: any = null,
     systemPrompt: string = '',
     language: string = 'xx',
     llmMs: number = 0
@@ -254,7 +255,7 @@ export class PythonIntegrationService {
       if (!(await this.isPythonServiceAvailable())) return;
       await this.axiosClient.post(
         '/api/python/llm-cache/store',
-        { query, answer, sources, system_prompt: systemPrompt, language, llm_ms: llmMs },
+        { query, answer, sources, structured, system_prompt: systemPrompt, language, llm_ms: llmMs },
         { timeout: 8000 }
       );
     } catch (error: any) {

@@ -215,6 +215,7 @@ class SemanticResponseCache:
                     syms["TextField"]("prompt"),
                     syms["TextField"]("response"),
                     syms["TextField"]("sources"),       # JSON string (frozen citations)
+                    syms["TextField"]("structured"),    # JSON string (frozen structured answer)
                     syms["NumericField"]("created_at"),
                     syms["VectorField"](
                         "embedding", "HNSW",
@@ -267,7 +268,7 @@ class SemanticResponseCache:
             q = (
                 syms["Query"](f"(@scope_key:{{{scope}}})=>[KNN 1 @embedding $vec AS dist]")
                 .sort_by("dist", asc=True)
-                .return_fields("response", "sources", "dist")
+                .return_fields("response", "sources", "structured", "dist")
                 .dialect(2)
             )
             res = await client.ft(self._index_name(dim)).search(
@@ -284,10 +285,15 @@ class SemanticResponseCache:
                         sources = json.loads(getattr(doc, "sources", "[]") or "[]")
                     except Exception:
                         sources = []
+                    try:
+                        structured = json.loads(getattr(doc, "structured", "") or "null")
+                    except Exception:
+                        structured = None
                     return {
                         "hit": True,
                         "answer": getattr(doc, "response", "") or "",
                         "sources": sources,
+                        "structured": structured,   # frozen structured answer (or None for legacy entries)
                         "similarity": round(similarity, 4),
                         "distance": round(distance, 4),
                     }
@@ -302,6 +308,7 @@ class SemanticResponseCache:
         query: str,
         answer: str,
         sources: Optional[List[Any]] = None,
+        structured: Optional[Any] = None,
         system_prompt: str = "",
         language: str = "xx",
         llm_ms: int = 0,
@@ -334,6 +341,9 @@ class SemanticResponseCache:
                 "prompt": query[: cfg.max_answer_chars],
                 "response": answer,
                 "sources": json.dumps(sources or [], ensure_ascii=False)[: cfg.max_answer_chars * 4],
+                # Frozen structured answer so a cache hit renders deterministically with
+                # citations aligned to the frozen sources above. "" for legacy/non-structured.
+                "structured": json.dumps(structured, ensure_ascii=False)[: cfg.max_answer_chars * 8] if structured is not None else "",
                 "created_at": int(time.time()),
                 "embedding": self._to_bytes(vec),
             }
