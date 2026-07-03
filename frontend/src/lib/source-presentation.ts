@@ -193,8 +193,19 @@ export function cleanExcerpt(text: string): string {
   const original = (text || '').trim();
   if (!original) return '';
 
-  // Collapse internal whitespace/newlines to single spaces.
-  const collapsed = original.replace(/\s+/g, ' ');
+  // Never surface external source websites to the user: strip URLs / bare domains that
+  // ingested law chunks carry (e.g. "https://www.lexismiddleeast.com"), and collapse the
+  // orphan "N. N. N." list-marker runs those chunks leave behind. Display-side only.
+  const collapsed = original
+    .replace(/https?:\/\/\S+/gi, ' ')                                          // full URLs
+    .replace(/\bwww\.\S+/gi, ' ')                                              // bare www.…
+    .replace(/\b[a-z0-9-]+(?:\.[a-z0-9-]+)*\.(?:com|org|net|gov|edu|io|co|info|biz|ae|uk|eu)\b\S*/gi, ' ') // bare domains
+    .replace(/(?:\b\d{1,3}\.\s*){2,}/g, ' ')                                   // "2. 3. 4. 1. 2." marker noise
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  // If the excerpt was only a link / marker noise, show nothing rather than a URL.
+  if (!collapsed) return '';
 
   // Minimum length below which we don't risk trimming a leading fragment.
   const MIN_LENGTH = 20;

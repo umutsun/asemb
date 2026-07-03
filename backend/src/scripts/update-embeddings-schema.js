@@ -17,7 +17,7 @@ async function runMigration() {
     port: process.env.POSTGRES_PORT || 5432,
     database: process.env.POSTGRES_DB || 'asemb',
     user: process.env.POSTGRES_USER || 'asemb_user',
-    password: process.env.POSTGRES_PASSWORD || 'Semsiye!22',
+    password: process.env.POSTGRES_PASSWORD,
     ssl: process.env.DB_SSL === 'true' ? { rejectUnauthorized: false } : false
   });
 

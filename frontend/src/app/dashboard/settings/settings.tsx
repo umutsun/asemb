@@ -78,6 +78,7 @@ import { chatTemplates } from '@/templates/registry';
 import debug from '../../../lib/debug';
 import ApiTokensSection from '../../../components/settings/ApiTokensSection';
 import { RagAntiHallucinationPresets } from '../../../components/settings/RagAntiHallucinationPresets';
+import SettingsShell from '@/components/settings/dynamic/SettingsShell';
 
 
 
@@ -7046,7 +7047,7 @@ export default function OptimizedSettingsPage() {
         </TabsContent>
 
         <TabsContent value="rag">
-          <RAGSettings />
+          <SettingsShell />
         </TabsContent>
 
         <TabsContent value="schema">

@@ -1064,6 +1064,8 @@ export class RAGChatService {
     // schema, citations from the array). Keeps **bold** — the renderer honours it.
     const stripStrayMarkup = (s: string): string => s
       .replace(/\[\s*\d+\s*\]/g, '')      // inline [n] citation markers (live in `citations`)
+      .replace(/https?:\/\/\S+/gi, '')    // never surface external source websites in the answer
+      .replace(/\bwww\.\S+/gi, '')
       .replace(/^\s*#{1,6}\s+/, '')       // stray heading marker
       .replace(/^\s*[-*]\s+/, '')         // stray bullet marker
       .replace(/^\s*\d+\.\s+/, '')        // stray ordered-list marker

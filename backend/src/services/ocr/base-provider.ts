@@ -1,6 +1,6 @@
 /**
  * Base OCR Provider
- * Tüm OCR provider'ların inherit edeceği abstract class
+ * Abstract class that all OCR providers inherit from
  */
 
 import { IOCRProvider, OCRResult, OCROptions, OCRProviderConfig, OCRProviderType } from './types';
@@ -22,26 +22,26 @@ export abstract class BaseOCRProvider implements IOCRProvider {
   }
 
   /**
-   * Provider hazır mı kontrol et (override edilebilir)
+   * Check whether the provider is ready (can be overridden)
    */
   async isReady(): Promise<boolean> {
     return this.enabled && !!this.config.apiKey;
   }
 
   /**
-   * Image preprocessing - kalite artırma
+   * Image preprocessing - quality enhancement
    */
   protected async preprocessImage(filePath: string): Promise<{ path: string; cleanup: boolean }> {
     try {
       const image = sharp(filePath);
       const metadata = await image.metadata();
 
-      // Eğer görsel zaten yüksek kalitedeyse preprocessing'e gerek yok
+      // If the image is already high quality, no preprocessing is needed
       if (metadata.width && metadata.width >= 1024 && metadata.height && metadata.height >= 1024) {
         return { path: filePath, cleanup: false };
       }
 
-      // Optimize edilmiş görsel oluştur
+      // Create an optimized image
       const optimizedPath = filePath.replace(/(\.[^.]+)$/, '_ocr_optimized$1');
 
       await image
@@ -52,13 +52,13 @@ export abstract class BaseOCRProvider implements IOCRProvider {
 
       return { path: optimizedPath, cleanup: true };
     } catch (error) {
-      logger.warn(`Image preprocessing başarısız, orijinal görsel kullanılıyor: ${error.message}`);
+      logger.warn(`Image preprocessing failed, using original image: ${error.message}`);
       return { path: filePath, cleanup: false };
     }
   }
 
   /**
-   * Dosyayı base64'e çevir
+   * Convert the file to base64
    */
   protected async fileToBase64(filePath: string): Promise<string> {
     const buffer = await fs.readFile(filePath);
@@ -66,7 +66,7 @@ export abstract class BaseOCRProvider implements IOCRProvider {
   }
 
   /**
-   * Dosya hash'i hesapla (cache key için)
+   * Compute file hash (for cache key)
    */
   protected async calculateFileHash(filePath: string): Promise<string> {
     const buffer = await fs.readFile(filePath);
@@ -74,7 +74,7 @@ export abstract class BaseOCRProvider implements IOCRProvider {
   }
 
   /**
-   * MIME type'ı dosya uzantısından belirle
+   * Determine MIME type from the file extension
    */
   protected getMimeType(filePath: string): string {
     const ext = path.extname(filePath).toLowerCase();
@@ -92,7 +92,7 @@ export abstract class BaseOCRProvider implements IOCRProvider {
   }
 
   /**
-   * Görsel boyutlarını al
+   * Get image dimensions
    */
   protected async getImageDimensions(filePath: string): Promise<{ width: number; height: number }> {
     try {
@@ -107,14 +107,14 @@ export abstract class BaseOCRProvider implements IOCRProvider {
   }
 
   /**
-   * Timer başlat
+   * Start timer
    */
   protected startTimer(): void {
     this.startTime = Date.now();
   }
 
   /**
-   * İşlem süresini hesapla
+   * Compute the processing time
    */
   protected getProcessingTime(): number {
     return Date.now() - this.startTime;
@@ -133,7 +133,7 @@ export abstract class BaseOCRProvider implements IOCRProvider {
     }
   }
 
-  // Abstract methods - her provider implement etmeli
+  // Abstract methods - every provider must implement them
   abstract processImage(filePath: string, options?: OCROptions): Promise<OCRResult>;
   abstract processPDF(filePath: string, options?: OCROptions): Promise<OCRResult>;
   abstract processBase64Image(base64Data: string, mimeType: string, options?: OCROptions): Promise<OCRResult>;

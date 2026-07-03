@@ -198,12 +198,12 @@ export const ChatInput: React.FC<ChatInputProps> = ({
               onChange={(e) => setInputText(e.target.value)}
               onKeyDown={handleKeyPress}
               placeholder={pdfFile ? t('chatInput.askAboutPdf', 'Ask a question about this PDF...') : placeholder}
-              className="min-h-[60px] max-h-[120px] resize-none pr-20"
+              className="min-h-[60px] max-h-[120px] resize-none pe-20"
               disabled={isLoading || isRecording}
             />
 
             {/* Action buttons inside textarea area */}
-            <div className="absolute right-2 bottom-2 flex items-center gap-1">
+            <div className="absolute right-2 rtl:right-auto rtl:left-2 bottom-2 flex items-center gap-1">
               {/* Paperclip button - only visible when PDF upload is enabled */}
               {pdfSettings.enabled && (
                 <button

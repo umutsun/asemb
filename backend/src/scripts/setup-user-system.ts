@@ -3,13 +3,14 @@ import bcrypt from 'bcryptjs';
 import fs from 'fs';
 import path from 'path';
 import dotenv from 'dotenv';
+import { resolveDatabaseUrl } from '../config/db-url';
 
 // Load environment variables
 dotenv.config({ path: path.join(__dirname, '../../.env') });
 
 // ASEMB database connection
 const pool = new Pool({
-  connectionString: process.env.DATABASE_URL || 'postgresql://postgres:Semsiye!22@91.99.229.96:5432/lsemb'
+  connectionString: resolveDatabaseUrl()
 });
 
 async function setupUserSystem() {

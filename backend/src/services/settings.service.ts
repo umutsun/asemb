@@ -1,5 +1,6 @@
 import { lsembPool } from '../config/database.config';
 import { logger } from '../utils/logger';
+import { redactSettingsSecrets } from '../config/settings-registry';
 
 export interface ServicePortConfig {
   redis?: {
@@ -437,30 +438,6 @@ export class SettingsService {
     }
   }
 
-  // Get all API keys
-  async getApiKeys(): Promise<Record<string, string>> {
-    try {
-      const client = await lsembPool.connect();
-
-      try {
-        const result = await client.query(`
-          SELECT key, value FROM settings WHERE category = 'api_keys'
-        `);
-
-        const keys: Record<string, string> = {};
-        for (const row of result.rows) {
-          keys[row.key] = row.value;
-        }
-        return keys;
-      } finally {
-        client.release();
-      }
-    } catch (error) {
-      logger.error('Failed to get API keys:', error);
-      return {};
-    }
-  }
-
   // Get LLM provider configurations
   async getLLMProviders(): Promise<any> {
     const cacheKey = 'llm_providers';
@@ -482,12 +459,14 @@ export class SettingsService {
       const client = await lsembPool.connect();
 
       try {
-        // Get all LLM provider settings from database
+        // Read canonical dotted provider keys (openai.apiKey, llmSettings.activeChatModel, …).
+        // The previous snake_case patterns ('openai_%', '%_api_key') matched nothing — this
+        // reads the keys the seed/migrations actually write.
         const result = await client.query(`
           SELECT key, value FROM settings
-          WHERE key LIKE 'llm_%' OR key LIKE '%_api_key' OR key LIKE '%_model'
-          OR key LIKE 'openai_%' OR key LIKE 'anthropic_%' OR key LIKE 'google_%'
-          OR key LIKE 'deepseek_%' OR key LIKE 'huggingface_%' OR key LIKE 'openrouter_%'
+          WHERE key LIKE 'openai.%' OR key LIKE 'anthropic.%' OR key LIKE 'google.%'
+             OR key LIKE 'deepseek.%' OR key LIKE 'huggingface.%' OR key LIKE 'openrouter.%'
+             OR key LIKE 'llmSettings.%'
         `);
 
         const providers: any = {
@@ -500,34 +479,17 @@ export class SettingsService {
           llmSettings: {}
         };
 
-        // Parse settings into provider structure
         for (const row of result.rows) {
-          const key = row.key;
-          const value = row.value;
-
-          if (key.startsWith('openai_')) {
-            const fieldName = key.replace('openai_', '');
-            providers.openai[fieldName] = value;
-          } else if (key.startsWith('anthropic_')) {
-            const fieldName = key.replace('anthropic_', '');
-            providers.anthropic[fieldName] = value;
-          } else if (key.startsWith('google_')) {
-            const fieldName = key.replace('google_', '');
-            providers.google[fieldName] = value;
-          } else if (key.startsWith('deepseek_')) {
-            const fieldName = key.replace('deepseek_', '');
-            providers.deepseek[fieldName] = value;
-          } else if (key.startsWith('huggingface_')) {
-            const fieldName = key.replace('huggingface_', '');
-            providers.huggingface[fieldName] = value;
-          } else if (key.startsWith('openrouter_')) {
-            const fieldName = key.replace('openrouter_', '');
-            providers.openrouter[fieldName] = value;
-          } else if (key.startsWith('llm_')) {
-            const fieldName = key.replace('llm_', '');
-            providers.llmSettings[fieldName] = value;
-          }
+          const dotIndex = row.key.indexOf('.');
+          if (dotIndex === -1) continue;
+          const prefix = row.key.slice(0, dotIndex);
+          const field = row.key.slice(dotIndex + 1);
+          if (providers[prefix]) providers[prefix][field] = row.value;
         }
+
+        // Never expose secrets through this aggregate reader — callers only need
+        // model/config, and one consumer feeds a settings-export dump.
+        redactSettingsSecrets(providers);
 
         // Cache the result
         this.setCache(cacheKey, providers);
@@ -578,7 +540,7 @@ export class SettingsService {
   }
 
   /**
-   * OCR ayarlarını al
+   * Get OCR settings
    */
   async getOCRSettings(): Promise<{
     activeProvider: string;
@@ -594,27 +556,28 @@ export class SettingsService {
   }> {
     try {
       const settings = await this.getAllSettings();
+      // settings.value is TEXT, so booleans arrive as the strings 'true'/'false' —
+      // parse them instead of comparing to the boolean `false`.
+      const parseBool = (v: any, def: boolean): boolean => {
+        if (v === undefined || v === null || v === '') return def;
+        return ['1', 'true', 'yes', 'on', 'enabled'].includes(String(v).replace(/^"|"$/g, '').trim().toLowerCase());
+      };
 
       return {
-        activeProvider: settings.ocr_active_provider || 'auto',
-        fallbackEnabled: settings.ocr_fallback_enabled !== false,
-        fallbackProvider: settings.ocr_fallback_provider || 'tesseract',
-        cacheEnabled: settings.ocr_cache_enabled !== false,
-        cacheTTL: settings.ocr_cache_ttl || 7 * 24 * 60 * 60, // 7 gün
+        // Canonical dotted keys (ocrSettings.* / <provider>.apiKey).
+        activeProvider: (settings['ocrSettings.activeProvider'] as string) || 'auto',
+        fallbackEnabled: parseBool(settings['ocrSettings.fallbackEnabled'], true),
+        fallbackProvider: (settings['ocrSettings.fallbackProvider'] as string) || 'tesseract',
+        cacheEnabled: parseBool(settings['ocrSettings.cacheEnabled'], true),
+        cacheTTL: Number(String(settings['ocrSettings.cacheTTL'] ?? '').replace(/"/g, '')) || 7 * 24 * 60 * 60,
         providers: {
-          openai: {
-            apiKey: settings.openai_api_key || ''
-          },
-          gemini: {
-            apiKey: settings.gemini_api_key || ''
-          },
-          replicate: {
-            apiKey: settings.replicate_api_key || ''
-          }
+          openai: { apiKey: settings['openai.apiKey'] || '' },
+          gemini: { apiKey: settings['google.apiKey'] || '' },
+          replicate: { apiKey: settings['replicate.apiKey'] || '' }
         }
       };
     } catch (error) {
-      logger.error('OCR ayarları alınamadı:', error);
+      logger.error('Failed to get OCR settings:', error);
       return {
         activeProvider: 'auto',
         fallbackEnabled: true,
@@ -631,7 +594,7 @@ export class SettingsService {
   }
 
   /**
-   * OCR ayarlarını kaydet
+   * Save OCR settings
    */
   async saveOCRSettings(settings: {
     activeProvider?: string;
@@ -646,45 +609,51 @@ export class SettingsService {
       try {
         await client.query('BEGIN');
 
-        // Her ayarı ayrı ayrı kaydet
+        // Persist each setting to its canonical dotted key as plain TEXT (not ::jsonb),
+        // so values round-trip with how the rest of the settings table stores them.
         if (settings.activeProvider !== undefined) {
-          await client.query(`
-            INSERT INTO settings (key, value, category, description)
-            VALUES ('ocr_active_provider', $1::jsonb, 'ocr', 'Active OCR provider')
-            ON CONFLICT (key) DO UPDATE SET value = $1::jsonb, updated_at = CURRENT_TIMESTAMP
-          `, [JSON.stringify(settings.activeProvider)]);
+          await client.query(
+            `INSERT INTO settings (key, value, category, description)
+             VALUES ('ocrSettings.activeProvider', $1, 'ocr', 'Active OCR provider')
+             ON CONFLICT (key) DO UPDATE SET value = $1, updated_at = CURRENT_TIMESTAMP`,
+            [String(settings.activeProvider)]
+          );
         }
 
         if (settings.fallbackEnabled !== undefined) {
-          await client.query(`
-            INSERT INTO settings (key, value, category, description)
-            VALUES ('ocr_fallback_enabled', $1::jsonb, 'ocr', 'OCR fallback enabled')
-            ON CONFLICT (key) DO UPDATE SET value = $1::jsonb, updated_at = CURRENT_TIMESTAMP
-          `, [JSON.stringify(settings.fallbackEnabled)]);
+          await client.query(
+            `INSERT INTO settings (key, value, category, description)
+             VALUES ('ocrSettings.fallbackEnabled', $1, 'ocr', 'OCR fallback enabled')
+             ON CONFLICT (key) DO UPDATE SET value = $1, updated_at = CURRENT_TIMESTAMP`,
+            [String(settings.fallbackEnabled)]
+          );
         }
 
         if (settings.fallbackProvider !== undefined) {
-          await client.query(`
-            INSERT INTO settings (key, value, category, description)
-            VALUES ('ocr_fallback_provider', $1::jsonb, 'ocr', 'Fallback OCR provider')
-            ON CONFLICT (key) DO UPDATE SET value = $1::jsonb, updated_at = CURRENT_TIMESTAMP
-          `, [JSON.stringify(settings.fallbackProvider)]);
+          await client.query(
+            `INSERT INTO settings (key, value, category, description)
+             VALUES ('ocrSettings.fallbackProvider', $1, 'ocr', 'OCR fallback provider')
+             ON CONFLICT (key) DO UPDATE SET value = $1, updated_at = CURRENT_TIMESTAMP`,
+            [String(settings.fallbackProvider)]
+          );
         }
 
         if (settings.cacheEnabled !== undefined) {
-          await client.query(`
-            INSERT INTO settings (key, value, category, description)
-            VALUES ('ocr_cache_enabled', $1::jsonb, 'ocr', 'OCR cache enabled')
-            ON CONFLICT (key) DO UPDATE SET value = $1::jsonb, updated_at = CURRENT_TIMESTAMP
-          `, [JSON.stringify(settings.cacheEnabled)]);
+          await client.query(
+            `INSERT INTO settings (key, value, category, description)
+             VALUES ('ocrSettings.cacheEnabled', $1, 'ocr', 'OCR cache enabled')
+             ON CONFLICT (key) DO UPDATE SET value = $1, updated_at = CURRENT_TIMESTAMP`,
+            [String(settings.cacheEnabled)]
+          );
         }
 
         if (settings.cacheTTL !== undefined) {
-          await client.query(`
-            INSERT INTO settings (key, value, category, description)
-            VALUES ('ocr_cache_ttl', $1::jsonb, 'ocr', 'OCR cache TTL in seconds')
-            ON CONFLICT (key) DO UPDATE SET value = $1::jsonb, updated_at = CURRENT_TIMESTAMP
-          `, [JSON.stringify(settings.cacheTTL)]);
+          await client.query(
+            `INSERT INTO settings (key, value, category, description)
+             VALUES ('ocrSettings.cacheTTL', $1, 'ocr', 'OCR cache TTL (seconds)')
+             ON CONFLICT (key) DO UPDATE SET value = $1, updated_at = CURRENT_TIMESTAMP`,
+            [String(settings.cacheTTL)]
+          );
         }
 
         await client.query('COMMIT');
@@ -700,7 +669,7 @@ export class SettingsService {
         client.release();
       }
     } catch (error: any) {
-      logger.error('OCR ayarları kaydedilemedi:', error);
+      logger.error('Failed to save OCR settings:', error);
       return { success: false, error: error.message };
     }
   }

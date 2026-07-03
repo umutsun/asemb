@@ -1,7 +1,7 @@
 /**
  * Gemini OCR Provider
- * Google Gemini 2.0 Flash kullanarak OCR işlemleri
- * Hızlı, ucuz ve güçlü alternatif
+ * OCR processing using Google Gemini 2.0 Flash
+ * Fast, cheap and powerful alternative
  */
 
 import { BaseOCRProvider } from '../base-provider';
@@ -26,7 +26,7 @@ export class GeminiProvider extends BaseOCRProvider {
   }
 
   /**
-   * Gemini client'ı initialize et
+   * Initialize the Gemini client
    */
   private async getClient(): Promise<GoogleGenerativeAI> {
     if (this.client) return this.client;
@@ -34,7 +34,7 @@ export class GeminiProvider extends BaseOCRProvider {
     const apiKey = this.config.apiKey || await settingsService.getApiKey('gemini_api_key');
 
     if (!apiKey) {
-      throw new Error('Gemini API key bulunamadı');
+      throw new Error('Gemini API key not found');
     }
 
     this.client = new GoogleGenerativeAI(apiKey);
@@ -51,7 +51,7 @@ export class GeminiProvider extends BaseOCRProvider {
   }
 
   /**
-   * Görsel OCR işleme
+   * Image OCR processing
    */
   async processImage(filePath: string, options: OCROptions = {}): Promise<OCRResult> {
     this.startTimer();
@@ -63,14 +63,14 @@ export class GeminiProvider extends BaseOCRProvider {
       // Image preprocessing
       const { path: processedPath, cleanup } = await this.preprocessImage(filePath);
 
-      // Base64'e çevir
+      // Convert to base64
       const base64Image = await this.fileToBase64(processedPath);
       const mimeType = this.getMimeType(filePath);
 
       // OCR prompt
       const prompt = options.prompt || this.getDefaultPrompt(options.language);
 
-      // Gemini Vision API çağrısı
+      // Gemini Vision API call
       const result = await this.generateContentWithRetry(model, [
         {
           inlineData: {
@@ -87,10 +87,10 @@ export class GeminiProvider extends BaseOCRProvider {
       const response = await result.response;
       const extractedText = response.text();
 
-      // Token kullanımı (Gemini'de usageMetadata var)
+      // Token usage (Gemini provides usageMetadata)
       const tokensUsed = response.usageMetadata?.totalTokenCount || 0;
 
-      // Görsel boyutları
+      // Image dimensions
       const dimensions = await this.getImageDimensions(filePath);
 
       return {
@@ -107,13 +107,13 @@ export class GeminiProvider extends BaseOCRProvider {
         }
       };
     } catch (error) {
-      logger.error('Gemini Vision OCR hatası:', error);
-      throw new Error(`Gemini Vision OCR başarısız: ${error.message}`);
+      logger.error('Gemini Vision OCR error:', error);
+      throw new Error(`Gemini Vision OCR failed: ${error.message}`);
     }
   }
 
   /**
-   * PDF OCR işleme
+   * PDF OCR processing
    */
   async processPDF(filePath: string, options: OCROptions = {}): Promise<OCRResult> {
     this.startTimer();
@@ -122,13 +122,13 @@ export class GeminiProvider extends BaseOCRProvider {
       const client = await this.getClient();
       const model = client.getGenerativeModel({ model: this.model });
 
-      // PDF'i base64'e çevir
+      // Convert the PDF to base64
       const base64PDF = await this.fileToBase64(filePath);
 
       // OCR prompt
       const prompt = options.prompt || this.getDefaultPrompt(options.language);
 
-      // Gemini PDF desteği (beta)
+      // Gemini PDF support (beta)
       const result = await this.generateContentWithRetry(model, [
         {
           inlineData: {
@@ -156,8 +156,8 @@ export class GeminiProvider extends BaseOCRProvider {
         }
       };
     } catch (error) {
-      logger.error('Gemini Vision PDF OCR hatası:', error);
-      throw new Error(`Gemini Vision PDF OCR başarısız: ${error.message}`);
+      logger.error('Gemini Vision PDF OCR error:', error);
+      throw new Error(`Gemini Vision PDF OCR failed: ${error.message}`);
     }
   }
 
@@ -204,13 +204,13 @@ export class GeminiProvider extends BaseOCRProvider {
         }
       };
     } catch (error) {
-      logger.error('Gemini Vision base64 OCR hatası:', error);
-      throw new Error(`Gemini Vision OCR başarısız: ${error.message}`);
+      logger.error('Gemini Vision base64 OCR error:', error);
+      throw new Error(`Gemini Vision OCR failed: ${error.message}`);
     }
   }
 
   /**
-   * Provider config'i döndür
+   * Return the provider config
    */
   getConfig(): OCRProviderConfig {
     return {
@@ -218,15 +218,15 @@ export class GeminiProvider extends BaseOCRProvider {
       model: this.model,
       supportedFormats: ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'application/pdf'],
       maxFileSize: 20 * 1024 * 1024, // 20MB
-      costPerToken: 0.00000015 // Gemini 2.0 Flash çok ucuz!
+      costPerToken: 0.00000015 // Gemini 2.0 Flash is very cheap!
     };
   }
 
   /**
-   * Maliyet tahmini
+   * Cost estimation
    */
   async estimateCost(fileSize: number, pageCount: number = 1): Promise<number> {
-    // Gemini token hesaplama
+    // Gemini token calculation
     const estimatedTokens = pageCount * 1000;
     return this.calculateCost(estimatedTokens);
   }
@@ -236,24 +236,24 @@ export class GeminiProvider extends BaseOCRProvider {
    */
   private getDefaultPrompt(language?: string): string {
     const langInstruction = language
-      ? `Lütfen ${language} dilindeki tüm metni çıkar.`
-      : 'Lütfen tüm metni orijinal dilinde çıkar.';
+      ? `Please extract all text in ${language}.`
+      : 'Please extract all text in its original language.';
 
     return `${langInstruction}
 
-Bu görseldeki TÜM metni mükemmel doğrulukla çevir.
+Transcribe ALL text in this image with perfect accuracy.
 
-İçermesi gerekenler:
-- Okuma sırasına göre tüm metin içeriği
-- Biçimlendirme, satır sonları ve yapıyı koru
-- Tablo verileri varsa dahil et
-- Orijinal noktalama ve boşlukları koru
+It should include:
+- All text content in reading order
+- Preserve formatting, line breaks, and structure
+- Include table data if present
+- Maintain original punctuation and spacing
 
-SADECE çıkarılan metni döndür, açıklama veya ek yorum ekleme.`;
+Return ONLY the extracted text, no explanations or additional commentary.`;
   }
 
   /**
-   * Confidence hesaplama
+   * Confidence calculation
    */
   private calculateConfidence(text: string): number {
     if (!text || text.length < 10) return 0.6;
@@ -263,7 +263,7 @@ SADECE çıkarılan metni döndür, açıklama veya ek yorum ekleme.`;
   }
 
   /**
-   * Maliyet hesaplama (Gemini çok ucuz!)
+   * Cost calculation (Gemini is very cheap!)
    */
   private calculateCost(tokens: number): number {
     const costPerToken = 0.00000015; // ~$0.15 / 1M tokens

@@ -60,7 +60,7 @@ class CSVTransformService {
       }
 
       const config = {
-        host: dbConfig.host || '91.99.229.96',
+        host: dbConfig.host,
         port: dbConfig.port || 5432,
         database: sourceDatabaseName,
         user: dbConfig.user,

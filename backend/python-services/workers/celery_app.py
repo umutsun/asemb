@@ -36,6 +36,7 @@ celery_app.autodiscover_tasks(['workers'])
 
 # Explicitly import tasks to ensure registration
 from workers import google_drive_worker  # noqa: F401
+from workers import media_worker  # noqa: F401  # multimodal media ingestion tasks
 
 if __name__ == '__main__':
     celery_app.start()

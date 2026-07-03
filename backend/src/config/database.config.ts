@@ -8,13 +8,17 @@ dotenv.config({ path: path.resolve(__dirname, '../../.env.lsemb') });
 // Fallback to .env in backend directory
 dotenv.config({ path: path.resolve(__dirname, '../../.env') });
 
-// LSEMB System Database - Get from .env file
+// Env-only connection-string resolver (no hardcoded credentials). Re-exported for
+// callers that already import from this module.
+export { resolveDatabaseUrl } from './db-url';
+
+// LSEMB System Database — credentials come from env only (no hardcoded fallbacks).
 export const lsembDbConfig = {
-  host: process.env.POSTGRES_HOST || '91.99.229.96',
+  host: process.env.POSTGRES_HOST,
   port: parseInt(process.env.POSTGRES_PORT || '5432'),
   database: process.env.POSTGRES_DB || 'lsemb',
   user: process.env.POSTGRES_USER || 'postgres',
-  password: process.env.POSTGRES_PASSWORD || '123456',
+  password: process.env.POSTGRES_PASSWORD,
   ssl: false, // SSL disabled for local development
   connectionTimeoutMillis: 30000, // 30 seconds timeout
   idleTimeoutMillis: 30000,
@@ -46,7 +50,7 @@ export async function initializeConfigs(): Promise<void> {
     host: process.env.REDIS_HOST || 'localhost',
     port: parseInt(process.env.REDIS_PORT || '6379'),
     db: parseInt(process.env.REDIS_DB || '2'),
-    password: process.env.REDIS_PASSWORD || 'Semsiye!22'
+    password: process.env.REDIS_PASSWORD
   };
 
   llmProviders = {
@@ -596,7 +600,7 @@ export async function getDatabaseSettings() {
 
       // Validate required fields and add .env fallbacks if missing
       if (!dbConfig.host) {
-        dbConfig.host = process.env.POSTGRES_HOST || '91.99.229.96';
+        dbConfig.host = process.env.POSTGRES_HOST;
         console.log('DEBUG: Using POSTGRES_HOST from env:', dbConfig.host);
       }
       if (!dbConfig.port) {

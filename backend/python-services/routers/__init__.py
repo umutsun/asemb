@@ -17,6 +17,7 @@ from .rag_pipeline_router import router as rag_pipeline_router
 from .relationship_router import router as relationship_router
 from .llm_cache_router import router as llm_cache_router
 from .agent_memory_router import router as agent_memory_router
+from .media_router import router as media_router
 
 __all__ = [
     'crawl_router',
@@ -36,5 +37,6 @@ __all__ = [
     'rag_pipeline_router',
     'relationship_router',
     'llm_cache_router',
-    'agent_memory_router'
+    'agent_memory_router',
+    'media_router'
 ]

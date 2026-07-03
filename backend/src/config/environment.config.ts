@@ -38,7 +38,7 @@ export const config = {
   // Database config
   database: {
     host: process.env.POSTGRES_HOST || (IS_PRODUCTION
-      ? '91.99.229.96'
+      ? process.env.POSTGRES_HOST
       : 'localhost'
     ),
     port: parseInt(process.env.POSTGRES_PORT || '5432'),

@@ -1,10 +1,11 @@
 import { Pool } from 'pg';
 import dotenv from 'dotenv';
+import { resolveDatabaseUrl } from '../config/db-url';
 
 dotenv.config();
 
 const pool = new Pool({
-  connectionString: process.env.DATABASE_URL || 'postgresql://user:password@91.99.229.96:5432/postgres'
+  connectionString: resolveDatabaseUrl()
 });
 
 async function fixTables() {

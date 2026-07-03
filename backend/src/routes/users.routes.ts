@@ -6,12 +6,13 @@ import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
 import { authenticateToken, AuthenticatedRequest, requireAdmin } from '../middleware/auth.middleware';
+import { resolveDatabaseUrl } from '../config/db-url';
 
 const router = Router();
 
 // Database connection
 const pool = new Pool({
-  connectionString: process.env.DATABASE_URL || 'postgresql://postgres:Semsiye!22@91.99.229.96:5432/lsemb'
+  connectionString: resolveDatabaseUrl()
 });
 
 const JWT_SECRET = process.env.JWT_SECRET || 'your-super-secret-jwt-key-change-this-in-production';

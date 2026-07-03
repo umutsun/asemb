@@ -51,7 +51,7 @@ async function initializeSourcePool() {
     console.log(`[Source DB] ✓ Using database: ${sourceDatabaseName} on ${dbConfig.host}:${dbConfig.port}`);
 
     // Use config values directly
-    const sourceHost = dbConfig.host || '91.99.229.96';
+    const sourceHost = dbConfig.host;
     const sourcePort = dbConfig.port || 5432;
     const sourceUser = dbConfig.user;
     const sourcePassword = dbConfig.password;

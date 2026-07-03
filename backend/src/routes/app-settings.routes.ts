@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { SettingsService } from '../services/settings.service';
 import { getLLMProviders, getAppConfig } from '../config/database.config';
+import { getDef } from '../config/settings-registry';
 
 const router = Router();
 
@@ -13,10 +14,10 @@ router.get('/', async (req, res) => {
     // Transform flat key-value settings to nested structure expected by frontend
     const transformedSettings: any = {
       app: {
-        name: dbSettings.app_name || 'Alice Semantic Bridge',
-        description: dbSettings.app_description || 'AI-Powered Knowledge Management System',
-        logoUrl: dbSettings.app_logo_url || '',
-        locale: dbSettings.app_locale || 'tr'
+        name: dbSettings['app.name'] || getDef('app.name')?.default,
+        description: dbSettings['app.description'] || getDef('app.description')?.default,
+        logoUrl: dbSettings['app.logoUrl'] || '',
+        locale: dbSettings['app.locale'] || getDef('app.locale')?.default
       },
       database: {
         type: 'postgresql',
@@ -24,7 +25,7 @@ router.get('/', async (req, res) => {
         port: parseInt(dbSettings.db_port) || 5432,
         name: dbSettings.db_name || 'alice_semantic_bridge',
         user: dbSettings.db_user || 'postgres',
-        password: dbSettings.db_password || 'postgres',
+        password: '', // never expose the DB password over the API
         ssl: dbSettings.db_ssl === 'true',
         maxConnections: parseInt(dbSettings.db_max_connections) || 20
       },

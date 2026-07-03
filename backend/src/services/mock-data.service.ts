@@ -1,10 +1,11 @@
 import { Pool } from 'pg';
+import { resolveDatabaseUrl } from '../config/db-url';
 
 export class MockDataService {
   private pool: Pool;
 
   constructor() {
-    const connectionString = process.env.DATABASE_URL || 'postgresql://postgres:Semsiye!22@91.99.229.96:5432/lsemb';
+    const connectionString = resolveDatabaseUrl();
     this.pool = new Pool({ connectionString });
   }
 

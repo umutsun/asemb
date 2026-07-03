@@ -1,6 +1,6 @@
 /**
  * OCR Service Barrel Export
- * Multi-provider OCR sistemi için merkezi export dosyası
+ * Central export file for the multi-provider OCR system
  */
 
 export * from './types';

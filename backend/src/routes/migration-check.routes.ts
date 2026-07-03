@@ -7,11 +7,19 @@ const router = Router();
 router.get('/check-tables', async (req: Request, res: Response) => {
   const results: any = {};
   
-  // Databases to check
+  // Build a base connection from environment (no hardcoded credentials/host).
+  const pgUser = process.env.POSTGRES_USER;
+  const pgPassword = process.env.POSTGRES_PASSWORD;
+  const pgHost = process.env.POSTGRES_HOST;
+  const pgPort = process.env.POSTGRES_PORT || '5432';
+  const buildConnection = (dbName: string) =>
+    `postgresql://${pgUser}:${pgPassword}@${pgHost}:${pgPort}/${dbName}`;
+
+  // Databases to check (DB names are not secrets)
   const databases = [
-    { name: 'lsemb', connection: 'postgresql://postgres:Semsiye!22@91.99.229.96:5432/lsemb' },
-    { name: 'postgres', connection: 'postgresql://postgres:Semsiye!22@91.99.229.96:5432/postgres' },
-    { name: 'semantic_db', connection: 'postgresql://postgres:Semsiye!22@91.99.229.96:5432/semantic_db' }
+    { name: 'lsemb', connection: buildConnection('lsemb') },
+    { name: 'postgres', connection: buildConnection('postgres') },
+    { name: 'semantic_db', connection: buildConnection('semantic_db') }
   ];
   
   // Tables we're looking for

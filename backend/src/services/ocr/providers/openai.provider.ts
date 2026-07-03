@@ -1,6 +1,6 @@
 /**
  * OpenAI OCR Provider
- * GPT-4o kullanarak OCR işlemleri
+ * OCR processing using GPT-4o
  */
 
 import { BaseOCRProvider } from '../base-provider';
@@ -21,7 +21,7 @@ export class OpenAIProvider extends BaseOCRProvider {
   }
 
   /**
-   * OpenAI client'ı initialize et
+   * Initialize the OpenAI client
    */
   private async getClient(): Promise<OpenAI> {
     if (this.client) return this.client;
@@ -29,7 +29,7 @@ export class OpenAIProvider extends BaseOCRProvider {
     const apiKey = this.config.apiKey || await settingsService.getApiKey('openai_api_key');
 
     if (!apiKey) {
-      throw new Error('OpenAI API key bulunamadı');
+      throw new Error('OpenAI API key not found');
     }
 
     this.client = new OpenAI({ apiKey });
@@ -46,7 +46,7 @@ export class OpenAIProvider extends BaseOCRProvider {
   }
 
   /**
-   * Görsel OCR işleme
+   * Image OCR processing
    */
   async processImage(filePath: string, options: OCROptions = {}): Promise<OCRResult> {
     this.startTimer();
@@ -57,14 +57,14 @@ export class OpenAIProvider extends BaseOCRProvider {
       // Image preprocessing
       const { path: processedPath, cleanup } = await this.preprocessImage(filePath);
 
-      // Base64'e çevir
+      // Convert to base64
       const base64Image = await this.fileToBase64(processedPath);
       const mimeType = this.getMimeType(filePath);
 
       // OCR prompt
       const prompt = options.prompt || this.getDefaultPrompt(options.language);
 
-      // OpenAI Vision API çağrısı
+      // OpenAI Vision API call
       const response = await client.chat.completions.create({
         model: this.model,
         messages: [
@@ -92,7 +92,7 @@ export class OpenAIProvider extends BaseOCRProvider {
       const extractedText = response.choices[0]?.message?.content || '';
       const tokensUsed = response.usage?.total_tokens || 0;
 
-      // Görsel boyutları
+      // Image dimensions
       const dimensions = await this.getImageDimensions(filePath);
 
       return {
@@ -109,18 +109,18 @@ export class OpenAIProvider extends BaseOCRProvider {
         }
       };
     } catch (error) {
-      logger.error('OpenAI Vision OCR hatası:', error);
-      throw new Error(`OpenAI Vision OCR başarısız: ${error.message}`);
+      logger.error('OpenAI Vision OCR error:', error);
+      throw new Error(`OpenAI Vision OCR failed: ${error.message}`);
     }
   }
 
   /**
-   * PDF OCR işleme (sayfa sayfa)
+   * PDF OCR processing (page by page)
    */
   async processPDF(filePath: string, options: OCROptions = {}): Promise<OCRResult> {
-    // PDF → Images dönüşümü gerekli (pdf-poppler veya pdf2image)
-    // Şimdilik placeholder implementation
-    throw new Error('OpenAI Vision için PDF desteği henüz eklenmedi. Lütfen PDF\'i görsel olarak yükleyin.');
+    // PDF → Images conversion required (pdf-poppler or pdf2image)
+    // Placeholder implementation for now
+    throw new Error('PDF support for OpenAI Vision is not yet implemented. Please upload the PDF as an image.');
   }
 
   /**
@@ -174,13 +174,13 @@ export class OpenAIProvider extends BaseOCRProvider {
         }
       };
     } catch (error) {
-      logger.error('OpenAI Vision base64 OCR hatası:', error);
-      throw new Error(`OpenAI Vision OCR başarısız: ${error.message}`);
+      logger.error('OpenAI Vision base64 OCR error:', error);
+      throw new Error(`OpenAI Vision OCR failed: ${error.message}`);
     }
   }
 
   /**
-   * Provider config'i döndür
+   * Return the provider config
    */
   getConfig(): OCRProviderConfig {
     return {
@@ -193,10 +193,10 @@ export class OpenAIProvider extends BaseOCRProvider {
   }
 
   /**
-   * Maliyet tahmini
+   * Cost estimation
    */
   async estimateCost(fileSize: number, pageCount: number = 1): Promise<number> {
-    // Vision token hesaplama (yaklaşık)
+    // Vision token calculation (approximate)
     // High detail: ~1000-2000 token per image
     const estimatedTokens = pageCount * 1500;
     return this.calculateCost(estimatedTokens);
@@ -223,7 +223,7 @@ Return ONLY the extracted text, no explanations or additional commentary.`;
   }
 
   /**
-   * Confidence hesaplama (basit heuristic)
+   * Confidence calculation (simple heuristic)
    */
   private calculateConfidence(text: string): number {
     if (!text || text.length < 10) return 0.5;
@@ -233,7 +233,7 @@ Return ONLY the extracted text, no explanations or additional commentary.`;
   }
 
   /**
-   * Maliyet hesaplama
+   * Cost calculation
    */
   private calculateCost(tokens: number): number {
     const costPerToken = 0.000005; // $5 / 1M tokens

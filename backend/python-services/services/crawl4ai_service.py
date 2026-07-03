@@ -7,6 +7,7 @@ import os
 import json
 from typing import Optional, Dict, Any, List
 from datetime import datetime
+from urllib.parse import urlparse
 import hashlib
 
 # crawl4ai is an OPTIONAL, heavy dependency (pulls playwright + pins lxml/numpy that conflict
@@ -31,12 +32,27 @@ from loguru import logger
 from services.database import execute_update, execute_query
 from services.redis_client import cache_get, cache_set
 
+# Engine fallback (httpx+BS / Playwright) so AUTO crawls keep working when crawl4ai is absent.
+# Guarded: a problem importing the runtime must never break the FastAPI service.
+try:
+    from crawler_runtime import engine as crawl_engine
+    _ENGINE_FALLBACK_AVAILABLE = True
+except Exception as _eng_err:  # pragma: no cover
+    crawl_engine = None  # type: ignore
+    _ENGINE_FALLBACK_AVAILABLE = False
+
 class Crawl4AIService:
     """Service for AI-powered web scraping using Crawl4AI"""
 
     def __init__(self):
         if not _CRAWL4AI_AVAILABLE:
-            logger.warning("[crawl4ai] package not installed — crawl endpoints disabled (service still runs)")
+            if _ENGINE_FALLBACK_AVAILABLE:
+                logger.warning(
+                    "[crawl4ai] package not installed — AUTO mode falls back to "
+                    f"engine chain {crawl_engine.available_engines()}; LLM/SCHEMA modes disabled"
+                )
+            else:
+                logger.warning("[crawl4ai] package not installed — crawl endpoints disabled (service still runs)")
         self.max_workers = int(os.getenv("CRAWL4AI_MAX_WORKERS", 5))
         self.timeout = int(os.getenv("CRAWL4AI_TIMEOUT", 30))
         self.max_retries = int(os.getenv("CRAWL4AI_MAX_RETRIES", 3))
@@ -69,6 +85,11 @@ class Crawl4AIService:
         Returns:
             Extracted data with metadata
         """
+        if not _CRAWL4AI_AVAILABLE:
+            raise RuntimeError(
+                "LLM extraction requires the crawl4ai package, which is not installed. "
+                "Use mode='auto' for static (httpx/Playwright) content extraction instead."
+            )
         # Check cache first
         if self.use_cache:
             cache_key = self._generate_cache_key(url, extraction_prompt)
@@ -137,6 +158,10 @@ class Crawl4AIService:
         Returns:
             Extracted content with metadata
         """
+        if not _CRAWL4AI_AVAILABLE:
+            return await self._crawl_auto_fallback(
+                url, max_depth=max_depth, follow_links=follow_links, **kwargs
+            )
         try:
             async with AsyncWebCrawler(verbose=True) as crawler:
                 # Use cosine similarity strategy for semantic extraction
@@ -200,6 +225,11 @@ class Crawl4AIService:
         Returns:
             Structured data matching schema
         """
+        if not _CRAWL4AI_AVAILABLE:
+            raise RuntimeError(
+                "Schema (JSON/CSS) extraction requires the crawl4ai package, which is not "
+                "installed. Use mode='auto' for static (httpx/Playwright) content extraction instead."
+            )
         try:
             async with AsyncWebCrawler(verbose=True) as crawler:
                 # Configure JSON/CSS extraction
@@ -231,6 +261,78 @@ class Crawl4AIService:
         except Exception as e:
             logger.error(f"Schema-based crawl failed for {url}: {e}")
             raise
+
+    def _fallback_processed(self, res: Any) -> Dict[str, Any]:
+        """Shape an engine FetchResult into the same dict crawl4ai results use."""
+        text = res.text or ""
+        return {
+            "url": res.url,
+            "title": res.title or "",
+            "content": text,
+            "markdown": text,  # no markdown without crawl4ai; reuse plain text
+            "extracted_content": None,
+            "metadata": {
+                "crawled_at": datetime.now().isoformat(),
+                "success": res.success,
+                "status_code": res.status,
+                "content_type": "text/html",
+                "engine": res.engine,
+                "word_count": len(text.split()),
+                "links_count": len(res.links),
+                "images_count": 0,
+                "screenshot": None,
+                "fallback": True,
+            },
+            "links": res.links[:50],
+            "images": [],
+        }
+
+    async def _crawl_auto_fallback(
+        self,
+        url: str,
+        max_depth: int = 1,
+        follow_links: bool = False,
+        **kwargs
+    ) -> Dict[str, Any]:
+        """AUTO-mode crawl using the engine fallback chain (crawl4ai unavailable)."""
+        timeout = int(kwargs.get("timeout") or self.timeout)
+        wait_for = kwargs.get("wait_for")
+        render = bool(kwargs.get("js_code") or wait_for)
+        logger.info(f"[crawl4ai] engine-fallback AUTO crawl for {url} (render={render})")
+
+        res = await crawl_engine.fetch(url, render=render, wait_for=wait_for, timeout=timeout)
+        if not res.success:
+            raise RuntimeError(f"engine fallback failed for {url}: {res.error}")
+
+        processed = self._fallback_processed(res)
+
+        # Optional shallow same-domain link following (capped, mirrors crawl_auto's limit of 10)
+        if follow_links and max_depth > 1:
+            base_domain = urlparse(url).netloc
+            seen = {url}
+            extra_text = [processed["content"]]
+            all_links = set(processed["links"])
+            for link in res.links:
+                if len(seen) > 10:
+                    break
+                if link in seen or urlparse(link).netloc != base_domain:
+                    continue
+                seen.add(link)
+                try:
+                    lres = await crawl_engine.fetch(link, timeout=timeout)
+                    if lres.success and lres.text:
+                        extra_text.append(lres.text)
+                        all_links.update(lres.links[:50])
+                except Exception as e:
+                    logger.warning(f"[crawl4ai] fallback failed to follow {link}: {e}")
+            processed["content"] = "\n\n".join(t for t in extra_text if t)
+            processed["markdown"] = processed["content"]
+            processed["links"] = list(all_links)[:100]
+            processed["metadata"]["pages_crawled"] = len(seen)
+            processed["metadata"]["word_count"] = len(processed["content"].split())
+
+        await self._store_scraped_content(processed)
+        return processed
 
     async def _process_crawl_result(
         self,

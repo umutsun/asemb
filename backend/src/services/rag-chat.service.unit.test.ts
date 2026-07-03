@@ -107,7 +107,7 @@ describe.skip('RAGChatService', () => {
 
             const result = await service.processMessage('ne?', 'conv-1', 'user-1');
 
-            expect(result._debug?.responseType).toBe('NEEDS_CLARIFICATION');
+            expect((result as any)._debug?.responseType).toBe('NEEDS_CLARIFICATION');
             expect(mockLLMManager.generateChatResponse).not.toHaveBeenCalled();
         });
 
@@ -116,7 +116,7 @@ describe.skip('RAGChatService', () => {
 
             const result = await service.processMessage('Einstein kimdir?', 'conv-1', 'user-1');
 
-            expect(result._debug?.responseType).toBe('OUT_OF_SCOPE');
+            expect((result as any)._debug?.responseType).toBe('OUT_OF_SCOPE');
         });
 
         it('should handle PDF context correctly', async () => {
@@ -128,8 +128,8 @@ describe.skip('RAGChatService', () => {
                 }
             });
 
-            expect(result.pdfMode).toBe(true);
-            expect(result.pdfFilename).toBe('test.pdf');
+            expect((result as any).pdfMode).toBe(true);
+            expect((result as any).pdfFilename).toBe('test.pdf');
             // It calls processPdfMessage internal method
         });
 

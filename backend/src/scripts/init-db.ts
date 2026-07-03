@@ -2,12 +2,13 @@ import { Pool } from 'pg';
 import fs from 'fs';
 import path from 'path';
 import dotenv from 'dotenv';
+import { resolveDatabaseUrl } from '../config/db-url';
 
 dotenv.config();
 
 async function initDatabase() {
   const pool = new Pool({
-    connectionString: process.env.DATABASE_URL || 'postgresql://user:password@91.99.229.96:5432/postgres',
+    connectionString: resolveDatabaseUrl(),
   });
 
   try {

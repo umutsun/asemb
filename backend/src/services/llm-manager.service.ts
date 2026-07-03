@@ -441,7 +441,7 @@ export class LLMManager {
   /**
    * Extract provider name from model string (e.g., "anthropic/claude-3-sonnet" -> "claude")
    */
-  private extractProviderFromModel(modelString: string): string {
+  public extractProviderFromModel(modelString: string): string {
     if (modelString.includes('openrouter')) return 'openrouter';
     if (modelString.includes('claude') || modelString.includes('anthropic')) return 'claude';
     if (modelString.includes('openai') || modelString.includes('gpt')) return 'openai';
@@ -934,17 +934,17 @@ export class LLMManager {
           console.error(` CRITICAL: Active provider ${provider} failed to initialize. Reason: ${!prov?.apiKey ? 'Missing API key' : 'Initialization error'}`);
           activeProviderFailed = true;
 
-          // Save the error status to settings
+          // Save the error status to settings (setSetting — saveSetting does not exist)
           const settingsService = require('./settings.service').SettingsService.getInstance();
-          await settingsService.saveSetting(`llmStatus.${provider}.status`, 'error');
-          await settingsService.saveSetting(`llmStatus.${provider}.error`, `Failed to initialize: Check API key`);
-          await settingsService.saveSetting(`llmStatus.${provider}.lastChecked`, new Date().toISOString());
+          await settingsService.setSetting(`llmStatus.${provider}.status`, 'error');
+          await settingsService.setSetting(`llmStatus.${provider}.error`, `Failed to initialize: Check API key`);
+          await settingsService.setSetting(`llmStatus.${provider}.lastChecked`, new Date().toISOString());
 
           // Try fallback
           console.log(` Trying to find fallback provider...`);
           const availableProvider = await this.getAvailableProvider();
           if (!availableProvider) {
-            throw new Error('LLM e bağlanılamadı. Lütfen API anahtarlarınızı kontrol edin.');
+            throw new Error('Unable to connect to any LLM. Please check your API keys.');
           }
           console.log(` Using fallback provider: ${availableProvider}`);
           provider = availableProvider;

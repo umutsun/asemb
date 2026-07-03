@@ -1,11 +1,11 @@
 /**
  * OCR Cache Service (Redis)
- * OCR sonuçlarını cache'leyerek maliyet ve süre tasarrufu sağlar
+ * Saves cost and time by caching OCR results
  *
  * Cache Strategy:
  * - Key: MD5(file) + provider + prompt
- * - TTL: 7 gün (configurable)
- * - Hit rate hedefi: %60+
+ * - TTL: 7 days (configurable)
+ * - Hit rate target: 60%+
  */
 
 import { redis, initializeRedis } from '../../config/redis';
@@ -16,7 +16,7 @@ import { logger } from '../../utils/logger';
 export class OCRCacheService {
   private static instance: OCRCacheService;
   private readonly CACHE_PREFIX = 'ocr:v1:';
-  private readonly DEFAULT_TTL = 7 * 24 * 60 * 60; // 7 gün
+  private readonly DEFAULT_TTL = 7 * 24 * 60 * 60; // 7 days
   private isRedisReady = false;
 
   private constructor() {
@@ -31,7 +31,7 @@ export class OCRCacheService {
   }
 
   /**
-   * Redis bağlantısını initialize et
+   * Initialize the Redis connection
    */
   private async initRedis(): Promise<void> {
     try {
@@ -39,18 +39,18 @@ export class OCRCacheService {
       this.isRedisReady = redis && redis.status === 'ready';
 
       if (this.isRedisReady) {
-        logger.info(' OCR Cache Service - Redis hazır');
+        logger.info(' OCR Cache Service - Redis ready');
       } else {
-        logger.warn('️ OCR Cache Service - Redis kullanılamıyor, cache disabled');
+        logger.warn('️ OCR Cache Service - Redis unavailable, cache disabled');
       }
     } catch (error) {
-      logger.error(' OCR Cache Service - Redis initialization hatası:', error);
+      logger.error(' OCR Cache Service - Redis initialization error:', error);
       this.isRedisReady = false;
     }
   }
 
   /**
-   * Cache key oluştur
+   * Build cache key
    */
   private generateCacheKey(
     fileHash: string,
@@ -65,14 +65,14 @@ export class OCRCacheService {
   }
 
   /**
-   * Dosya hash'i hesapla
+   * Compute file hash
    */
   public calculateFileHash(buffer: Buffer): string {
     return crypto.createHash('md5').update(buffer).digest('hex');
   }
 
   /**
-   * Cache'den OCR sonucu al
+   * Get OCR result from cache
    */
   async get(
     fileHash: string,
@@ -92,11 +92,11 @@ export class OCRCacheService {
 
       const entry: OCRCacheEntry = JSON.parse(cached);
 
-      // Cache age kontrolü (optional)
+      // Cache age check (optional)
       const ageInDays = (Date.now() - entry.timestamp) / (1000 * 60 * 60 * 24);
-      logger.info(` OCR Cache HIT: ${key} (age: ${ageInDays.toFixed(1)} gün)`);
+      logger.info(` OCR Cache HIT: ${key} (age: ${ageInDays.toFixed(1)} days)`);
 
-      // Metadata'ya cache bilgisi ekle
+      // Add cache info to metadata
       return {
         ...entry.result,
         metadata: {
@@ -106,13 +106,13 @@ export class OCRCacheService {
         }
       };
     } catch (error) {
-      logger.error('OCR Cache get hatası:', error);
+      logger.error('OCR Cache get error:', error);
       return null;
     }
   }
 
   /**
-   * OCR sonucunu cache'e kaydet
+   * Save the OCR result to cache
    */
   async set(
     fileHash: string,
@@ -136,18 +136,18 @@ export class OCRCacheService {
       await redis.setex(key, ttl, JSON.stringify(entry));
       logger.info(` OCR Cache SAVED: ${key} (TTL: ${ttl}s)`);
 
-      // İstatistik güncelle
+      // Update statistics
       await this.incrementCacheStat('writes');
 
       return true;
     } catch (error) {
-      logger.error('OCR Cache set hatası:', error);
+      logger.error('OCR Cache set error:', error);
       return false;
     }
   }
 
   /**
-   * Cache'i temizle (specific veya tümü)
+   * Clear the cache (specific or all)
    */
   async clear(fileHash?: string, provider?: OCRProviderType): Promise<number> {
     if (!this.isRedisReady) return 0;
@@ -168,17 +168,17 @@ export class OCRCacheService {
       if (keys.length === 0) return 0;
 
       await redis.del(...keys);
-      logger.info(`️ OCR Cache temizlendi: ${keys.length} entry silindi`);
+      logger.info(`️ OCR Cache cleared: ${keys.length} entries deleted`);
 
       return keys.length;
     } catch (error) {
-      logger.error('OCR Cache clear hatası:', error);
+      logger.error('OCR Cache clear error:', error);
       return 0;
     }
   }
 
   /**
-   * Cache istatistiklerini al
+   * Get cache statistics
    */
   async getStats(): Promise<{
     totalEntries: number;
@@ -208,7 +208,7 @@ export class OCRCacheService {
       const total = hits + misses;
       const hitRate = total > 0 ? (hits / total) * 100 : 0;
 
-      // Tahmini maliyet tasarrufu (ortalama $0.01 per OCR request)
+      // Estimated cost savings (average $0.01 per OCR request)
       const estimatedSavings = hits * 0.01;
 
       return {
@@ -220,7 +220,7 @@ export class OCRCacheService {
         estimatedSavings: parseFloat(estimatedSavings.toFixed(2))
       };
     } catch (error) {
-      logger.error('OCR Cache stats hatası:', error);
+      logger.error('OCR Cache stats error:', error);
       return {
         totalEntries: 0,
         cacheHits: 0,
@@ -233,32 +233,32 @@ export class OCRCacheService {
   }
 
   /**
-   * Cache istatistiklerini güncelle
+   * Update cache statistics
    */
   private async incrementCacheStat(stat: 'hits' | 'misses' | 'writes'): Promise<void> {
     try {
       await redis.incr(`ocr:stats:${stat}`);
     } catch (error) {
-      // Sessizce hata yut
+      // Swallow the error silently
     }
   }
 
   /**
-   * Cache HIT kaydı
+   * Record a cache HIT
    */
   async recordHit(): Promise<void> {
     await this.incrementCacheStat('hits');
   }
 
   /**
-   * Cache MISS kaydı
+   * Record a cache MISS
    */
   async recordMiss(): Promise<void> {
     await this.incrementCacheStat('misses');
   }
 
   /**
-   * Redis sağlık kontrolü
+   * Redis health check
    */
   async healthCheck(): Promise<boolean> {
     try {

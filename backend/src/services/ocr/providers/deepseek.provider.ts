@@ -1,7 +1,7 @@
 /**
  * DeepSeek OCR Provider (via Replicate)
- * DeepSeek-VL modeli Replicate API üzerinden kullanılıyor
- * Yenilikçi OCR yaklaşımı
+ * Uses the DeepSeek-VL model through the Replicate API
+ * Innovative OCR approach
  */
 
 import { BaseOCRProvider } from '../base-provider';
@@ -35,7 +35,7 @@ export class DeepSeekProvider extends BaseOCRProvider {
   }
 
   /**
-   * API key'i al
+   * Get the API key
    */
   private async getApiKey(): Promise<string> {
     if (this.apiKey) return this.apiKey;
@@ -43,7 +43,7 @@ export class DeepSeekProvider extends BaseOCRProvider {
     const key = this.config.apiKey || await settingsService.getApiKey('replicate_api_key');
 
     if (!key) {
-      throw new Error('Replicate API key bulunamadı');
+      throw new Error('Replicate API key not found');
     }
 
     this.apiKey = key;
@@ -60,7 +60,7 @@ export class DeepSeekProvider extends BaseOCRProvider {
   }
 
   /**
-   * Görsel OCR işleme
+   * Image OCR processing
    */
   async processImage(filePath: string, options: OCROptions = {}): Promise<OCRResult> {
     this.startTimer();
@@ -71,7 +71,7 @@ export class DeepSeekProvider extends BaseOCRProvider {
       // Image preprocessing
       const { path: processedPath, cleanup } = await this.preprocessImage(filePath);
 
-      // Base64'e çevir
+      // Convert to base64
       const base64Image = await this.fileToBase64(processedPath);
       const mimeType = this.getMimeType(filePath);
       const dataUri = `data:${mimeType};base64,${base64Image}`;
@@ -79,7 +79,7 @@ export class DeepSeekProvider extends BaseOCRProvider {
       // OCR prompt
       const prompt = options.prompt || this.getDefaultPrompt();
 
-      // Replicate API çağrısı
+      // Replicate API call
       const predictionResponse = await axios.post(
         `${this.baseUrl}/predictions`,
         {
@@ -100,7 +100,7 @@ export class DeepSeekProvider extends BaseOCRProvider {
 
       const predictionId = predictionResponse.data.id;
 
-      // Prediction sonucunu bekle (polling)
+      // Wait for the prediction result (polling)
       const result = await this.waitForPrediction(predictionId, apiKey);
 
       // Cleanup
@@ -110,7 +110,7 @@ export class DeepSeekProvider extends BaseOCRProvider {
         ? result.output.join('\n')
         : result.output || '';
 
-      // Görsel boyutları
+      // Image dimensions
       const dimensions = await this.getImageDimensions(filePath);
 
       return {
@@ -126,8 +126,8 @@ export class DeepSeekProvider extends BaseOCRProvider {
         }
       };
     } catch (error) {
-      logger.error('DeepSeek Vision OCR hatası:', error);
-      throw new Error(`DeepSeek Vision OCR başarısız: ${error.message}`);
+      logger.error('DeepSeek Vision OCR error:', error);
+      throw new Error(`DeepSeek Vision OCR failed: ${error.message}`);
     }
   }
 
@@ -194,7 +194,7 @@ export class DeepSeekProvider extends BaseOCRProvider {
 
     } catch (error) {
       logger.error('DeepSeek PDF OCR error:', error);
-      throw new Error(`DeepSeek Vision PDF OCR başarısız: ${error.message}`);
+      throw new Error(`DeepSeek Vision PDF OCR failed: ${error.message}`);
     } finally {
       // Cleanup temp dir
       try {
@@ -257,13 +257,13 @@ export class DeepSeekProvider extends BaseOCRProvider {
         }
       };
     } catch (error) {
-      logger.error('DeepSeek Vision base64 OCR hatası:', error);
-      throw new Error(`DeepSeek Vision OCR başarısız: ${error.message}`);
+      logger.error('DeepSeek Vision base64 OCR error:', error);
+      throw new Error(`DeepSeek Vision OCR failed: ${error.message}`);
     }
   }
 
   /**
-   * Prediction sonucunu bekle (polling ile)
+   * Wait for the prediction result (via polling)
    */
   private async waitForPrediction(
     predictionId: string,
@@ -290,11 +290,11 @@ export class DeepSeekProvider extends BaseOCRProvider {
         throw new Error(`Prediction failed: ${prediction.error || 'Unknown error'}`);
       }
 
-      // 1 saniye bekle
+      // Wait 1 second
       await new Promise(resolve => setTimeout(resolve, 1000));
     }
 
-    throw new Error('Prediction timeout - işlem çok uzun sürdü');
+    throw new Error('Prediction timeout - the operation took too long');
   }
 
   /**
@@ -311,7 +311,7 @@ export class DeepSeekProvider extends BaseOCRProvider {
   }
 
   /**
-   * Maliyet tahmini
+   * Cost estimation
    */
   async estimateCost(fileSize: number, pageCount: number = 1): Promise<number> {
     return pageCount * 0.0026; // Fixed cost per image
@@ -325,7 +325,7 @@ export class DeepSeekProvider extends BaseOCRProvider {
   }
 
   /**
-   * Confidence hesaplama
+   * Confidence calculation
    */
   private calculateConfidence(text: string): number {
     if (!text || text.length < 10) return 0.5;

@@ -32,6 +32,7 @@ const chatConnections = new Map<string, any>();
 // Import routes
 import searchRoutes from "./routes/search.routes";
 import chatRoutes from "./routes/chat.routes";
+import mediaRoutes from "./routes/media.routes";
 import dashboardRoutes from "./routes/dashboard.routes";
 import scraperRoutes from "./routes/scraper.routes";
 import crawlerRoutes, { initializeScriptLogBridge } from "./routes/crawler.routes";
@@ -63,7 +64,7 @@ import llmStatusRoutes from "./routes/llm-status.routes";
 import logsRoutes, { initializeLogWebSocket } from "./routes/logs.routes";
 import { initializeMetricsWebSocket } from "./services/metrics-websocket.service";
 import translateRoutes from "./routes/translate.routes";
-import translationEmbeddingsRoutes from "./routes/translation-embeddings.routes";
+import translationJobsRoutes from "./routes/translation-jobs.routes";
 import notificationsRoutes, { setupNotificationBroadcast } from "./routes/notifications.routes";
 import schedulerRoutes from "./routes/scheduler.routes";
 import {
@@ -518,6 +519,7 @@ app.get(API.ENDPOINTS.V2.HEALTH, async (req: Request, res: Response) => {
 // API Routes
 app.use(searchRoutes);
 app.use(chatRoutes);
+app.use(mediaRoutes);
 app.use("/api/v2/dashboard", dashboardRoutes);
 app.use("/api/v2/scraper", scraperRoutes);
 app.use("/api/v2/crawler", crawlerRoutes);
@@ -526,7 +528,7 @@ app.use("/api/v2/csv-transform", csvTransformRoutes);
 app.use("/api/v2/scraped-embeddings", scrapedEmbeddingsRoutes);
 app.use("/api/v2/chatbot", chatbotSettingsRoutes);
 app.use("/api/v2/translate", translateRoutes);
-app.use("/api/v2/translation-embeddings", translationEmbeddingsRoutes);
+app.use("/api/v2/translations", translationJobsRoutes);
 app.use(historyRoutes);
 app.use("/api/v2/documents", documentsRoutes);
 app.use("/api/v2/pdf", pdfBatchRoutes);

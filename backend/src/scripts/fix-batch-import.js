@@ -3,11 +3,11 @@ require('dotenv').config();
 
 async function runMigration() {
   const pool = new Pool({
-    host: '91.99.229.96',
-    port: 5432,
-    database: 'lsemb',
-    user: 'postgres',
-    password: 'Semsiye!22'
+    host: process.env.POSTGRES_HOST,
+    port: parseInt(process.env.POSTGRES_PORT || '5432', 10),
+    database: process.env.POSTGRES_DB || 'lsemb',
+    user: process.env.POSTGRES_USER || 'postgres',
+    password: process.env.POSTGRES_PASSWORD
   });
 
   try {

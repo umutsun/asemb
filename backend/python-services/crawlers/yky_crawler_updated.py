@@ -15,6 +15,48 @@ from dotenv import load_dotenv
 env_path = Path(__file__).parent.parent.parent.parent / '.env.lsemb'
 load_dotenv(dotenv_path=env_path)
 
+# --- Shared crawler runtime (engine / central rate-limit / robots), OPT-IN + feature-flagged ---
+# Additive: if the runtime can't be imported (e.g. spawned under a python missing the deps), the
+# crawler silently keeps its original inline behavior. All new behavior is gated by crawler.*
+# settings flags (default OFF), so a default run stays byte-for-byte the legacy run.
+_RUNTIME_OK = False
+try:
+    _PS_DIR = str(Path(__file__).resolve().parent.parent)  # backend/python-services
+    if _PS_DIR not in sys.path:
+        sys.path.insert(0, _PS_DIR)
+    from crawler_runtime import ratelimit as _ratelimit, robots as _robots, settings as _crawler_settings
+    _RUNTIME_OK = True
+except Exception as _rt_err:
+    print(f"[runtime] shared crawler_runtime unavailable, using legacy behavior: {_rt_err}")
+
+
+async def _polite_wait(url, legacy_seconds, crawler_name=None):
+    """Central per-domain throttle when crawler.rateLimit.enabled; otherwise the legacy sleep."""
+    if _RUNTIME_OK:
+        try:
+            if await _crawler_settings.get_bool('crawler.rateLimit.enabled', False):
+                delay_ms = await _crawler_settings.get_float('crawler.rateLimit.defaultDelayMs', legacy_seconds * 1000)
+                if crawler_name:
+                    delay_ms = await _crawler_settings.get_float(f'crawler.rateLimit.{crawler_name}.delayMs', delay_ms)
+                jitter_ms = await _crawler_settings.get_float('crawler.rateLimit.jitterMs', 0.0)
+                await _ratelimit.wait(url, delay_ms / 1000.0, jitter_ms / 1000.0)
+                return
+        except Exception as e:
+            print(f"[runtime] rate-limit error, falling back to legacy sleep: {e}")
+    await asyncio.sleep(legacy_seconds)
+
+
+async def _robots_allows(url):
+    """True unless crawler.robots.enabled and robots.txt disallows the URL (fail-open)."""
+    if _RUNTIME_OK:
+        try:
+            if await _crawler_settings.get_bool('crawler.robots.enabled', False):
+                ua = await _crawler_settings.get_str('crawler.userAgent', 'Mozilla/5.0 (compatible; LSEMBCrawler/1.0)')
+                return await _robots.can_fetch(url, ua)
+        except Exception as e:
+            print(f"[runtime] robots error, allowing: {e}")
+    return True
+
 # --- YKY Specific Configuration ---
 STATE_FILE = "yky_crawler_state.json"
 REDIS_HOST = os.getenv('REDIS_HOST', 'localhost')
@@ -338,6 +380,10 @@ async def main():
 
                 print(f"Sayfa ziyaret ediliyor: {current_url} (Kuyruk: {len(queue)}, Ziyaret Edilen: {len(visited)})")
 
+                if not await _robots_allows(current_url):
+                    print(f"  - robots.txt reddetti, atlanıyor: {current_url}")
+                    continue
+
                 try:
                     # Use networkidle to handle Cloudflare's "Just a moment" redirects
                     await page.goto(current_url, wait_until="networkidle", timeout=120000)
@@ -440,7 +486,8 @@ async def main():
                 if len(visited) % 10 == 0:
                     save_state(queue, visited, crawler_name, script_name)
 
-                await asyncio.sleep(random.uniform(1, 3))
+                # Per-page politeness: central per-domain throttle when enabled, else legacy sleep
+                await _polite_wait(current_url, random.uniform(1, 3), crawler_name)
         finally:
             await browser.close()
             save_state(queue, visited, crawler_name, script_name)

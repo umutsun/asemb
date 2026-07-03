@@ -405,10 +405,10 @@ describe('LLMManager', () => {
 
       await manager.reloadSettings();
 
-      expect(console.warn).toHaveBeenCalledWith(expect.stringContaining('FORCE UPDATING deprecated Claude model'));
+      expect(console.warn).toHaveBeenCalledWith(expect.stringContaining('FORCE UPDATING retired Claude model'));
       expect(mockPool.query).toHaveBeenCalledWith(
         'UPDATE chatbot_settings SET setting_value = $1 WHERE setting_key = $2',
-        ['anthropic/claude-3-5-sonnet-20241022', 'llmSettings.activeChatModel']
+        ['anthropic/claude-sonnet-4-5-20250929', 'llmSettings.activeChatModel']
       );
     });
 

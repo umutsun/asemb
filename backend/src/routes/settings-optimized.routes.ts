@@ -4,6 +4,7 @@
 import { Router, Request, Response } from 'express';
 import { lsembPool } from '../config/database.config';
 import { settingsCache } from '../services/cache.service';
+import { getDef } from '../config/settings-registry';
 
 const router = Router();
 
@@ -48,11 +49,11 @@ router.get('/', cacheMiddleware, async (req: Request, res: Response) => {
         ['app.name', 'app.version', 'app.locale']
       );
 
-      const config = {
+      const config: any = {
         app: {
-          name: 'Mali Müşavir Asistanı',
-          version: '1.0.0',
-          locale: 'tr'
+          name: getDef('app.name')?.default,
+          version: getDef('app.version')?.default,
+          locale: getDef('app.locale')?.default
         }
       };
 

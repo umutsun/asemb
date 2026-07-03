@@ -50,7 +50,6 @@ export default function Translator({ text, title = "Translate Text", className =
   const [isTranslating, setIsTranslating] = useState(false);
   const [translation, setTranslation] = useState<TranslationResult | null>(null);
   const [copied, setCopied] = useState(false);
-  const [provider, setProvider] = useState<'google' | 'deepl'>('deepl');
 
   // Detect language if auto
   const detectLanguage = async (text: string): Promise<string> => {
@@ -96,10 +95,10 @@ export default function Translator({ text, title = "Translate Text", className =
           'Authorization': `Bearer ${localStorage.getItem('accessToken')}`
         },
         body: JSON.stringify({
-          text: text.substring(0, 5000), // Limit to 5000 chars for demo
+          text: text.substring(0, 5000),
           source: detectedLang,
-          target: targetLang,
-          provider
+          target: targetLang
+          // provider omitted -> backend uses the settings-configured default (LLM)
         })
       });
 
@@ -114,7 +113,7 @@ export default function Translator({ text, title = "Translate Text", className =
         sourceLanguage: detectedLang,
         targetLanguage,
         confidence: result.confidence,
-        provider,
+        provider: result.provider ?? 'llm',
         cost: result.cost
       });
 
@@ -125,23 +124,10 @@ export default function Translator({ text, title = "Translate Text", className =
 
     } catch (error: any) {
       console.error('Translation error:', error);
-
-      // Fallback to mock translation for demo
-      const mockTranslation = `🔄 [Mock Translation from ${sourceLang} to ${targetLang}]\n\nThis is a demonstration of the translation feature. In production, this would be the actual translated text using ${provider.toUpperCase()} API.\n\nOriginal text preview: ${text.substring(0, 200)}...`;
-
-      setTranslation({
-        translatedText: mockTranslation,
-        sourceLanguage: sourceLang === 'auto' ? 'en' : sourceLang,
-        targetLanguage,
-        confidence: 95,
-        provider,
-        cost: 0.001
-      });
-
       toast({
-        title: "Demo Mode",
-        description: "Showing mock translation. Configure API keys in settings for real translations.",
-        variant: "default"
+        title: "Translation failed",
+        description: error?.message || "Could not translate. Check the provider configuration in Settings.",
+        variant: "destructive"
       });
     } finally {
       setIsTranslating(false);
@@ -168,14 +154,6 @@ export default function Translator({ text, title = "Translate Text", className =
     }
   };
 
-  const getProviderInfo = (provider: string) => {
-    const providers = {
-      google: { name: 'Google Translate', cost: '~$20/1M chars', color: 'blue' },
-      deepl: { name: 'DeepL', cost: '~$6/1M chars', color: 'yellow' }
-    };
-    return providers[provider as keyof typeof providers];
-  };
-
   return (
     <Card className={`w-full ${className}`}>
       <CardHeader>
@@ -185,27 +163,6 @@ export default function Translator({ text, title = "Translate Text", className =
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
-        {/* Provider Selection */}
-        <div className="flex items-center gap-4">
-          <span className="text-sm font-medium">Provider:</span>
-          <Select value={provider} onValueChange={(value: any) => setProvider(value)}>
-            <SelectTrigger className="w-48">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="deepl">
-                🌊 DeepL (Best Quality) - ~$6/1M chars
-              </SelectItem>
-              <SelectItem value="google">
-                🌐 Google Translate - ~$20/1M chars
-              </SelectItem>
-            </SelectContent>
-          </Select>
-          <Badge variant="outline" className="text-xs">
-            {getProviderInfo(provider).cost}
-          </Badge>
-        </div>
-
         {/* Language Selection */}
         <div className="flex items-center gap-2">
           <div className="flex-1">
@@ -312,11 +269,6 @@ export default function Translator({ text, title = "Translate Text", className =
             </ScrollArea>
           </div>
         )}
-
-        {/* Cost Estimate */}
-        <div className="text-xs text-muted-foreground text-center">
-          Estimated cost: ~$0.00002 per character with {getProviderInfo(provider).name}
-        </div>
       </CardContent>
     </Card>
   );

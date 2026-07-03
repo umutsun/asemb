@@ -1,12 +1,15 @@
 import { Router, Request, Response } from 'express';
 import { lsembPool } from '../config/database.config';
+import { translationService } from '../services/translation.service';
 
 const router = Router();
 
-// Translate text using configured provider
+// Translate text using the configured provider — real + settings-driven.
+// Default provider is the configured chat LLM (translation.service resolves it from settings);
+// DeepL/Google are used when the caller asks for them and their key is set in `settings`.
 router.post('/', async (req: Request, res: Response) => {
   try {
-    const { text, source = 'auto', target, provider = 'deepl' } = req.body;
+    const { text, source = 'auto', target, provider } = req.body;
 
     if (!text || !target) {
       return res.status(400).json({
@@ -14,98 +17,27 @@ router.post('/', async (req: Request, res: Response) => {
       });
     }
 
-    // Get API keys from settings
-    let apiKey: string | null = null;
-    let providerName: string;
-
-    switch (provider) {
-      case 'deepl':
-        const deeplResult = await lsembPool.query(
-          'SELECT value FROM settings WHERE key = $1',
-          ['deepl.apiKey']
-        );
-        apiKey = deeplResult.rows[0]?.value;
-        providerName = 'DeepL';
-        break;
-      case 'google':
-        const googleResult = await lsembPool.query(
-          'SELECT value FROM settings WHERE key = $1',
-          ['google.translate.apiKey']
-        );
-        apiKey = googleResult.rows[0]?.value;
-        providerName = 'Google Translate';
-        break;
-      default:
-        return res.status(400).json({
-          error: 'Invalid provider. Supported providers: deepl, google'
-        });
-    }
-
-    if (!apiKey) {
-      return res.status(400).json({
-        error: `API key not configured for ${providerName}. Please configure in settings.`
-      });
-    }
-
-    // For demo purposes, return mock translation if API keys are not configured
-    const mockTranslation = await performMockTranslation(text, source, target, provider);
-
-    // Calculate estimated cost
-    const estimatedCost = calculateCost(text.length, provider);
-
-    res.json({
-      translatedText: mockTranslation,
-      sourceLanguage: source,
-      targetLanguage: target,
-      provider: provider,
-      confidence: 95,
-      cost: estimatedCost
+    const result = await translationService.translateText(text, {
+      sourceLang: source,
+      targetLang: target,
+      provider, // undefined -> settings default (llm)
     });
 
+    res.json({
+      translatedText: result.translatedText,
+      sourceLanguage: source,
+      targetLanguage: target,
+      provider: result.provider,
+      cost: result.cost,
+    });
   } catch (error: any) {
-    console.error('Translation error:', error);
-    res.status(500).json({
+    const status = typeof error?.status === 'number' ? error.status : 500;
+    if (status >= 500) console.error('Translation error:', error);
+    res.status(status).json({
       error: error.message || 'Translation failed'
     });
   }
 });
-
-// Mock translation function
-async function performMockTranslation(text: string, source: string, target: string, provider: string): Promise<string> {
-  // This is a mock translation for demo purposes
-  // In production, integrate with actual APIs
-
-  const languageNames: { [key: string]: string } = {
-    'en': 'English',
-    'de': 'German',
-    'fr': 'French',
-    'es': 'Spanish',
-    'it': 'Italian',
-    'pt': 'Portuguese',
-    'ru': 'Russian',
-    'zh': 'Chinese',
-    'ja': 'Japanese',
-    'tr': 'Turkish'
-  };
-
-  const sourceName = languageNames[source] || 'Auto-detected';
-  const targetName = languageNames[target] || target;
-
-  // Simulate translation delay
-  await new Promise(resolve => setTimeout(resolve, 500));
-
-  return `[${provider.toUpperCase()} Translation]\n\n Original (${sourceName}):\n${text.substring(0, 500)}${text.length > 500 ? '...' : ''}\n\n Translated (${targetName}):\nThis is a demo translation from ${sourceName} to ${targetName}. In production, this would be the actual translated text using ${provider === 'deepl' ? 'DeepL' : 'Google Translate'} API.\n\nTranslation quality: High\nConfidence: 95%\n\n${text.substring(0, 300)}...`;
-}
-
-// Calculate estimated cost based on provider
-function calculateCost(characterCount: number, provider: string): number {
-  const costs: { [key: string]: number } = {
-    'deepl': 6 / 1000000, // $6 per 1M characters
-    'google': 20 / 1000000 // $20 per 1M characters
-  };
-
-  return characterCount * (costs[provider] || costs.deepl);
-}
 
 // Get supported languages
 router.get('/languages', async (req: Request, res: Response) => {

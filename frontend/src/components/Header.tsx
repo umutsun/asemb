@@ -372,6 +372,7 @@ export default function Header() {
       { href: '/dashboard/migrations', label: t('header.menu.migrations'), icon: Database },
       { href: '/dashboard/documents', label: t('header.menu.documents'), icon: FileText },
       { href: '/dashboard/crawls', label: t('header.menu.crawls'), icon: Database },
+      { href: '/dashboard/translations', label: t('header.menu.dataTranslations'), icon: Languages },
       { href: '/dashboard/messages', label: t('header.menu.messages'), icon: MessageSquare },
       { href: '/dashboard/settings', label: t('header.menu.systemSettings'), icon: Settings2 }
     ] : [])

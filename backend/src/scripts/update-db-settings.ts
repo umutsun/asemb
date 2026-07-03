@@ -5,11 +5,11 @@ async function updateDatabaseSettings() {
     console.log('🔧 Updating database settings in settings table...');
 
     const dbSettings = [
-      { key: 'database.host', value: '91.99.229.96' },
+      { key: 'database.host', value: process.env.POSTGRES_HOST || '' },
       { key: 'database.port', value: '5432' },
       { key: 'database.name', value: 'lsemb' },
       { key: 'database.user', value: 'postgres' },
-      { key: 'database.password', value: 'BilmemneNe123!' },
+      { key: 'database.password', value: process.env.POSTGRES_PASSWORD || '' },
       { key: 'database.ssl', value: 'false' },
       { key: 'database.maxConnections', value: '20' },
       { key: 'database.type', value: 'postgresql' }

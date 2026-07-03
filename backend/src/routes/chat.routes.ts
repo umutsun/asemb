@@ -4,6 +4,7 @@ import { LLMManager } from '../services/llm-manager.service';
 import { authenticateToken, checkQueryLimits, AuthenticatedRequest } from '../middleware/auth.middleware';
 import { SubscriptionService } from '../services/subscription.service';
 import { lsembPool } from '../config/database.config';
+import { resolveDatabaseUrl } from '../config/db-url';
 import dbConfig from '../config/database';
 import { chatWss, chatConnections } from '../server';
 import { MessageStorageService } from '../services/message-storage.service';
@@ -658,7 +659,7 @@ router.post('/api/v2/chat/more-sources', authenticateToken, async (req: Authenti
 
     // Get conversation messages from database
     const pool = await import('pg').then(pg => new pg.Pool({
-      connectionString: process.env.ASEMB_DATABASE_URL || 'postgresql://lsemb:lsemb_password@91.99.229.96:5432/lsemb'
+      connectionString: resolveDatabaseUrl()
     }));
 
     const conversationResult = await pool.query(

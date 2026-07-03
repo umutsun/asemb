@@ -5,6 +5,17 @@ import { Router, Request, Response } from 'express';
 import { lsembPool } from '../config/database.config';
 import { settingsCache } from '../services/cache.service';
 import { authenticateToken } from '../middleware/auth.middleware';
+import {
+  isBlankSecretWrite,
+  redactSettingsSecrets,
+  serialize as serializeSetting,
+  categoryForKey,
+  validate as validateSetting,
+  getDef,
+  coerce as coerceSetting,
+  SECRET_KEY_RE,
+} from '../config/settings-registry';
+import { buildSettingsSchema } from '../config/settings-ui-layout';
 // NOTE: `settingsService` is already imported lower in this file (semantic-analyzer section).
 
 const router = Router();
@@ -86,26 +97,8 @@ function cacheMiddleware(req: Request, res: Response, next: any) {
 // re-sends them empty — a blind UPSERT then WIPES the stored secret. Skip writing
 // a secret-pattern key whose incoming value is blank; only an explicitly typed new
 // value overwrites it. (Same pattern as redactSettingsSecrets below.)
-const SECRET_KEY_RE = /(api[_-]?key|bearer[_-]?key|password|passwd|secret|token|privatekey|private[_-]?key|access[_-]?key)$/i;
-function isBlankSecretWrite(key: string, value: any): boolean {
-  return SECRET_KEY_RE.test(key) && (value === undefined || value === null || String(value).trim() === '');
-}
-
-function redactSettingsSecrets(obj: any): any {
-  if (!obj || typeof obj !== 'object') return obj;
-  const SECRET_KEY = /(api[_-]?key|bearer[_-]?key|password|passwd|secret|token|privatekey|private[_-]?key|access[_-]?key)$/i;
-  for (const section of Object.keys(obj)) {
-    const val = obj[section];
-    if (val && typeof val === 'object' && !Array.isArray(val)) {
-      for (const k of Object.keys(val)) {
-        if (SECRET_KEY.test(k) && val[k]) val[k] = '';
-      }
-    } else if (SECRET_KEY.test(section) && val) {
-      obj[section] = '';
-    }
-  }
-  return obj;
-}
+// `isBlankSecretWrite` and `redactSettingsSecrets` (and the shared SECRET_KEY_RE) now
+// live in ../config/settings-registry as the single source of truth — imported above.
 
 // Optimized category getter - returns ONLY the requested category
 router.get('/', cacheMiddleware, async (req: Request, res: Response) => {
@@ -124,9 +117,9 @@ router.get('/', cacheMiddleware, async (req: Request, res: Response) => {
       // Start with environment-based defaults for database
       const config: any = {
         app: {
-          name: 'Mali Müşavir Asistanı',
-          version: '1.0.0',
-          locale: 'tr'
+          name: getDef('app.name')?.default,
+          version: getDef('app.version')?.default,
+          locale: getDef('app.locale')?.default
         },
         llmSettings: {
           activeChatModel: null,
@@ -204,15 +197,6 @@ router.get('/', cacheMiddleware, async (req: Request, res: Response) => {
 
       ocr: `SELECT key, value FROM settings
            WHERE key LIKE 'ocr.%' OR key LIKE 'ocrSettings.%'`,
-
-      prompts: `SELECT key, value FROM settings
-               WHERE key LIKE 'prompts.%'`,
-
-      chatbot: `SELECT key, value FROM settings
-               WHERE key LIKE 'chatbot.%'`,
-
-      redis: `SELECT key, value FROM settings
-              WHERE key LIKE 'redis.%'`,
 
       relationships: `SELECT key, value FROM settings
                      WHERE key LIKE 'relationships.%'`
@@ -444,71 +428,34 @@ router.post('/', async (req: Request, res: Response) => {
 
     // Validate and prepare updates
     for (const [key, value] of Object.entries(settings)) {
-      // Basic validation
-      if (key.includes('temperature') && (typeof value !== 'number' || value < 0 || value > 2)) {
-        return res.status(400).json({ error: `Invalid temperature value: ${value}. Must be between 0 and 2.` });
+      // Registry-driven validation: the same bounds as before (temperature 0-2,
+      // chunkSize 100-5000, similarityThreshold 0-1, chat-vs-embedding-model guard)
+      // plus any min/max/enum declared on the key's registry def.
+      const validation = validateSetting(key, value);
+      if (!validation.ok) {
+        return res.status(400).json({ error: validation.error });
       }
 
-      if (key.includes('chunkSize') && (typeof value !== 'number' || value < 100 || value > 5000)) {
-        return res.status(400).json({ error: `Invalid chunkSize value: ${value}. Must be between 100 and 5000.` });
-      }
-
-      if (key.includes('similarityThreshold') && (typeof value !== 'number' || value < 0 || value > 1)) {
-        return res.status(400).json({ error: `Invalid similarityThreshold value: ${value}. Must be between 0 and 1.` });
-      }
-
-      // CRITICAL VALIDATION: Prevent chat models from being saved as embedding models
-      if ((key === 'llmSettings.activeEmbeddingModel' || key === 'llmSettings.embeddingModel') && typeof value === 'string') {
-        const chatModelPatterns = ['gpt-4o', 'gpt-4', 'gpt-3.5', 'claude', 'gemini'];
-        const isLikelyChatModel = chatModelPatterns.some(pattern =>
-          value.toLowerCase().includes(pattern)
-        ) && !value.toLowerCase().includes('embedding');
-
-        if (isLikelyChatModel) {
-          return res.status(400).json({
-            error: `Invalid embedding model: "${value}" is a chat model, not an embedding model. Please use a model that includes "embedding" in its name (e.g., text-embedding-3-small, text-embedding-004).`
-          });
-        }
-      }
-
-      updates.push({
-        key,
-        value: typeof value === 'string' ? value : JSON.stringify(value)
-      });
+      updates.push({ key, value: serializeSetting(value) });
     }
 
-    // Batch update - determine category from key prefix
+    // Batch update — canonical category + description come from the registry (permissive:
+    // unknown keys fall back to the first-segment map / 'general', never rejected).
     for (const update of updates) {
       if (isBlankSecretWrite(update.key, update.value)) continue;
-      // Extract category from key (e.g., "llmSettings.temperature" -> "llm")
-      const keyPrefix = update.key.split('.')[0];
-      const categoryMap: { [key: string]: string } = {
-        'llmSettings': 'llm',
-        'openai': 'llm',
-        'anthropic': 'llm',
-        'google': 'llm',
-        'deepseek': 'llm',
-        'voyage': 'llm',
-        'cohere': 'llm',
-        'huggingface': 'llm',
-        'openrouter': 'llm',
-        'embedding': 'embeddings',
-        'ragSettings': 'rag',
-        'embeddings': 'embeddings',
-        'prompts': 'prompts',
-        'chatbot': 'chatbot',
-        'database': 'database',
-        'redis': 'redis',
-        'app': 'app'
-      };
-      const category = categoryMap[keyPrefix] || 'general';
+      const category = categoryForKey(update.key);
+      const description = getDef(update.key)?.description ?? null;
 
       await lsembPool.query(
-        `INSERT INTO settings (key, value, category)
-         VALUES ($1, $2, $3)
+        `INSERT INTO settings (key, value, category, description)
+         VALUES ($1, $2, $3, $4)
          ON CONFLICT (key)
-         DO UPDATE SET value = $2, updated_at = CURRENT_TIMESTAMP`,
-        [update.key, update.value, category]
+         DO UPDATE SET
+           value = $2,
+           category = $3,
+           description = COALESCE(settings.description, EXCLUDED.description),
+           updated_at = CURRENT_TIMESTAMP`,
+        [update.key, update.value, category, description]
       );
     }
 
@@ -569,6 +516,41 @@ router.get('/health', (req: Request, res: Response) => {
     cache: stats,
     timestamp: new Date().toISOString()
   });
+});
+
+// Schema for the redesigned settings shell: nav sections + groups + fields (registry
+// merged with the UI layout) + Answer-Safety presets. Structure only — no secret values;
+// current values are loaded separately via GET /settings?category=...
+router.get('/schema', (_req: Request, res: Response) => {
+  try {
+    res.json(buildSettingsSchema());
+  } catch (error: any) {
+    console.error('Error building settings schema:', error);
+    res.status(500).json({ error: 'Failed to build settings schema' });
+  }
+});
+
+// Current values for an explicit dotted-key list (?keys=a,b,c), typed via the registry
+// coercion so the UI gets real numbers/booleans/JSON. Secret keys are redacted to ''.
+// Used by the redesigned settings shell, which loads exactly the keys its schema declares
+// (works across categories the prefix-based GET cannot fetch, e.g. voice.* / search.*).
+router.get('/values', async (req: Request, res: Response) => {
+  try {
+    const keys = String(req.query.keys || '')
+      .split(',')
+      .map((k) => k.trim())
+      .filter(Boolean);
+    if (!keys.length) return res.json({});
+    const result = await lsembPool.query('SELECT key, value FROM settings WHERE key = ANY($1)', [keys]);
+    const out: Record<string, any> = {};
+    for (const row of result.rows) {
+      out[row.key] = SECRET_KEY_RE.test(row.key) ? '' : coerceSetting(row.key, row.value);
+    }
+    res.json(out);
+  } catch (error: any) {
+    console.error('Error fetching settings values:', error);
+    res.status(500).json({ error: 'Failed to fetch settings values' });
+  }
 });
 
 // Specific category routes for direct access
@@ -1061,8 +1043,16 @@ router.put('/key/:key', authenticateToken, async (req: Request, res: Response) =
     const { key } = req.params;
     const { value, category, description } = req.body;
 
-    // Stringify value if it's an object
-    const valueStr = typeof value === 'object' ? JSON.stringify(value) : String(value);
+    // Guard: never wipe a stored secret when a re-saved form re-sends it blank.
+    // (Secrets are redacted to '' on GET, so a round-tripped form posts them empty.)
+    if (isBlankSecretWrite(key, value)) {
+      return res.json({ success: true, key, skipped: 'blank-secret' });
+    }
+
+    // Serialize like the batch POST path; default category/description from the registry.
+    const valueStr = serializeSetting(value);
+    const cat = category || categoryForKey(key);
+    const desc = description ?? getDef(key)?.description ?? null;
 
     await lsembPool.query(
       `INSERT INTO settings (key, value, category, description, updated_at)
@@ -1072,7 +1062,7 @@ router.put('/key/:key', authenticateToken, async (req: Request, res: Response) =
          category = COALESCE($3, settings.category),
          description = COALESCE($4, settings.description),
          updated_at = NOW()`,
-      [key, valueStr, category || null, description || null]
+      [key, valueStr, cat, desc]
     );
 
     // Clear cache

@@ -1,11 +1,12 @@
 import { Router, Request, Response } from 'express';
 import { Pool } from 'pg';
+import { resolveDatabaseUrl } from '../config/db-url';
 
 const router = Router();
 
 // Use the main database connection
 const pgPool = new Pool({
-  connectionString: process.env.DATABASE_URL || 'postgresql://postgres:Semsiye!22@91.99.229.96:5432/lsemb'
+  connectionString: resolveDatabaseUrl()
 });
 
 // Get all embedding history

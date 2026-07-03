@@ -97,6 +97,14 @@ Pillow==12.2.0
 PyMuPDF==1.27.2.3        # provides `fitz`
 pytesseract==0.3.13      # needs the system `tesseract` binary at runtime (not for import)
 
+# Multimodal RAG — Cross-Modal (CLIP) media embeddings
+# Default (ONLINE) path uses API providers (Jina CLIP v2 / Cohere embed-v4 / Voyage)
+# and needs NOTHING new here: it reuses aiohttp + numpy + Pillow already pinned above.
+# Video ingest needs the system `ffmpeg` binary at runtime (not a pip package).
+# AIR-GAPPED (GX10) local provider only — onnxruntime, NEVER torch:
+# onnxruntime==1.19.2          # OpenClipOnnxProvider inference (CPU)
+# open-clip-torch==2.24.0      # ONLY for its SimpleTokenizer vocab; export models to ONNX offline
+
 # Monitoring
 prometheus-client==0.19.0
 psutil==7.2.2            # health_router system stats (CPU/mem/disk)

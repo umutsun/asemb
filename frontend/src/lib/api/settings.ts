@@ -200,6 +200,54 @@ export const getAppSettingsOnly = () => getSettingsCategory('app');
 export const getTranslationSettings = () => getSettingsCategory('translation');
 export const getRelationshipsSettings = () => getSettingsCategory('relationships');
 
+// --- Redesigned settings shell: schema + typed values + flat save ------------
+
+// Nav sections + groups + fields (registry merged with UI layout) + presets. Structure only.
+export async function getSettingsSchema(): Promise<any> {
+  const res = await fetch('/api/v2/settings/schema', {
+    headers: { 'Content-Type': 'application/json' },
+  });
+  const data = await res.json();
+  if (!res.ok || data?.error) {
+    throw new Error(data?.error || `Failed to load settings schema (Status: ${res.status})`);
+  }
+  return data;
+}
+
+// Typed current values for an explicit dotted-key list (numbers/booleans/JSON; secrets '').
+export async function getSettingsValues(keys: string[]): Promise<Record<string, any>> {
+  if (!keys.length) return {};
+  const res = await fetch(`/api/v2/settings/values?keys=${encodeURIComponent(keys.join(','))}`, {
+    headers: { 'Content-Type': 'application/json' },
+  });
+  const data = await res.json();
+  if (!res.ok || data?.error) {
+    throw new Error(data?.error || `Failed to load settings values (Status: ${res.status})`);
+  }
+  return data as Record<string, any>;
+}
+
+// Save a flat map of dotted keys via the registry-guarded POST path (validation +
+// category/description + blank-secret guard + side-effects incl. corpusVersion bump).
+export async function saveSettingsFlat(values: Record<string, any>): Promise<any> {
+  const res = await fetch('/api/v2/settings', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(values),
+  });
+  const data = await res.json();
+  if (!res.ok || data?.error) {
+    throw new Error(data?.error || `Failed to save settings (Status: ${res.status})`);
+  }
+  // Invalidate affected category caches and notify other components.
+  settingsCache.clear('settings:rag');
+  settingsCache.clear('settings:chatbot');
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('settingsUpdated', { detail: { values } }));
+  }
+  return data;
+}
+
 export async function getLLMProviders() {
   const response = await apiClient.get('/api/v2/settings/llm');
 

@@ -143,7 +143,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
                 </Button>
 
                 {isUserDropdownOpen && (
-                  <div className="absolute right-0 top-full mt-1 w-48 bg-popover border rounded-md shadow-lg z-50">
+                  <div className="absolute right-0 rtl:right-auto rtl:left-0 top-full mt-1 w-48 bg-popover border rounded-md shadow-lg z-50">
                     <div className="p-2">
                       <div className="px-2 py-1.5 text-sm font-medium border-b">
                         <div>{user?.name || t('common.user', 'User')}</div>
@@ -151,14 +151,14 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
                       </div>
                       <Link href="/profile">
                         <Button variant="ghost" className="w-full justify-start text-sm h-8 px-2">
-                          <UserCircle className="w-4 h-4 mr-2" />
+                          <UserCircle className="w-4 h-4 me-2" />
                           {t('common.profile', 'Profile')}
                         </Button>
                       </Link>
                       {(user?.role === 'admin' || user?.role === 'manager') && (
                         <Link href="/dashboard/messages">
                           <Button variant="ghost" className="w-full justify-start text-sm h-8 px-2">
-                            <MessageSquare className="w-4 h-4 mr-2" />
+                            <MessageSquare className="w-4 h-4 me-2" />
                             {t('dashboard.messages.title', 'Message Analytics')}
                           </Button>
                         </Link>
@@ -171,7 +171,7 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
                           setIsUserDropdownOpen(false);
                         }}
                       >
-                        <LogOut className="w-4 h-4 mr-2" />
+                        <LogOut className="w-4 h-4 me-2" />
                         {t('common.logout', 'Logout')}
                       </Button>
                     </div>

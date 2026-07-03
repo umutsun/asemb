@@ -1,12 +1,12 @@
 /**
  * OCR Router Service
- * Akıllı provider seçimi, fallback chain ve cache yönetimi
+ * Smart provider selection, fallback chain and cache management
  *
- * Özellikler:
- * - Settings'den active OCR model seçimi
- * - Otomatik fallback chain (primary → fallback → tesseract)
- * - Redis cache entegrasyonu
- * - Maliyet tracking
+ * Features:
+ * - Active OCR model selection from settings
+ * - Automatic fallback chain (primary → fallback → tesseract)
+ * - Redis cache integration
+ * - Cost tracking
  * - Provider health monitoring
  */
 
@@ -33,10 +33,10 @@ export class OCRRouterService {
   private static instance: OCRRouterService;
   private providers: Map<OCRProviderType, IOCRProvider> = new Map();
   private defaultFallbackChain: OCRProviderType[] = [
-    'gemini',     // En ucuz ve hızlı
-    'openai',     // En güvenilir
-    'deepseek',   // Yenilikçi
-    'tesseract'   // Son çare (ücretsiz)
+    'gemini',     // Cheapest and fastest
+    'openai',     // Most reliable
+    'deepseek',   // Innovative
+    'tesseract'   // Last resort (free)
   ];
 
   private constructor() {
@@ -51,7 +51,7 @@ export class OCRRouterService {
   }
 
   /**
-   * Provider'ları initialize et
+   * Initialize providers
    */
   private async initializeProviders(): Promise<void> {
     try {
@@ -74,28 +74,44 @@ export class OCRRouterService {
         supportedFormats: ['image/jpeg', 'image/png', 'image/webp']
       }));
 
-      logger.info(' OCR Router - Tüm provider\'lar initialize edildi');
+      logger.info(' OCR Router - All providers initialized');
     } catch (error) {
-      logger.error(' OCR Router - Provider initialization hatası:', error);
+      logger.error(' OCR Router - Provider initialization error:', error);
     }
   }
 
   /**
-   * Settings'den OCR ayarlarını al
+   * Read OCR settings from the canonical dotted keys (ocrSettings.*).
+   * settings.value is TEXT, so booleans are parsed (not compared to `false`) and the
+   * provider is validated against the known set — an unknown value logs a warning and
+   * falls back rather than silently entering the provider-not-found path.
    */
   private async getOCRSettings(): Promise<OCRSettings> {
+    const VALID: OCRProviderType[] = ['openai', 'gemini', 'deepseek', 'tesseract', 'auto'];
+    const parseBool = (v: any, def: boolean): boolean => {
+      if (v === undefined || v === null || v === '') return def;
+      return ['1', 'true', 'yes', 'on', 'enabled'].includes(String(v).replace(/^"|"$/g, '').trim().toLowerCase());
+    };
+    const normProvider = (v: any, def: OCRProviderType): OCRProviderType => {
+      const p = String(v ?? '').replace(/^"|"$/g, '').trim().toLowerCase();
+      if ((VALID as string[]).includes(p)) return p as OCRProviderType;
+      if (v !== undefined && v !== null && String(v).trim() !== '') {
+        logger.warn(`OCR Router - unknown provider "${v}" in settings; falling back to "${def}"`);
+      }
+      return def;
+    };
     try {
       const settings = await settingsService.getAllSettings();
 
       return {
-        activeProvider: (settings.ocr_active_provider as OCRProviderType) || 'auto',
-        fallbackEnabled: settings.ocr_fallback_enabled !== false, // Default true
-        fallbackProvider: (settings.ocr_fallback_provider as OCRProviderType) || 'tesseract',
-        cacheEnabled: settings.ocr_cache_enabled !== false, // Default true
-        cacheTTL: settings.ocr_cache_ttl || 7 * 24 * 60 * 60 // 7 gün
+        activeProvider: normProvider(settings['ocrSettings.activeProvider'], 'auto'),
+        fallbackEnabled: parseBool(settings['ocrSettings.fallbackEnabled'], true),
+        fallbackProvider: normProvider(settings['ocrSettings.fallbackProvider'], 'tesseract'),
+        cacheEnabled: parseBool(settings['ocrSettings.cacheEnabled'], true),
+        cacheTTL: Number(String(settings['ocrSettings.cacheTTL'] ?? '').replace(/"/g, '')) || 7 * 24 * 60 * 60
       };
     } catch (error) {
-      logger.warn('Settings okunamadı, default değerler kullanılıyor');
+      logger.warn('OCR Router - could not read settings; using defaults');
       return {
         activeProvider: 'auto',
         fallbackEnabled: true,
@@ -107,7 +123,7 @@ export class OCRRouterService {
   }
 
   /**
-   * Ana OCR işleme fonksiyonu
+   * Main OCR processing function
    */
   async processDocument(
     filePath: string,
@@ -116,34 +132,34 @@ export class OCRRouterService {
     const startTime = Date.now();
 
     try {
-      // Settings'den ayarları al
+      // Read settings from settings
       const settings = await this.getOCRSettings();
 
-      // Dosya hash'i hesapla (cache key için)
+      // Compute file hash (for cache key)
       const fileBuffer = await fs.readFile(filePath);
       const fileHash = ocrCacheService.calculateFileHash(fileBuffer);
 
-      // Provider seçimi
+      // Provider selection
       const selectedProvider = options.provider || settings.activeProvider;
       const provider = await this.selectProvider(selectedProvider, filePath);
 
-      logger.info(` OCR başlatılıyor: ${path.basename(filePath)} (Provider: ${provider})`);
+      logger.info(` Starting OCR: ${path.basename(filePath)} (Provider: ${provider})`);
 
-      // Cache kontrolü (skipCache option'ı yoksa)
+      // Cache check (unless skipCache option is set)
       const useCache = settings.cacheEnabled && !options.skipCache;
       if (useCache) {
         const cached = await ocrCacheService.get(fileHash, provider, options.prompt);
 
         if (cached) {
           await ocrCacheService.recordHit();
-          logger.info(` Cache HIT - OCR atlandı (${Date.now() - startTime}ms)`);
+          logger.info(` Cache HIT - OCR skipped (${Date.now() - startTime}ms)`);
           return cached;
         }
 
         await ocrCacheService.recordMiss();
       }
 
-      // OCR işleme (fallback chain ile)
+      // OCR processing (with fallback chain)
       const result = await this.processWithFallback(
         filePath,
         provider,
@@ -151,7 +167,7 @@ export class OCRRouterService {
         settings
       );
 
-      // Cache'e kaydet (skipCache option'ı yoksa)
+      // Save to cache (unless skipCache option is set)
       if (useCache && result) {
         await ocrCacheService.set(
           fileHash,
@@ -162,17 +178,17 @@ export class OCRRouterService {
         );
       }
 
-      logger.info(` OCR tamamlandı (${Date.now() - startTime}ms)`);
+      logger.info(` OCR completed (${Date.now() - startTime}ms)`);
       return result;
 
     } catch (error) {
-      logger.error(' OCR Router hatası:', error);
+      logger.error(' OCR Router error:', error);
       throw error;
     }
   }
 
   /**
-   * Fallback chain ile OCR işleme
+   * OCR processing with fallback chain
    */
   private async processWithFallback(
     filePath: string,
@@ -180,16 +196,16 @@ export class OCRRouterService {
     options: OCROptions,
     settings: OCRSettings
   ): Promise<OCRResult> {
-    // Fallback chain oluştur
+    // Build fallback chain
     const chain: OCRProviderType[] = [primaryProvider];
 
     if (settings.fallbackEnabled) {
-      // Fallback provider'ı ekle (primary ile aynı değilse)
+      // Add fallback provider (if different from primary)
       if (settings.fallbackProvider !== primaryProvider) {
         chain.push(settings.fallbackProvider);
       }
 
-      // Son çare olarak tesseract ekle
+      // Add tesseract as last resort
       if (!chain.includes('tesseract')) {
         chain.push('tesseract');
       }
@@ -197,36 +213,36 @@ export class OCRRouterService {
 
     logger.debug(`OCR Fallback Chain: ${chain.join(' → ')}`);
 
-    // Chain'i sırayla dene
+    // Try the chain in order
     let lastError: Error | null = null;
 
     for (const providerName of chain) {
       try {
         const result = await this.executeOCR(filePath, providerName, options);
 
-        // Fallback kullanıldıysa metadata'ya ekle
+        // If a fallback was used, add it to metadata
         if (providerName !== primaryProvider) {
           result.metadata.fallbackUsed = true;
           result.metadata.primaryProvider = primaryProvider;
-          logger.warn(`️ Fallback kullanıldı: ${primaryProvider} → ${providerName}`);
+          logger.warn(`️ Used fallback: ${primaryProvider} → ${providerName}`);
         }
 
         return result;
       } catch (error) {
         lastError = error as Error;
-        logger.error(`Provider ${providerName} başarısız:`, error.message);
+        logger.error(`Provider ${providerName} failed:`, error.message);
 
-        // Fallback zincirinde devam et
+        // Continue with the fallback chain
         continue;
       }
     }
 
-    // Tüm provider'lar başarısız oldu
-    throw new Error(`Tüm OCR provider'ları başarısız oldu. Son hata: ${lastError?.message}`);
+    // All providers failed
+    throw new Error(`All OCR providers failed. Last error: ${lastError?.message}`);
   }
 
   /**
-   * Belirli bir provider ile OCR yap
+   * Run OCR with a specific provider
    */
   private async executeOCR(
     filePath: string,
@@ -235,7 +251,7 @@ export class OCRRouterService {
   ): Promise<OCRResult> {
     const ext = path.extname(filePath).toLowerCase();
 
-    // Tesseract için özel işlem (mevcut OCRService)
+    // Special handling for Tesseract (existing OCRService)
     if (providerName === 'tesseract') {
       const tesseractResult = await ocrService.processDocument(filePath, ext);
 
@@ -250,20 +266,20 @@ export class OCRRouterService {
       };
     }
 
-    // Vision provider'lar
+    // Vision providers
     const provider = this.providers.get(providerName);
 
     if (!provider) {
-      throw new Error(`Provider bulunamadı: ${providerName}`);
+      throw new Error(`Provider not found: ${providerName}`);
     }
 
-    // Provider hazır mı kontrol et
+    // Check whether the provider is ready
     const isReady = await provider.isReady();
     if (!isReady) {
-      throw new Error(`Provider hazır değil: ${providerName}`);
+      throw new Error(`Provider not ready: ${providerName}`);
     }
 
-    // Dosya tipine göre işlem
+    // Process based on file type
     if (ext === '.pdf') {
       return await provider.processPDF(filePath, options);
     } else {
@@ -272,21 +288,21 @@ export class OCRRouterService {
   }
 
   /**
-   * Akıllı provider seçimi
+   * Smart provider selection
    */
   private async selectProvider(
     requested: OCRProviderType,
     filePath: string
   ): Promise<OCRProviderType> {
-    // Manuel seçim yapıldıysa direkt kullan
+    // If a manual selection was made, use it directly
     return requested;
   }
 
   /**
-   * Provider hazır mı kontrol et
+   * Check whether the provider is ready
    */
   private async isProviderReady(providerName: OCRProviderType): Promise<boolean> {
-    if (providerName === 'tesseract') return true; // Tesseract her zaman hazır
+    if (providerName === 'tesseract') return true; // Tesseract is always ready
 
     const provider = this.providers.get(providerName);
     if (!provider) return false;
@@ -299,7 +315,7 @@ export class OCRRouterService {
   }
 
   /**
-   * Mevcut provider'ları ve durumlarını listele
+   * List available providers and their states
    */
   async getAvailableProviders(): Promise<Array<{
     name: OCRProviderType;
@@ -320,7 +336,7 @@ export class OCRRouterService {
       });
     }
 
-    // Tesseract'i ekle
+    // Add Tesseract
     result.push({
       name: 'tesseract',
       enabled: true,
@@ -336,14 +352,14 @@ export class OCRRouterService {
   }
 
   /**
-   * Cache istatistiklerini al
+   * Get cache statistics
    */
   async getCacheStats() {
     return await ocrCacheService.getStats();
   }
 
   /**
-   * Cache'i temizle
+   * Clear the cache
    */
   async clearCache(fileHash?: string, provider?: OCRProviderType) {
     return await ocrCacheService.clear(fileHash, provider);

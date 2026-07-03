@@ -2,12 +2,13 @@ import { Router, Request, Response } from 'express';
 import { Pool } from 'pg';
 import { authenticateToken, requireAdmin } from '../middleware/auth.middleware';
 import bcrypt from 'bcryptjs';
+import { resolveDatabaseUrl } from '../config/db-url';
 
 const router = Router();
 
 // Database connection
 const pool = new Pool({
-  connectionString: process.env.DATABASE_URL || 'postgresql://postgres:Semsiye!22@91.99.229.96:5432/lsemb'
+  connectionString: resolveDatabaseUrl()
 });
 
 // Get all users (Admin only)

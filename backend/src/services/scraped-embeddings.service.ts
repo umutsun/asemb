@@ -110,7 +110,7 @@ class ScrapedEmbeddingsService {
 
     const redisConfig = {
       socket: {
-        host: process.env.REDIS_HOST || '91.99.229.96',
+        host: process.env.REDIS_HOST,
         port: parseInt(process.env.REDIS_PORT || '6379'),
       },
       database: dbNumber

@@ -1,6 +1,6 @@
 /**
  * OCR Provider Types & Interfaces
- * Multi-provider OCR sistemi için type tanımlamaları
+ * Type definitions for the multi-provider OCR system
  */
 
 export type OCRProviderType = 'openai' | 'gemini' | 'deepseek' | 'tesseract' | 'auto';
@@ -55,19 +55,19 @@ export interface OCRCacheEntry {
 
 /**
  * OCR Provider Interface
- * Tüm OCR provider'ları bu interface'i implement etmeli
+ * All OCR providers must implement this interface
  */
 export interface IOCRProvider {
   readonly name: OCRProviderType;
   readonly enabled: boolean;
 
   /**
-   * Provider hazır mı kontrol et
+   * Check whether the provider is ready
    */
   isReady(): Promise<boolean>;
 
   /**
-   * Görsel dosyadan OCR
+   * OCR from an image file
    */
   processImage(
     filePath: string,
@@ -75,7 +75,7 @@ export interface IOCRProvider {
   ): Promise<OCRResult>;
 
   /**
-   * PDF dosyadan OCR
+   * OCR from a PDF file
    */
   processPDF(
     filePath: string,
@@ -83,7 +83,7 @@ export interface IOCRProvider {
   ): Promise<OCRResult>;
 
   /**
-   * Base64 encoded image'den OCR
+   * OCR from a base64 encoded image
    */
   processBase64Image(
     base64Data: string,
@@ -92,12 +92,12 @@ export interface IOCRProvider {
   ): Promise<OCRResult>;
 
   /**
-   * Provider configuration'ı al
+   * Get the provider configuration
    */
   getConfig(): OCRProviderConfig;
 
   /**
-   * Maliyet hesapla
+   * Estimate cost
    */
   estimateCost(fileSize: number, pageCount?: number): Promise<number>;
 }
