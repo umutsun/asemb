@@ -234,10 +234,11 @@ export function preprocessMarkdown(content: string): string {
 
   // ═══ STEP 0d: Strip stray end-of-section "#" artifacts ═══
   // LLMs sometimes append a lone "#" as a section terminator after text or a citation
-  // ("taxation. #", "products #", "[3]. #"). A "#" preceded by a space and non-"#" text is
-  // never a valid ATX heading (those start the line), so remove it. Runs BEFORE the
-  // heading-body split so the boundary detector sees clean lines.
-  result = result.replace(/([^\n#])[ \t]+#{1,6}[ \t]*(?=\n|$)/g, '$1');
+  // ("taxation. #", "products #", "[3]. #", and — with no space — "sources.#"). A trailing "#"
+  // after non-"#" text at a line end is never a valid ATX heading (those start the line), so
+  // remove it. The space before the "#" is OPTIONAL so "sources.#" is caught too. Runs BEFORE
+  // the heading-body split so the boundary detector sees clean lines.
+  result = result.replace(/([^\n#])[ \t]*#{1,6}[ \t]*(?=\n|$)/g, '$1');
 
   // ═══ STEP 0e: Move an inline ATX heading onto its own line ═══
   // "**Lead.** ### Gratuity Calculation …" — a heading glued mid-line onto preceding text.
@@ -302,6 +303,18 @@ export function preprocessMarkdown(content: string): string {
     });
   }
 
+  // ═══ STEP 3c: Split inline DASH-bulleted lists ("- **Label** …") ═══
+  // The model also inlines bulleted lists after a heading or intro, each item marked by
+  // " - **Label**" on the SAME line ("## Conditions - **A** … - **B** …"). Break each " - **"
+  // onto its own line so remark-gfm renders a real <ul>. Requiring "**" right after the dash
+  // keeps a hyphenated word ("Decree-Law", no surrounding spaces) from ever matching.
+  // 1) Pull the first bullet off a heading line, with a blank line before the list.
+  result = result.replace(/^(#{1,6}\s+[^\n]*?[^\s-])\s+-\s+(?=\*\*)/gm, '$1\n\n- ');
+  // 2) Break subsequent inline " - **" bullets onto their own lines.
+  result = result.replace(/([^\n-])[ \t]+-[ \t]+(?=\*\*)/g, '$1\n- ');
+  // 3) Ensure a blank line separates a bullet list from a preceding non-bullet paragraph line.
+  result = result.replace(/^([^\n#\-].*\S)\n(-[ \t]+\*\*)/gm, '$1\n\n$2');
+
   // ═══ STEP 3b: Normalise numbered-list-item newlines ═══
   // The model mixes single and double newlines between "N." items (example B: items 1-2 split by
   // a blank line, 2-6 by single newlines). remark-gfm needs a blank line BEFORE the first item
@@ -353,15 +366,25 @@ export function preprocessMarkdown(content: string): string {
   result = result.replace(/\n{3,}/g, '\n\n');
 
   // ═══ STEP 7b: Remove trailing ATX close markers / stray # at line end ═══
-  // LLMs sometimes emit "sentence. ##" or "bold text ## " at end of a line.
-  // A trailing # preceded by a space is never valid CommonMark — strip it.
-  result = result.replace(/[ \t]+#{1,6}[ \t]*$/gm, '');
+  // LLMs sometimes emit "sentence. ##", "bold text ## " or "text.#" at a line end. A trailing
+  // "#" is never valid CommonMark — strip it (the space before it is optional).
+  result = result.replace(/[ \t]*#{1,6}[ \t]*$/gm, '');
 
-  // ═══ STEP 8: Balance an orphaned trailing bold marker (odd count of **) ═══
-  // Prevents a stray "**" (e.g. left by a mangled marker) from disabling bold rendering.
-  if (((result.match(/\*\*/g) || []).length % 2) === 1) {
-    result = result.replace(/\*\*([^*]*)$/, '$1');
-  }
+  // ═══ STEP 8: Balance ** PER block so an unclosed bold span can't bleed across blocks ═══
+  // The model often opens a bold span and never closes it before a blank line / heading
+  // ("**No direct text found… in sources." with no closing **). A GLOBAL odd-count check misses
+  // this when the total ** count happens to be even but the pairing spans blocks — bolding whole
+  // paragraphs and leaking literal "**". Within each \n\n-separated block, an odd ** count means
+  // the last opener was never closed: append a closing ** at the block end (keeps the intended
+  // bold contained to that phrase instead of the rest of the answer).
+  result = result
+    .split(/\n\n+/)
+    .map((block) =>
+      ((block.match(/\*\*/g) || []).length % 2) === 1
+        ? block.replace(/(\s*)$/, '**$1')
+        : block
+    )
+    .join('\n\n');
 
   return result;
 }

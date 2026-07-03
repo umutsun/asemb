@@ -197,4 +197,28 @@ describe('preprocessMarkdown — regression guards (no over-splitting)', () => {
     expect(out).toContain('## Goods Subject to Excise Tax\n\n');
     expect(/[^\n#][ \t]+#{1,6}[ \t]*(?:\n|$)/.test(out)).toBe(false);
   });
+
+  it('strips a "#" with no leading space ("sources.#")', () => {
+    const out = preprocessMarkdown('No direct text found in sources.#\n\n## Overview');
+    expect(out).not.toMatch(/#(?!#|\s*Overview)/);
+    expect(out).toContain('No direct text found in sources.');
+  });
+
+  it('closes an unclosed bold span within its own block (no bleed across blocks)', () => {
+    // "**Lead" never closed; the next block has a real **bold** — a global odd-count check would
+    // mis-pair them and bold everything between. Per-block balancing keeps it contained.
+    const out = preprocessMarkdown('**No direct text found.\n\n## Overview\n\nThe **Civil Law** applies.');
+    expect(out).toContain('**No direct text found.**');
+    expect(out).toContain('The **Civil Law** applies.');
+  });
+
+  it('splits a heading + inline dash-bulleted list into a real <ul>', () => {
+    const input =
+      '## Conditions - **Justifications Required** An official letter is required. - **Supporting Documents** Extra documents may be needed.';
+    const out = preprocessMarkdown(input);
+    expect(out).toContain('## Conditions\n\n- **Justifications Required**');
+    expect(out).toContain('\n- **Supporting Documents**');
+    // Both bullets start a line.
+    expect((out.match(/^- \*\*/gm) || []).length).toBe(2);
+  });
 });
