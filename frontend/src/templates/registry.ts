@@ -26,24 +26,6 @@ export const chatTemplates: Record<string, TemplateConfig> = {
     config: () => import('./base/config.json')
   },
 
-  'modern': {
-    id: 'modern',
-    name: 'Modern',
-    description: 'Sleek dark theme with glassmorphism effects',
-    version: '1.0.0',
-    ChatInterface: () => import('./modern/ChatInterface'),
-    config: () => import('./modern/config.json')
-  },
-
-  'spark': {
-    id: 'spark',
-    name: 'Spark',
-    description: 'AI-inspired design with blue/purple gradient and sparkle effects',
-    version: '1.0.0',
-    ChatInterface: () => import('./spark/ChatInterface'),
-    config: () => import('./spark/config.json')
-  },
-
   'zen01': {
     id: 'zen01',
     name: 'Zen 01',
@@ -51,6 +33,33 @@ export const chatTemplates: Record<string, TemplateConfig> = {
     version: '2.0.0',
     ChatInterface: () => import('./zen01/ChatInterface'),
     config: () => import('./zen01/config.json')
+  },
+
+  'counsel': {
+    id: 'counsel',
+    name: 'Counsel',
+    description: 'Editorial law-review chat: serif display, viridian accent, footnote-style sources',
+    version: '1.0.0',
+    ChatInterface: () => import('./counsel/ChatInterface'),
+    config: () => import('./counsel/config.json')
+  },
+
+  'atlas': {
+    id: 'atlas',
+    name: 'Atlas',
+    description: 'Product-grade chat: layered surfaces, ultramarine accent, source cards',
+    version: '1.0.0',
+    ChatInterface: () => import('./atlas/ChatInterface'),
+    config: () => import('./atlas/config.json')
+  },
+
+  'majlis': {
+    id: 'majlis',
+    name: 'Majlis',
+    description: 'Ink-and-brass legal chat: dark-first, small-caps labels, docket source ledger',
+    version: '1.0.0',
+    ChatInterface: () => import('./majlis/ChatInterface'),
+    config: () => import('./majlis/config.json')
   },
 
   // Example: Add custom templates here

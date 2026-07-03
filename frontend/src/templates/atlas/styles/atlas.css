@@ -1,0 +1,757 @@
+/**
+ * Atlas — product-grade SaaS chat
+ * Layered surfaces, soft shadows, ultramarine accent, source cards,
+ * pill follow-ups, floating shadowed composer. Depth without glass or
+ * gradients (the translucent blurred header is the single exception).
+ *
+ * All critical colors are keyed to the container's OWN theme class
+ * (.atlas-container.light / .atlas-container.dark) via CSS variables,
+ * never to the global html.dark — the two theme systems can desync.
+ */
+
+/* ============ Tokens ============ */
+.atlas-container,
+.atlas-container.dark {
+  --atlas-bg: #131519;
+  --atlas-surface: #1b1e24;
+  --atlas-surface-2: #22262e;
+  --atlas-ink: #e9eaee;
+  --atlas-muted: #9aa0ac;
+  --atlas-accent: #4d6bff;
+  --atlas-accent-ink: #8da2ff;          /* text-on-tint */
+  --atlas-accent-soft: rgba(141, 162, 255, 0.10);
+  --atlas-border: #2a2e36;
+  --atlas-border-strong: #363b45;
+  --atlas-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.25);
+  --atlas-shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.4);
+  /* Accent fills that carry white text (send button, user bubble, cite hover,
+     brand mark): the dark-mode accent #4d6bff only reaches ~4.3:1 with white,
+     so fills use the mock's darker bubble blue #3a53c9 (~6.4:1). */
+  --atlas-accent-fill: #3a53c9;
+  --atlas-on-accent: #ffffff;
+  --atlas-warn: #fbbf24;
+  --atlas-danger: #f87171;
+  --atlas-q-verygood: #4ade80;
+  --atlas-q-good: #7dd3fc;
+  --atlas-q-medium: #fbbf24;
+  --atlas-q-low: var(--atlas-muted);
+  --atlas-mono: Consolas, ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+.atlas-container.light {
+  --atlas-bg: #f5f6f8;
+  --atlas-surface: #ffffff;
+  --atlas-surface-2: #eef0f4;
+  --atlas-ink: #16181d;
+  --atlas-muted: #676c78;
+  --atlas-accent: #3557e8;              /* ultramarine */
+  --atlas-accent-ink: #2743b8;          /* text-on-tint */
+  --atlas-accent-soft: rgba(53, 87, 232, 0.08);
+  --atlas-border: #e3e5ea;
+  --atlas-border-strong: #d5d8df;
+  --atlas-shadow-sm: 0 1px 2px rgba(22, 24, 29, 0.05), 0 2px 8px rgba(22, 24, 29, 0.05);
+  --atlas-shadow-lg: 0 4px 12px rgba(22, 24, 29, 0.08), 0 12px 32px rgba(22, 24, 29, 0.10);
+  /* Light accent #3557e8 holds ~5.7:1 with white, so fills use it directly */
+  --atlas-accent-fill: var(--atlas-accent);
+  --atlas-on-accent: #ffffff;
+  --atlas-warn: #b45309;
+  --atlas-danger: #b3261e;
+  --atlas-q-verygood: #0d8a53;
+  --atlas-q-good: #0369a1;
+  --atlas-q-medium: #b45309;
+  --atlas-q-low: var(--atlas-muted);
+}
+
+/* ============ Container ============ */
+.atlas-container {
+  min-height: 100vh;
+  background: var(--atlas-bg);
+  color: var(--atlas-ink);
+  /* Sans-only stack per the approved design (mono via variable, no serif) */
+  font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+  position: relative;
+  overflow: hidden;
+}
+
+/* Thin, muted scrollbars everywhere inside the template */
+.atlas-container ::-webkit-scrollbar { width: 6px; height: 6px; }
+.atlas-container ::-webkit-scrollbar-track { background: transparent; }
+.atlas-container ::-webkit-scrollbar-thumb { background: var(--atlas-border-strong); border-radius: 3px; }
+.atlas-container ::-webkit-scrollbar-thumb:hover { background: var(--atlas-muted); }
+
+/* ============ Header: translucent blurred surface over the page ============ */
+.atlas-header {
+  height: 56px;
+  border-bottom: 1px solid var(--atlas-border);
+  background: color-mix(in srgb, var(--atlas-surface) 70%, transparent);
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+}
+
+.atlas-brand-mark {
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+  background: var(--atlas-accent-fill);
+  color: var(--atlas-on-accent);
+  display: grid;
+  place-items: center;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1;
+  flex-shrink: 0;
+  overflow: hidden;
+}
+
+.atlas-brand-name {
+  font-size: 14.5px;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+  color: var(--atlas-ink);
+}
+
+.atlas-brand-tag {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--atlas-muted);
+  background: var(--atlas-surface-2);
+  border: 1px solid var(--atlas-border);
+  padding: 3px 8px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
+/* Bordered mode toggle (header right controls) */
+.atlas-mode-btn {
+  appearance: none;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  color: var(--atlas-muted);
+  background: var(--atlas-surface);
+  border: 1px solid var(--atlas-border);
+  transition: color 0.15s ease, border-color 0.15s ease;
+}
+
+.atlas-mode-btn:hover {
+  color: var(--atlas-ink);
+  border-color: var(--atlas-border-strong);
+}
+
+.atlas-mode-btn:focus-visible {
+  outline: 2px solid var(--atlas-accent);
+  outline-offset: 2px;
+}
+
+/* ============ Welcome (empty state) ============ */
+.atlas-welcome-title {
+  font-size: 24px;
+  font-weight: 650;
+  line-height: 1.3;
+  letter-spacing: -0.015em;
+  color: var(--atlas-ink);
+}
+
+/* ============ User message: accent bubble, right-aligned ============ */
+.atlas-user-q {
+  display: inline-block;
+  max-width: 100%;
+  background: var(--atlas-accent-fill);
+  color: var(--atlas-on-accent);
+  font-size: 15px;
+  line-height: 1.55;
+  padding: 12px 18px;
+  border-radius: 18px 18px 4px 18px;
+  box-shadow: var(--atlas-shadow-sm);
+  text-align: start;
+  white-space: pre-wrap;
+}
+
+.atlas-user-time {
+  display: block;
+  text-align: end;
+  margin-top: 6px;
+  font-size: 11.5px;
+  color: var(--atlas-muted);
+}
+
+/* ============ Prose (assistant markdown) ============ */
+.atlas-prose {
+  font-size: 15px;
+  line-height: 1.68;
+  color: var(--atlas-ink);
+}
+
+.atlas-prose h1,
+.atlas-prose h2,
+.atlas-prose h3 {
+  font-weight: 650;
+  letter-spacing: -0.015em;
+  color: var(--atlas-ink);
+}
+
+.atlas-prose h1 {
+  font-size: 21px;
+  line-height: 1.3;
+  margin: 22px 0 12px;
+}
+
+.atlas-prose h2 {
+  font-size: 19px;
+  line-height: 1.35;
+  margin: 20px 0 12px;
+}
+
+.atlas-prose h3 {
+  font-size: 16px;
+  line-height: 1.4;
+  margin: 16px 0 8px;
+}
+
+.atlas-prose h1:first-child,
+.atlas-prose h2:first-child,
+.atlas-prose h3:first-child { margin-top: 0; }
+
+.atlas-prose strong { font-weight: 650; }
+
+/* Unordered lists keep plain accent markers */
+.atlas-prose ul > li::marker {
+  color: var(--atlas-accent);
+  font-weight: 600;
+}
+
+/* Ordered lists: counter-driven accent-soft number tiles.
+   Each <li> is a flex row (tile + wrapper div added by the renderer). */
+.atlas-prose ol {
+  margin: 0 0 13px;
+  padding: 0;
+  list-style: none;
+  counter-reset: item;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.atlas-prose ol > li {
+  counter-increment: item;
+  display: flex;
+  gap: 12px;
+  line-height: 1.65;
+}
+
+.atlas-prose ol > li::before {
+  content: counter(item);
+  flex-shrink: 0;
+  width: 22px;
+  height: 22px;
+  margin-top: 1px;
+  border-radius: 7px;
+  background: var(--atlas-accent-soft);
+  color: var(--atlas-accent-ink);
+  font-weight: 650;
+  font-size: 12px;
+  line-height: 22px;
+  text-align: center;
+}
+
+/* ============ Inline citation [n] markers: accent-soft chips ============ */
+.atlas-cite {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 17px;
+  height: 17px;
+  border-radius: 5px;
+  background: var(--atlas-accent-soft);
+  color: var(--atlas-accent-ink);
+  font-family: var(--atlas-mono);
+  font-weight: 650;
+  font-size: 10.5px;
+  line-height: 1;
+  padding: 0 3px;
+  margin: 0 1px;
+  vertical-align: 2px;
+  /* The chip is a <sup>, so Tailwind preflight applies
+     sup { position: relative; top: -0.5em } and raises the whole chip ~5px
+     above the text midline. Reset that raise; the intended offset is the
+     2px vertical-align above (matching the approved mock). */
+  position: static;
+  top: 0;
+  transition: background 0.15s ease, color 0.15s ease;
+  text-decoration: none;
+}
+
+/* Hover fill only when the cite is interactive (enableSourceClick) */
+.atlas-cite-clickable { cursor: pointer; }
+.atlas-cite-clickable:hover {
+  background: var(--atlas-accent-fill);
+  color: var(--atlas-on-accent);
+}
+
+/* ============ Message mount animation (only animation in the template) ============ */
+.atlas-msg-in { animation: atlas-in 150ms ease-out; }
+
+@keyframes atlas-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: none; }
+}
+
+/* Keyboard focus for the citation interactions: inline [n] chips and source
+   cards are focusable (role=button), so give them a visible accent ring.
+   No border-radius override here — the ring follows each element's own
+   radius (5px chip, 12px card). */
+.atlas-cite:focus-visible,
+.atlas-src-clickable:focus-visible {
+  outline: 2px solid var(--atlas-accent);
+  outline-offset: 2px;
+}
+
+/* ============ Citation scroll highlight (brief accent-tinted fade) ============ */
+.atlas-cite-flash {
+  animation: atlas-flash 1.6s ease-out;
+  border-radius: 12px;
+}
+
+@keyframes atlas-flash {
+  /* Blend the accent tint over the card surface so the source card never
+     drops its own background mid-animation */
+  0%, 25% { background-color: color-mix(in srgb, var(--atlas-accent) 8%, var(--atlas-surface)); }
+  100% { background-color: var(--atlas-surface); }
+}
+
+/* ============ Typing indicator ============ */
+.atlas-typing {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 0.5rem 0;
+}
+
+.atlas-typing-dot {
+  width: 4px;
+  height: 4px;
+  border-radius: 9999px;
+  background: var(--atlas-muted);
+  animation: atlas-pulse 1.2s ease-in-out infinite;
+}
+
+.atlas-typing-dot:nth-child(2) { animation-delay: 0.15s; }
+.atlas-typing-dot:nth-child(3) { animation-delay: 0.3s; }
+
+@keyframes atlas-pulse {
+  0%, 60%, 100% { opacity: 0.35; }
+  30% { opacity: 1; }
+}
+
+/* ============ Answer-quality pill (level -> tinted pill with leading dot) ============ */
+.atlas-q-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-weight: 600;
+  font-size: 11.5px;
+  padding: 3px 9px;
+  border-radius: 999px;
+  /* Matching 9%-tint background derived from the level's text color */
+  background: color-mix(in srgb, currentColor 9%, transparent);
+}
+
+.atlas-q-pill::before {
+  content: "";
+  width: 5px;
+  height: 5px;
+  border-radius: 99px;
+  background: currentColor;
+}
+
+.atlas-q-veryGood { color: var(--atlas-q-verygood); }
+.atlas-q-good     { color: var(--atlas-q-good); }
+.atlas-q-medium   { color: var(--atlas-q-medium); }
+.atlas-q-low      { color: var(--atlas-q-low); }
+
+/* Ghost icon buttons in the meta row */
+.atlas-icon-btn {
+  appearance: none;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--atlas-muted);
+  padding: 4px;
+  border-radius: 6px;
+  display: inline-flex;
+  transition: color 0.15s ease, background 0.15s ease;
+}
+
+.atlas-icon-btn:hover {
+  color: var(--atlas-ink);
+  background: var(--atlas-surface-2);
+}
+
+/* ============ Sources: bordered cards with icon tiles ============ */
+.atlas-src-label {
+  font-size: 12px;
+  font-weight: 650;
+  color: var(--atlas-muted);
+  margin-bottom: 8px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.atlas-src {
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
+  background: var(--atlas-surface);
+  border: 1px solid var(--atlas-border);
+  border-radius: 12px;
+  padding: 13px 16px;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.atlas-src + .atlas-src { margin-top: 8px; }
+
+.atlas-src-clickable { cursor: pointer; }
+.atlas-src-clickable:hover {
+  border-color: var(--atlas-accent);
+  box-shadow: var(--atlas-shadow-sm);
+}
+
+.atlas-src-icon {
+  flex-shrink: 0;
+  width: 36px;
+  height: 36px;
+  border-radius: 9px;
+  background: var(--atlas-accent-soft);
+  color: var(--atlas-accent-ink);
+  display: grid;
+  place-items: center;
+}
+
+.atlas-src-top {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.atlas-src-n {
+  font-family: var(--atlas-mono);
+  font-size: 11px;
+  font-weight: 650;
+  line-height: 1;
+  color: var(--atlas-accent-ink);
+  flex-shrink: 0;
+}
+
+.atlas-src-title {
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.4;
+  color: var(--atlas-ink);
+}
+
+.atlas-src-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 7px;
+}
+
+.atlas-chip {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--atlas-muted);
+  background: var(--atlas-surface-2);
+  border: 1px solid var(--atlas-border);
+  padding: 2.5px 8px;
+  border-radius: 6px;
+  white-space: nowrap;
+}
+
+/* Article chip: accent tint, borderless */
+.atlas-chip-art {
+  color: var(--atlas-accent-ink);
+  background: var(--atlas-accent-soft);
+  border-color: transparent;
+}
+
+.atlas-src-ex {
+  margin-top: 8px;
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: var(--atlas-muted);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* ============ Follow-up suggestions: bordered pills ============ */
+.atlas-fups {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 18px;
+}
+
+.atlas-fup {
+  appearance: none;
+  cursor: pointer;
+  background: var(--atlas-surface);
+  border: 1px solid var(--atlas-border);
+  color: var(--atlas-ink);
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.4;
+  padding: 8px 14px;
+  border-radius: 999px;
+  text-align: start;
+  transition: border-color 0.15s ease, background 0.15s ease, color 0.15s ease;
+}
+
+.atlas-fup:hover {
+  border-color: var(--atlas-accent);
+  color: var(--atlas-accent-ink);
+  background: var(--atlas-accent-soft);
+}
+
+/* ============ Composer: floating shadowed card ============ */
+.atlas-composer {
+  background: var(--atlas-surface);
+  border: 1px solid var(--atlas-border);
+  border-radius: 16px;
+  padding-block: 12px;
+  padding-inline-start: 18px;
+  padding-inline-end: 12px;
+  box-shadow: var(--atlas-shadow-lg);
+  transition: border-color 0.15s ease;
+}
+
+.atlas-composer:focus-within { border-color: var(--atlas-accent); }
+
+.atlas-composer textarea {
+  font-family: inherit;
+  font-size: 15px;
+  line-height: 1.5;
+}
+
+.atlas-composer textarea::placeholder {
+  color: var(--atlas-muted);
+}
+
+.atlas-send {
+  appearance: none;
+  border: none;
+  cursor: pointer;
+  flex-shrink: 0;
+  width: 36px;
+  height: 36px;
+  border-radius: 11px;
+  background: var(--atlas-accent-fill);
+  color: var(--atlas-on-accent);
+  display: grid;
+  place-items: center;
+  transition: filter 0.15s ease, opacity 0.15s ease;
+}
+
+.atlas-send:hover { filter: brightness(1.1); }
+.atlas-send:disabled { opacity: 0.4; cursor: not-allowed; filter: none; }
+
+/* Under-composer hint line */
+.atlas-composer-hint {
+  margin-top: 8px;
+  text-align: center;
+  font-size: 11px;
+  color: var(--atlas-muted);
+}
+
+/* ============ Popover panels (history / suggest / slash) ============ */
+.atlas-panel {
+  position: absolute;
+  bottom: 100%;
+  left: 0;
+  right: 0;
+  margin-bottom: 0.5rem;
+  background: var(--atlas-surface);
+  border: 1px solid var(--atlas-border);
+  border-radius: 12px;
+  box-shadow: var(--atlas-shadow-lg);
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.atlas-panel-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--atlas-border);
+  color: var(--atlas-muted);
+}
+
+.atlas-panel-search input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  outline: none;
+  font-size: 0.875rem;
+  color: var(--atlas-ink);
+}
+
+.atlas-panel-search input::placeholder { color: var(--atlas-muted); }
+
+.atlas-panel-list {
+  flex: 1;
+  max-height: 280px;
+  padding: 6px;
+  overflow-y: auto;
+}
+
+.atlas-panel-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  text-align: start;
+  font-size: 0.875rem;
+  color: var(--atlas-ink);
+  transition: background 0.15s ease;
+}
+
+.atlas-panel-row:hover,
+.atlas-panel-row.selected,
+.atlas-panel-row.active { background: var(--atlas-surface-2); }
+
+.atlas-panel-label {
+  font-size: 11px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--atlas-muted);
+  padding: 8px 10px 4px;
+}
+
+.atlas-panel-empty {
+  text-align: center;
+  padding: 24px 16px;
+  color: var(--atlas-muted);
+  font-size: 0.875rem;
+}
+
+.atlas-panel-skeleton {
+  height: 36px;
+  margin: 4px 0;
+  border-radius: 8px;
+  background: var(--atlas-surface-2);
+}
+
+/* History rows: title + time + delete affordance */
+.atlas-history-item-title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.atlas-history-item-time {
+  font-size: 0.75rem;
+  color: var(--atlas-muted);
+  flex-shrink: 0;
+}
+
+.atlas-history-item-delete {
+  opacity: 0;
+  padding: 5px;
+  border-radius: 6px;
+  color: var(--atlas-muted);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  transition: opacity 0.15s ease, color 0.15s ease;
+}
+
+.atlas-panel-row:hover .atlas-history-item-delete { opacity: 1; }
+/* Keep the delete affordance visible while focused via keyboard */
+.atlas-panel-row:focus-within .atlas-history-item-delete { opacity: 1; }
+.atlas-history-item-delete:focus-visible { opacity: 1; }
+.atlas-history-item-delete:hover { color: var(--atlas-danger); }
+
+.atlas-history-confirm-yes {
+  padding: 3px 10px;
+  font-size: 11px;
+  font-weight: 500;
+  background: var(--atlas-danger);
+  color: var(--atlas-on-accent);
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.atlas-history-confirm-no {
+  padding: 3px 6px;
+  background: transparent;
+  color: var(--atlas-muted);
+  border: 1px solid var(--atlas-border);
+  border-radius: 6px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+}
+
+/* Slash command rows */
+.atlas-slash-trigger {
+  font-family: var(--atlas-mono);
+  font-size: 0.8125rem;
+  color: var(--atlas-muted);
+  min-width: 4.5rem;
+}
+
+.atlas-slash-submenu-row { padding-inline-start: 2.5rem; }
+
+/* ============ User-menu dropdown (renders in a portal OUTSIDE the container,
+   so CSS vars are unavailable — literal colors keyed by an explicit mode class) */
+.atlas-dropdown { border-radius: 12px; }
+
+.atlas-dropdown.atlas-dark {
+  background: #1b1e24;
+  border: 1px solid #2a2e36;
+  color: #e9eaee;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+}
+
+.atlas-dropdown.atlas-light {
+  background: #ffffff;
+  border: 1px solid #e3e5ea;
+  color: #16181d;
+  box-shadow: 0 4px 12px rgba(22, 24, 29, 0.08), 0 12px 32px rgba(22, 24, 29, 0.10);
+}
+
+/* Item hover / keyboard focus / Radix highlight: explicit background AND text
+   color per mode, so the global shadcn html.dark tokens (focus:bg-accent /
+   focus:text-accent-foreground) can never desync the portal menu's legibility. */
+.atlas-dropdown.atlas-dark .atlas-dropdown-item:hover,
+.atlas-dropdown.atlas-dark .atlas-dropdown-item:focus,
+.atlas-dropdown.atlas-dark .atlas-dropdown-item[data-highlighted] {
+  background: #22262e;
+  color: #e9eaee;
+}
+
+.atlas-dropdown.atlas-light .atlas-dropdown-item:hover,
+.atlas-dropdown.atlas-light .atlas-dropdown-item:focus,
+.atlas-dropdown.atlas-light .atlas-dropdown-item[data-highlighted] {
+  background: #eef0f4;
+  color: #16181d;
+}

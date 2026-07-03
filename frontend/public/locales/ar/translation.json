@@ -103,6 +103,7 @@
     "attachFile": "Attach file",
     "defaultPlaceholder": "Search in legal documents or ask questions...",
     "exampleQuestions": "Example questions:",
+    "send": "اسأل",
     "questions": {
       "amortizationCalculation": "How is amortization calculated?",
       "annualIncomeTax": "How to file annual income tax declaration?",
@@ -2692,7 +2693,7 @@
     "topK": "Top K",
     "totalDocuments": "Total Documents",
     "useCache": "Use Cache",
-    "yourQuestion": "Your Question"
+    "yourQuestion": "سؤالك"
   },
   "queryMode": "query Mode",
   "queryModeFeatures": "query Mode Features",

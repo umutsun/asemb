@@ -1,0 +1,78 @@
+{
+  "id": "majlis",
+  "name": "Majlis",
+  "description": "Ink-and-brass legal chat: dark-first, small-caps labels, docket source ledger",
+  "version": "1.0.0",
+  "author": "LSEMB Team",
+  "theme": {
+    "supportedModes": ["dark", "light"],
+    "defaultMode": "dark",
+    "colors": {
+      "dark": {
+        "primary": "#c3a05f",
+        "secondary": "#a8bfa0",
+        "background": {
+          "deep": "#0d1014",
+          "mid": "#14181e",
+          "light": "#1a2027"
+        },
+        "text": {
+          "primary": "#eae6dc",
+          "secondary": "#8e8b81",
+          "muted": "rgba(142, 139, 129, 0.7)"
+        },
+        "accent": {
+          "brass": "#c3a05f",
+          "good": "#a8bfa0",
+          "amber": "#d9a441",
+          "danger": "#e5766d"
+        }
+      },
+      "light": {
+        "primary": "#8a6d39",
+        "secondary": "#5a7355",
+        "background": {
+          "deep": "#f1efe9",
+          "mid": "#faf9f5",
+          "light": "#e9e6dc"
+        },
+        "text": {
+          "primary": "#1e2732",
+          "secondary": "#6e6a5e",
+          "muted": "rgba(110, 106, 94, 0.7)"
+        },
+        "accent": {
+          "brass": "#8a6d39",
+          "good": "#5a7355",
+          "amber": "#b45309",
+          "danger": "#b3261e"
+        }
+      }
+    },
+    "effects": {
+      "glassmorphism": false,
+      "particles": false,
+      "markerHighlights": true,
+      "progressCircles": false,
+      "themeToggle": true
+    }
+  },
+  "features": {
+    "enableSourcesSection": true,
+    "enableKeywordHighlighting": true,
+    "enableSourceExpansion": true,
+    "sourceDisplayStyle": "docket",
+    "enableResponseTime": true,
+    "enableTokenCount": false,
+    "enableConfidenceScore": false,
+    "inputStyle": "floating",
+    "messageStyle": "editorial"
+  },
+  "animations": {
+    "messageEntry": "fadeSlide",
+    "typingIndicator": "pulse",
+    "particlesDensity": "none",
+    "transitionDuration": "150ms",
+    "themeTransition": "150ms"
+  }
+}

@@ -1,0 +1,304 @@
+/**
+ * Majlis Template - Shared TypeScript Types
+ */
+
+import type { Evidence } from '@/types/chat';
+
+// Re-export so majlis components can import everything from '../types'
+export type { Evidence };
+
+// Message Source Interface
+export interface ZenSource {
+  title?: string;
+  content?: string;
+  excerpt?: string;
+  sourceTable?: string;
+  sourceType?: string;
+  score?: number;
+  summary?: string;
+  keywords?: string[];
+  category?: string;
+  // Metadata from CSV source tables (dynamic fields)
+  metadata?: {
+    // Common fields
+    kurum?: string;
+    tarih?: string;
+    sayi?: string;
+    madde_no?: string;
+    madde?: string;
+    // Court decisions
+    kararno?: string;
+    karar_no?: string;
+    esas_no?: string;
+    esasno?: string;
+    karar?: string;
+    esas?: string;
+    daire?: string;
+    // Articles
+    dergi?: string;
+    yazar?: string;
+    author?: string;
+    // Generic fields
+    date?: string;
+    yil?: string;
+    year?: string;
+    // Allow any other dynamic fields from CSV
+    [key: string]: string | number | boolean | undefined;
+  };
+}
+
+// Related Topic Interface
+export interface ZenRelatedTopic {
+  title: string;
+  description: string;
+}
+
+// Token Usage Interface
+export interface ZenTokens {
+  input?: number;
+  output?: number;
+  total?: number;
+}
+
+// Message Interface
+export interface ZenMessage {
+  id: string;
+  role: 'user' | 'assistant';
+  content: string;
+  timestamp: Date;
+  sources?: ZenSource[];
+  relatedTopics?: ZenRelatedTopic[];
+  context?: string[];
+  isTyping?: boolean;
+  isFromSource?: boolean;
+  isStreaming?: boolean;
+  isError?: boolean;
+  responseTime?: number;
+  startTime?: number;
+  tokens?: ZenTokens;
+  fastMode?: boolean;
+  /** Flag indicating sources fetch failed after retries (streaming mode) */
+  sourcesFetchFailed?: boolean;
+  /** Answer language reported by the backend (en|ar|tr); used for RTL rendering + markdown repair */
+  language?: string;
+  /** Evidence-gate metadata from the backend (absent on legacy messages) */
+  evidence?: Evidence;
+  /** Backend-generated follow-up questions rendered as clickable chips */
+  followUpQuestions?: string[];
+}
+
+// Chatbot Settings Interface
+export interface ZenChatbotSettings {
+  title: string;
+  subtitle: string;
+  logoUrl: string;
+  placeholder: string;
+  primaryColor: string;
+  activeChatModel: string;
+  enableSuggestions: boolean;
+  welcomeMessage?: string;
+  greeting?: string;
+  // Suggestion Cards
+  maxSuggestionCards?: number;
+  // Source Interaction Features (from schema)
+  enableSourceClick?: boolean;
+  enableSourceQuestionGeneration?: boolean;
+  // Keyword Highlighting
+  enableKeywordHighlighting?: boolean;
+  // PDF Upload Feature Toggle
+  enablePdfUpload?: boolean;
+  // Voice Features Master Toggles
+  enableVoiceInput?: boolean;
+  enableVoiceOutput?: boolean;
+  // Response Schema (dynamic format configuration)
+  responseSchemaId?: string;
+}
+
+// User Info Interface
+export interface ZenUserInfo {
+  name?: string;
+  email?: string;
+  role?: string;
+}
+
+// Theme Mode Type
+export type ZenThemeMode = 'dark' | 'light';
+
+// Theme Context Interface
+export interface ZenThemeContext {
+  isDark: boolean;
+  mode: ZenThemeMode;
+  toggle: () => void;
+}
+
+// RAG Settings Interface
+export interface ZenRagSettings {
+  minResults: number;
+  maxResults: number;
+  similarityThreshold: number;
+  minSourcesToShow?: number;
+  maxSourcesToShow?: number;
+  /** Enable streaming mode for chat responses */
+  streamingEnabled?: boolean;
+}
+
+// LLM Settings Interface
+export interface ZenLlmSettings {
+  temperature: number;
+  maxTokens: number;
+}
+
+// Active Prompt Interface
+export interface ZenActivePrompt {
+  content: string;
+  temperature: number;
+  maxTokens: number;
+  tone: string;
+}
+
+// Component Props Interfaces
+export interface ZenHeaderProps {
+  chatbotSettings: ZenChatbotSettings;
+  user: ZenUserInfo | null;
+  onClearChat: () => void;
+  onLogout: () => void;
+  isDark: boolean;
+  onToggleTheme: () => void;
+}
+
+// Recent conversation interface (used by history panel)
+export interface ZenRecentConversation {
+  id: string;
+  title: string;
+}
+
+export interface ZenWelcomeProps {
+  chatbotSettings: ZenChatbotSettings;
+  user: ZenUserInfo | null;
+  /** Example questions for the empty state (existing suggestions source; first 4 shown) */
+  suggestions?: string[];
+  /** Fills the chat input with the clicked example question */
+  onSuggestionClick?: (question: string) => void;
+}
+
+// PDF Settings Interface
+export interface ZenPdfSettings {
+  enabled: boolean;
+  maxSizeMB: number;
+  maxPages: number;
+}
+
+// Voice Settings Interface
+export interface ZenVoiceSettings {
+  enableVoiceInput: boolean;
+  enableVoiceOutput: boolean;
+  maxRecordingSeconds: number;
+}
+
+export interface ZenInputProps {
+  value: string;
+  onChange: (value: string) => void;
+  onSend: (pdfFile?: File) => void;
+  placeholder: string;
+  isLoading: boolean;
+  textareaRef: React.RefObject<HTMLTextAreaElement | null>;
+  pdfSettings?: ZenPdfSettings;
+  pdfFile?: File | null;
+  onPdfSelect?: (file: File | null) => void;
+  voiceSettings?: ZenVoiceSettings;
+  // Slash command support
+  onSlashCommand?: (command: SlashCommand) => void;
+  // History panel support (renders above input like slash commands)
+  historyPanel?: React.ReactNode;
+  // Suggest panel support (renders above input like history)
+  suggestPanel?: React.ReactNode;
+  // Recent conversations for /suggest command
+  recentConversations?: ZenRecentConversation[];
+}
+
+export interface ZenMessageProps {
+  message: ZenMessage;
+  onSourceClick: (source: ZenSource, allSources: ZenSource[]) => void;
+  lastUserQuery?: string;
+  voiceOutputEnabled?: boolean;
+  // Feature toggles from schema
+  enableSourceClick?: boolean;
+  enableKeywordHighlighting?: boolean;
+  // Response schema configuration
+  responseSchemaId?: string;
+  // Backend-generated metadata for schema sections
+  keywords?: string[];
+  dayanaklar?: string[];
+  // Source display configuration
+  minSourcesToShow?: number;
+  // Translation support
+  translation?: MessageTranslation;
+  onToggleTranslation?: () => void;
+  /** Fills the chat input with a follow-up question (wired to the interface input state) */
+  onQuestionClick?: (question: string) => void;
+}
+
+// Slash Command Submenu Item
+export interface SlashCommandSubmenuItem {
+  id: string;
+  label: string;
+  targetLanguage?: string;
+  conversationId?: string;  // For conversation selection commands
+}
+
+// Slash Command Types
+export interface SlashCommand {
+  id: string;
+  trigger: string;       // '/translate', '/history'
+  label: string;         // 'Translate', 'History'
+  description: string;   // 'Translate the message', 'Show conversation history'
+  icon: string;          // Icon (empty string if none)
+  category: 'translation' | 'navigation' | 'utility' | 'suggestion';
+  targetLanguage?: string;
+  conversationId?: string;  // For conversation selection
+  hasSubmenu?: boolean;
+  hasDynamicSubmenu?: boolean;  // Submenu populated at runtime
+  submenuItems?: SlashCommandSubmenuItem[];
+}
+
+// Message Translation State
+export interface MessageTranslation {
+  originalContent: string;
+  translatedContent: string;
+  targetLanguage: string;
+  isShowingTranslation: boolean;
+}
+
+// Default Settings
+export const DEFAULT_CHATBOT_SETTINGS: ZenChatbotSettings = {
+  title: '',
+  subtitle: '',
+  logoUrl: '',
+  placeholder: '',
+  primaryColor: '',
+  activeChatModel: '',
+  enableSuggestions: true,
+  maxSuggestionCards: 10,
+  welcomeMessage: '',
+  greeting: ''
+};
+
+export const DEFAULT_RAG_SETTINGS: ZenRagSettings = {
+  minResults: 7,
+  maxResults: 20,
+  similarityThreshold: 0.02,
+  minSourcesToShow: 7,  // kept in sync with minResults
+  maxSourcesToShow: 15
+};
+
+export const DEFAULT_LLM_SETTINGS: ZenLlmSettings = {
+  temperature: 0.7,
+  maxTokens: 2048
+};
+
+export const DEFAULT_ACTIVE_PROMPT: ZenActivePrompt = {
+  content: '',
+  temperature: 0.7,
+  maxTokens: 2048,
+  tone: 'professional'
+};

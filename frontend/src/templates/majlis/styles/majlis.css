@@ -1,0 +1,707 @@
+/**
+ * Majlis — ink-and-brass legal chat
+ * Dark-first, small-caps labels, docket-style source ledger with dotted
+ * leaders. Brass is reserved for numerals, rules and the send button.
+ * Sharp radii (2-6px), no pills, no shadows, no gradients.
+ *
+ * All critical colors are keyed to the container's OWN theme class
+ * (.majlis-container.light / .majlis-container.dark) via CSS variables,
+ * never to the global html.dark — the two theme systems can desync.
+ */
+
+/* ============ Tokens ============ */
+.majlis-container,
+.majlis-container.dark {
+  --majlis-bg: #0d1014;                /* ink */
+  --majlis-surface: #14181e;           /* panel */
+  --majlis-ink: #eae6dc;
+  --majlis-muted: #8e8b81;
+  --majlis-accent: #c3a05f;            /* brass */
+  --majlis-accent-soft: rgba(195, 160, 95, 0.10);
+  --majlis-hairline: rgba(234, 230, 220, 0.12);
+  --majlis-hairline-soft: rgba(234, 230, 220, 0.07);
+  --majlis-hover: rgba(234, 230, 220, 0.05);
+  --majlis-warn: #d9a441;
+  --majlis-danger: #e5766d;
+  /* Text on accent/danger fills: dark ink — brass (#c3a05f) on #0d1014 ink
+     measures ~7.7:1, well above the 4.5:1 AA threshold */
+  --majlis-on-accent: #0d1014;
+  --majlis-q-verygood: var(--majlis-accent);
+  --majlis-q-good: #a8bfa0;
+  --majlis-q-medium: #d9a441;
+  --majlis-q-low: var(--majlis-muted);
+  --majlis-serif: Cambria, Georgia, 'Times New Roman', serif;
+  --majlis-mono: Consolas, ui-monospace, SFMono-Regular, Menlo, monospace;
+  --majlis-shadow: none;               /* no shadows in either mode (mock) */
+}
+
+.majlis-container.light {
+  --majlis-bg: #f1efe9;                /* warm bone */
+  --majlis-surface: #faf9f5;
+  --majlis-ink: #1e2732;
+  --majlis-muted: #6e6a5e;
+  --majlis-accent: #8a6d39;            /* deep brass */
+  --majlis-accent-soft: rgba(138, 109, 57, 0.09);
+  --majlis-hairline: rgba(30, 39, 50, 0.18);
+  --majlis-hairline-soft: rgba(30, 39, 50, 0.09);
+  --majlis-hover: rgba(30, 39, 50, 0.04);
+  --majlis-warn: #b45309;
+  --majlis-danger: #b3261e;
+  /* Text on accent/danger fills: white on deep brass (#8a6d39) is 4.9:1;
+     the bone tone (#f1efe9) measured 4.2:1, below WCAG AA for the 11px send label */
+  --majlis-on-accent: #ffffff;
+  --majlis-q-verygood: var(--majlis-accent);
+  --majlis-q-good: #5a7355;
+  --majlis-q-medium: #b45309;
+  --majlis-q-low: var(--majlis-muted);
+  --majlis-shadow: none;
+}
+
+/* ============ Container ============ */
+.majlis-container {
+  min-height: 100vh;
+  background: var(--majlis-bg);
+  color: var(--majlis-ink);
+  /* Body copy pinned to the approved sans stack (serif/mono via variables) */
+  font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+  position: relative;
+  overflow: hidden;
+}
+
+/* Thin, muted scrollbars everywhere inside the template */
+.majlis-container ::-webkit-scrollbar { width: 6px; height: 6px; }
+.majlis-container ::-webkit-scrollbar-track { background: transparent; }
+.majlis-container ::-webkit-scrollbar-thumb { background: var(--majlis-hairline); border-radius: 3px; }
+.majlis-container ::-webkit-scrollbar-thumb:hover { background: var(--majlis-muted); }
+
+/* ============ Header ============ */
+.majlis-header {
+  height: 60px;
+  border-bottom: 1px solid var(--majlis-hairline);
+  background: var(--majlis-bg);
+}
+
+/* Brand: short brass rule + small-caps serif wordmark */
+.majlis-brand-rule {
+  display: inline-block;
+  width: 22px;
+  height: 1px;
+  background: var(--majlis-accent);
+  flex-shrink: 0;
+}
+
+.majlis-brand-name {
+  font-family: var(--majlis-serif);
+  font-size: 15px;
+  font-weight: 400;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--majlis-ink);
+}
+
+.majlis-brand-sub {
+  font-size: 11px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--majlis-muted);
+}
+
+.majlis-header-lang {
+  font-size: 11px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--majlis-muted);
+}
+
+.majlis-mode-btn { color: var(--majlis-muted); transition: color 0.15s ease; }
+.majlis-mode-btn:hover { color: var(--majlis-accent); }
+
+/* ============ Welcome (empty state) ============ */
+.majlis-welcome-title {
+  font-family: var(--majlis-serif);
+  font-size: 26px;
+  font-weight: 400;
+  line-height: 1.3;
+  color: var(--majlis-ink);
+}
+
+/* ============ User message: small-caps brass label above a serif question ============ */
+.majlis-user-label {
+  font-size: 10px;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  color: var(--majlis-accent);
+}
+
+.majlis-user-q {
+  display: inline-block;
+  font-family: var(--majlis-serif);
+  font-size: 17.5px;
+  line-height: 1.5;
+  color: var(--majlis-ink);
+  white-space: pre-wrap;
+}
+
+/* ============ Prose (assistant markdown) ============ */
+.majlis-prose {
+  font-size: 15.5px;
+  line-height: 1.78;
+  color: var(--majlis-ink);
+}
+
+/* Serif display headings, weight 400 — the brass rule under h1/h2 is a
+   decorative div emitted by the markdown renderer (aria-hidden) */
+.majlis-prose h1,
+.majlis-prose h2,
+.majlis-prose h3 {
+  font-family: var(--majlis-serif);
+  font-weight: 400;
+  color: var(--majlis-ink);
+  text-wrap: balance;
+}
+
+.majlis-prose h1 {
+  font-size: 26px;
+  line-height: 1.3;
+  margin: 24px 0 6px;
+}
+
+.majlis-prose h2 {
+  font-size: 24px;
+  line-height: 1.3;
+  margin: 24px 0 6px;
+}
+
+.majlis-prose h3 {
+  font-size: 18px;
+  line-height: 1.4;
+  margin: 18px 0 8px;
+}
+
+.majlis-prose h1:first-child,
+.majlis-prose h2:first-child,
+.majlis-prose h3:first-child { margin-top: 0; }
+
+.majlis-h-rule {
+  width: 44px;
+  height: 2px;
+  background: var(--majlis-accent);
+  margin: 0 0 18px;
+}
+
+.majlis-prose strong {
+  font-weight: 600;
+  color: var(--majlis-ink);
+}
+
+/* Ordered lists: no browser numbering — mono brass numerals with a leading
+   zero ("01", "02"). Positioned counter instead of the mock's flex so any
+   child structure (tight/loose items, nested inline nodes) flows intact;
+   inline-start keeps it RTL-correct. Visual result matches the mock:
+   12px mono numeral, 16px gap to the text, 12px between items. */
+.majlis-prose ol {
+  list-style: none;
+  counter-reset: majlis-item;
+  margin: 4px 0 14px;
+  padding: 0;
+}
+
+.majlis-prose ol > li {
+  counter-increment: majlis-item;
+  position: relative;
+  padding-inline-start: 32px; /* ~2ch mono numeral + 16px gap */
+  line-height: 1.7;
+}
+
+.majlis-prose ol > li + li { margin-top: 12px; }
+
+.majlis-prose ol > li::before {
+  content: counter(majlis-item, decimal-leading-zero);
+  position: absolute;
+  inset-inline-start: 0;
+  top: 4px;
+  font-family: var(--majlis-mono);
+  font-size: 12px;
+  color: var(--majlis-accent);
+}
+
+/* Unordered lists keep browser markers, tinted brass */
+.majlis-prose ul > li::marker {
+  color: var(--majlis-accent);
+}
+
+/* ============ Inline citation [n] markers ============ */
+.majlis-cite {
+  font-family: var(--majlis-mono);
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--majlis-accent);
+  line-height: 0;
+  padding: 0 1px;
+  /* The marker is a <sup>, so Tailwind preflight applies
+     sup { position: relative; top: -0.5em; vertical-align: baseline } and the
+     UA raises it. The Majlis variant sits inline on the baseline (no
+     superscript), so reset the raise for both the ZenMessage and
+     SchemaRenderer cite markers. */
+  vertical-align: baseline;
+  position: static;
+  top: 0;
+}
+
+/* ============ Message mount animation (only animation in the template) ============ */
+.majlis-msg-in { animation: majlis-in 150ms ease-out; }
+
+@keyframes majlis-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: none; }
+}
+
+/* Keyboard focus for the citation interactions: inline [n] markers and source
+   ledger rows are focusable (role=button), so give them a visible brass ring */
+.majlis-cite:focus-visible,
+.majlis-src-clickable:focus-visible {
+  outline: 2px solid var(--majlis-accent);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+/* ============ Citation scroll highlight (brief brass-tinted fade) ============ */
+.majlis-cite-flash {
+  animation: majlis-flash 1.6s ease-out;
+  border-radius: 2px;
+}
+
+@keyframes majlis-flash {
+  0%, 25% { background-color: var(--majlis-accent-soft); }
+  100% { background-color: transparent; }
+}
+
+/* ============ Typing indicator ============ */
+.majlis-typing {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 0.5rem 0;
+}
+
+.majlis-typing-dot {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--majlis-muted);
+  animation: majlis-pulse 1.2s ease-in-out infinite;
+}
+
+.majlis-typing-dot:nth-child(2) { animation-delay: 0.15s; }
+.majlis-typing-dot:nth-child(3) { animation-delay: 0.3s; }
+
+@keyframes majlis-pulse {
+  0%, 60%, 100% { opacity: 0.35; }
+  30% { opacity: 1; }
+}
+
+/* ============ Meta row: small-caps muted, quality in brass-toned colors ============ */
+.majlis-meta {
+  font-size: 10.5px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--majlis-muted);
+}
+
+/* Answer-quality text (level -> text color, no pill) */
+.majlis-q-veryGood { color: var(--majlis-q-verygood); }
+.majlis-q-good     { color: var(--majlis-q-good); }
+.majlis-q-medium   { color: var(--majlis-q-medium); }
+.majlis-q-low      { color: var(--majlis-q-low); }
+
+/* ============ Sources: docket ledger with dotted leaders ============ */
+.majlis-sources {
+  margin-top: 26px;
+  border-top: 1px solid var(--majlis-hairline);
+  padding-top: 16px;
+}
+
+.majlis-src-label {
+  font-size: 10.5px;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  color: var(--majlis-muted);
+  margin-bottom: 14px;
+}
+
+.majlis-src {
+  display: flex;
+  gap: 16px;
+  padding: 11px 0;
+  align-items: baseline;
+}
+
+.majlis-src + .majlis-src { border-top: 1px solid var(--majlis-hairline-soft); }
+
+/* Docket number: mono brass with a leading zero (padded by the renderer) */
+.majlis-src-n {
+  font-family: var(--majlis-mono);
+  font-size: 12px;
+  color: var(--majlis-accent);
+  flex-shrink: 0;
+}
+
+.majlis-src-line {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.majlis-src-title {
+  font-family: var(--majlis-serif);
+  font-size: 15.5px;
+  line-height: 1.45;
+  color: var(--majlis-ink);
+  transition: color 0.15s ease;
+}
+
+.majlis-src-clickable { cursor: pointer; }
+.majlis-src-clickable:hover .majlis-src-title { color: var(--majlis-accent); }
+
+/* Dotted leader filling the space between the title and the year */
+.majlis-src-leader {
+  flex: 1;
+  border-bottom: 1px dotted var(--majlis-hairline);
+  min-width: 24px;
+  transform: translateY(-3px);
+}
+
+.majlis-src-year {
+  font-family: var(--majlis-mono);
+  font-size: 12px;
+  color: var(--majlis-muted);
+}
+
+.majlis-src-meta {
+  margin-top: 4px;
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--majlis-muted);
+}
+
+.majlis-src-meta b {
+  font-weight: 600;
+  color: var(--majlis-accent);
+}
+
+.majlis-src-ex {
+  margin-top: 6px;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--majlis-muted);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* 'Show all' toggle: small-caps muted text button, hover brass */
+.majlis-src-toggle {
+  appearance: none;
+  background: none;
+  border: none;
+  padding: 0;
+  margin-top: 10px;
+  cursor: pointer;
+  font-size: 10.5px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--majlis-muted);
+  transition: color 0.15s ease;
+}
+
+.majlis-src-toggle:hover { color: var(--majlis-accent); }
+
+/* ============ Follow-up suggestions: stacked serif rows with a leading brass arrow ============ */
+.majlis-fups {
+  margin-top: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.majlis-fups-label {
+  font-size: 10.5px;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  color: var(--majlis-muted);
+  margin-bottom: 2px;
+}
+
+.majlis-fup {
+  appearance: none;
+  background: none;
+  border: none;
+  cursor: pointer;
+  text-align: start;
+  padding: 0;
+  font-family: var(--majlis-serif);
+  font-size: 15px;
+  color: var(--majlis-ink);
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  transition: color 0.15s ease;
+}
+
+.majlis-fup::before {
+  content: "→";
+  color: var(--majlis-accent);
+  font-family: "Segoe UI", system-ui, sans-serif;
+  font-size: 13px;
+  flex-shrink: 0;
+}
+
+.majlis-fup:hover { color: var(--majlis-accent); }
+
+/* Logical arrow direction under RTL — keyed to the follow-ups container's OWN
+   dir attribute (set from the message/UI language), so an LTR answer inside an
+   RTL page keeps the correct arrow. */
+.majlis-fups[dir="rtl"] .majlis-fup::before { content: "←"; }
+
+/* ============ Composer ============ */
+/* Solid footer bar behind the composer (no gradient/glass — mock .f-composer) */
+.majlis-composer-bar {
+  background: var(--majlis-bg);
+  border-top: 1px solid var(--majlis-hairline-soft);
+  padding-top: 14px;
+  padding-bottom: 24px;
+}
+
+.majlis-composer {
+  background: var(--majlis-surface);
+  border: 1px solid var(--majlis-hairline);
+  border-radius: 2px;
+  /* Slightly tighter than the mock's 14px/18px: this box also hosts 32px
+     icon controls, so 10px/14px lands at the same visual height. */
+  padding: 10px 14px;
+  transition: border-color 0.15s ease;
+}
+
+.majlis-composer:focus-within { border-color: var(--majlis-accent); }
+
+.majlis-composer textarea {
+  font-family: var(--majlis-serif);
+  font-size: 15.5px;
+}
+
+.majlis-composer textarea::placeholder {
+  color: var(--majlis-muted);
+}
+
+/* Send: outlined brass — hover fills brass with on-accent ink */
+.majlis-send {
+  appearance: none;
+  cursor: pointer;
+  flex-shrink: 0;
+  background: transparent;
+  border: 1px solid var(--majlis-accent);
+  color: var(--majlis-accent);
+  font-family: "Segoe UI", system-ui, sans-serif;
+  font-size: 11px;
+  font-weight: 400;
+  line-height: 1;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  padding: 14px 20px;
+  border-radius: 2px;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.majlis-send:hover:not(:disabled) {
+  background: var(--majlis-accent);
+  color: var(--majlis-on-accent);
+}
+
+.majlis-send:disabled { opacity: 0.4; cursor: not-allowed; }
+
+/* ============ Popover panels (history / suggest / slash) ============ */
+.majlis-panel {
+  position: absolute;
+  bottom: 100%;
+  left: 0;
+  right: 0;
+  margin-bottom: 0.5rem;
+  background: var(--majlis-surface);
+  border: 1px solid var(--majlis-hairline);
+  border-radius: 4px;
+  box-shadow: none;
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.majlis-panel-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--majlis-hairline);
+  color: var(--majlis-muted);
+}
+
+.majlis-panel-search input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  outline: none;
+  font-size: 0.875rem;
+  color: var(--majlis-ink);
+}
+
+.majlis-panel-search input::placeholder { color: var(--majlis-muted); }
+
+.majlis-panel-list {
+  flex: 1;
+  max-height: 280px;
+  padding: 6px;
+  overflow-y: auto;
+}
+
+.majlis-panel-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 10px;
+  border-radius: 2px;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  text-align: start;
+  font-size: 0.875rem;
+  color: var(--majlis-ink);
+  transition: background 0.15s ease;
+}
+
+.majlis-panel-row:hover,
+.majlis-panel-row.selected,
+.majlis-panel-row.active { background: var(--majlis-hover); }
+
+/* Small-caps section labels inside panels */
+.majlis-panel-label {
+  font-size: 10.5px;
+  font-weight: 400;
+  text-transform: uppercase;
+  letter-spacing: 0.2em;
+  color: var(--majlis-muted);
+  padding: 8px 10px 4px;
+}
+
+.majlis-panel-empty {
+  text-align: center;
+  padding: 24px 16px;
+  color: var(--majlis-muted);
+  font-size: 0.875rem;
+}
+
+.majlis-panel-skeleton {
+  height: 36px;
+  margin: 4px 0;
+  border-radius: 2px;
+  background: var(--majlis-hover);
+}
+
+/* History rows: title + time + delete affordance */
+.majlis-history-item-title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.majlis-history-item-time {
+  font-size: 0.75rem;
+  color: var(--majlis-muted);
+  flex-shrink: 0;
+}
+
+.majlis-history-item-delete {
+  opacity: 0;
+  padding: 5px;
+  border-radius: 2px;
+  color: var(--majlis-muted);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  transition: opacity 0.15s ease, color 0.15s ease;
+}
+
+.majlis-panel-row:hover .majlis-history-item-delete { opacity: 1; }
+/* Keep the delete affordance visible while focused via keyboard */
+.majlis-panel-row:focus-within .majlis-history-item-delete { opacity: 1; }
+.majlis-history-item-delete:focus-visible { opacity: 1; }
+.majlis-history-item-delete:hover { color: var(--majlis-danger); }
+
+.majlis-history-confirm-yes {
+  padding: 3px 10px;
+  font-size: 11px;
+  font-weight: 500;
+  background: var(--majlis-danger);
+  color: var(--majlis-on-accent);
+  border: none;
+  border-radius: 2px;
+  cursor: pointer;
+}
+
+.majlis-history-confirm-no {
+  padding: 3px 6px;
+  background: transparent;
+  color: var(--majlis-muted);
+  border: 1px solid var(--majlis-hairline);
+  border-radius: 2px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+}
+
+/* Slash command rows */
+.majlis-slash-trigger {
+  font-family: var(--majlis-mono);
+  font-size: 0.8125rem;
+  color: var(--majlis-muted);
+  min-width: 4.5rem;
+}
+
+.majlis-slash-submenu-row { padding-inline-start: 2.5rem; }
+
+/* ============ User-menu dropdown (renders in a portal OUTSIDE the container,
+   so CSS vars are unavailable — literal colors keyed by an explicit mode class) */
+.majlis-dropdown { border-radius: 4px; box-shadow: none; }
+
+.majlis-dropdown.majlis-dark {
+  background: #14181e;
+  border: 1px solid rgba(234, 230, 220, 0.12);
+  color: #eae6dc;
+}
+
+.majlis-dropdown.majlis-light {
+  background: #faf9f5;
+  border: 1px solid rgba(30, 39, 50, 0.18);
+  color: #1e2732;
+}
+
+/* Item hover / keyboard focus / Radix highlight: explicit background AND text
+   color per mode, so the global shadcn html.dark tokens (focus:bg-accent /
+   focus:text-accent-foreground) can never desync the portal menu's legibility. */
+.majlis-dropdown.majlis-dark .majlis-dropdown-item:hover,
+.majlis-dropdown.majlis-dark .majlis-dropdown-item:focus,
+.majlis-dropdown.majlis-dark .majlis-dropdown-item[data-highlighted] {
+  background: rgba(234, 230, 220, 0.05);
+  color: #eae6dc;
+}
+
+.majlis-dropdown.majlis-light .majlis-dropdown-item:hover,
+.majlis-dropdown.majlis-light .majlis-dropdown-item:focus,
+.majlis-dropdown.majlis-light .majlis-dropdown-item[data-highlighted] {
+  background: rgba(30, 39, 50, 0.04);
+  color: #1e2732;
+}

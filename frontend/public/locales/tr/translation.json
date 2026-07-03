@@ -103,6 +103,7 @@
     "attachFile": "Dosya ekle",
     "defaultPlaceholder": "Hukuki belgelerde arama yapın veya soru sorun...",
     "exampleQuestions": "Örnek Sorular",
+    "send": "Sor",
     "questions": {
       "amortizationCalculation": "Amortisman nasıl hesaplanır?",
       "annualIncomeTax": "Yıllık gelir vergisi beyannamesi nasıl verilir?",

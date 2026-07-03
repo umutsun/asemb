@@ -348,17 +348,21 @@ function LLMSettings() {
       const providers = ['openai', 'google', 'anthropic', 'deepseek', 'huggingface', 'openrouter', 'deepl'];
 
       providers.forEach(provider => {
-        const hasApiKey = defaultConfig?.[provider]?.apiKey && defaultConfig[provider].apiKey !== '••••••••';
+        // A saved key (including the masked '••••••••' placeholder the backend
+        // returns for stored keys) means the tenant has configured this provider
+        // previously, so it should be listed + selectable on load.
+        const hasSavedKey = !!defaultConfig?.[provider]?.apiKey;
         const hasValidatedStatus = data?.apiStatus?.[provider]?.status === 'active' || data?.apiStatus?.[provider]?.status === 'success';
         const hasVerifiedDate = data?.apiStatus?.[provider]?.verifiedDate;
         const hasProviderValidatedDate = defaultConfig?.[provider]?.verifiedDate || defaultConfig?.[provider]?.verifiedAt;
 
-        // Only add to validated keys if provider is actually validated
-        if (hasApiKey && (hasValidatedStatus || hasVerifiedDate || hasProviderValidatedDate)) {
-          debug.log(`✅ Adding ${provider} to validated keys (validated)`);
+        // Add to validated keys when a key is saved (masked or not), or when the
+        // provider carries an explicit validated status/verified date.
+        if (hasSavedKey || hasValidatedStatus || hasVerifiedDate || hasProviderValidatedDate) {
+          debug.log(`✅ Adding ${provider} to validated keys (hasSavedKey: ${hasSavedKey})`);
           existingValidatedKeys.add(provider);
         } else {
-          debug.log(`❌ Not adding ${provider} to validated keys (not validated - hasApiKey: ${hasApiKey}, hasValidatedStatus: ${hasValidatedStatus}, hasVerifiedDate: ${!!hasVerifiedDate}, hasProviderValidatedDate: ${!!hasProviderValidatedDate})`);
+          debug.log(`❌ Not adding ${provider} to validated keys (no saved key - hasValidatedStatus: ${hasValidatedStatus}, hasVerifiedDate: ${!!hasVerifiedDate}, hasProviderValidatedDate: ${!!hasProviderValidatedDate})`);
         }
       });
       setValidatedKeys(existingValidatedKeys);
@@ -1172,7 +1176,11 @@ function LLMSettings() {
 
   const isProviderValidated = (provider: string) => {
     const hasValidatedKey = validatedKeys.has(provider);
-    const hasApiKey = llmConfig?.[provider]?.apiKey && llmConfig[provider].apiKey !== '••••••••';
+    // A stored key (including the masked '••••••••' placeholder returned by the
+    // backend) counts as the tenant having configured/validated this provider,
+    // so its saved value can be displayed on load. Re-validation still rejects
+    // masked keys separately in validateAllModelsForProvider().
+    const hasApiKey = !!(tempConfig?.[provider]?.apiKey || llmConfig?.[provider]?.apiKey);
 
     debug.log(`🔍 Checking ${provider}:`, {
       hasValidatedKey,
@@ -1221,6 +1229,31 @@ function LLMSettings() {
       value: provider,
       label: data.name
     }));
+  };
+
+  // Human-readable display names so a saved/active provider can always be shown
+  // as a <SelectItem>, even if the validated list is momentarily empty on load.
+  const providerDisplayName = (provider: string): string => {
+    const names: Record<string, string> = {
+      openai: 'OpenAI',
+      google: 'Google AI',
+      anthropic: 'Anthropic',
+      deepseek: 'DeepSeek',
+      openrouter: 'OpenRouter',
+      huggingface: 'HuggingFace',
+      voyage: 'Voyage AI',
+      cohere: 'Cohere',
+      jina: 'Jina AI',
+    };
+    return names[provider] || provider;
+  };
+
+  const translationProviderDisplayName = (provider: string): string => {
+    const names: Record<string, string> = {
+      deepl: 'DeepL',
+      google: 'Google Translate',
+    };
+    return names[provider] || provider;
   };
 
   return (
@@ -1528,18 +1561,32 @@ function LLMSettings() {
                     <SelectContent>
                       {(() => {
                         const validatedProviders = getValidatedProviders();
-                        if (validatedProviders.length === 0) {
+                        const currentProvider = tempConfig?.provider || llmConfig?.provider || 'gemini';
+                        const listed = new Set(validatedProviders.map(([p]) => p));
+                        // Guarantee the active provider always renders so Radix can
+                        // display its value even if the validated list is empty.
+                        const extras = !listed.has(currentProvider)
+                          ? [(
+                              <SelectItem key={currentProvider} value={currentProvider}>
+                                {providerDisplayName(currentProvider)}
+                              </SelectItem>
+                            )]
+                          : [];
+                        if (validatedProviders.length === 0 && extras.length === 0) {
                           return (
                             <SelectItem value="_no_providers" disabled>
                               {t('settings.llm.validateFirst')}
                             </SelectItem>
                           );
                         }
-                        return validatedProviders.map(([provider, data]) => (
-                          <SelectItem key={provider} value={provider}>
-                            {data.name}
-                          </SelectItem>
-                        ));
+                        return [
+                          ...extras,
+                          ...validatedProviders.map(([provider, data]) => (
+                            <SelectItem key={provider} value={provider}>
+                              {data.name}
+                            </SelectItem>
+                          )),
+                        ];
                       })()}
                     </SelectContent>
                   </Select>
@@ -1586,15 +1633,22 @@ function LLMSettings() {
                     <SelectContent>
                       {(() => {
                         const currentProvider = tempConfig?.provider || llmConfig?.provider || 'gemini';
-                        // Only show models if provider is validated
-                        if (!isProviderValidated(currentProvider)) {
+                        const currentModel = tempConfig?.model || llmConfig?.model || getDefaultModelForProvider(currentProvider);
+                        const providerModels = getModelsForProvider(currentProvider);
+                        // Guarantee the active model always renders (prepend it if the
+                        // provider's model list doesn't include it) so Radix can display
+                        // the saved value even when the provider isn't (re)validated.
+                        const models = currentModel && !providerModels.includes(currentModel)
+                          ? [currentModel, ...providerModels]
+                          : providerModels;
+                        if (models.length === 0) {
                           return (
                             <SelectItem value="_no_models" disabled>
                               {t('settings.llm.notValidated')}
                             </SelectItem>
                           );
                         }
-                        return getModelsForProvider(currentProvider).map(model => {
+                        return models.map(model => {
                           const details = getModelDetails(currentProvider, model);
                           return (
                             <SelectItem key={model} value={model}>
@@ -1679,18 +1733,31 @@ function LLMSettings() {
                     <SelectContent>
                       {(() => {
                         const validatedProviders = getValidatedProviders();
-                        if (validatedProviders.length === 0) {
+                        const currentProvider = tempConfig?.embeddingProvider || llmConfig?.embeddingProvider || 'openai';
+                        const listed = new Set(validatedProviders.map(([p]) => p));
+                        // Guarantee the active embedding provider always renders.
+                        const extras = currentProvider && !listed.has(currentProvider)
+                          ? [(
+                              <SelectItem key={currentProvider} value={currentProvider}>
+                                {providerDisplayName(currentProvider)}
+                              </SelectItem>
+                            )]
+                          : [];
+                        if (validatedProviders.length === 0 && extras.length === 0) {
                           return (
                             <SelectItem value="_no_providers" disabled>
                               Validate API key first
                             </SelectItem>
                           );
                         }
-                        return validatedProviders.map(([provider, data]) => (
-                          <SelectItem key={provider} value={provider}>
-                            {data.name}
-                          </SelectItem>
-                        ));
+                        return [
+                          ...extras,
+                          ...validatedProviders.map(([provider, data]) => (
+                            <SelectItem key={provider} value={provider}>
+                              {data.name}
+                            </SelectItem>
+                          )),
+                        ];
                       })()}
                     </SelectContent>
                   </Select>
@@ -1809,21 +1876,30 @@ function LLMSettings() {
                         <SelectValue placeholder="Select translation provider" />
                       </SelectTrigger>
                       <SelectContent>
-                        {getValidatedTranslationProviders().map(provider => {
-                          const status = getTranslationProviderStatus(provider.value as 'deepl' | 'google');
-                          return (
-                            <SelectItem key={provider.value} value={provider.value}>
-                              <div className="flex flex-col">
-                                <span className="font-medium">{provider.label}</span>
-                                {status && (
-                                  <span className="text-xs text-gray-500">
-                                    {status.verifiedDate}
-                                  </span>
-                                )}
-                              </div>
-                            </SelectItem>
-                          );
-                        })}
+                        {(() => {
+                          const validated = getValidatedTranslationProviders();
+                          const currentProvider = tempConfig?.translationProvider || llmConfig?.translationProvider || 'google';
+                          const listed = new Set(validated.map(p => p.value));
+                          // Guarantee the active translation provider always renders.
+                          const list = !listed.has(currentProvider)
+                            ? [{ value: currentProvider, label: translationProviderDisplayName(currentProvider) }, ...validated]
+                            : validated;
+                          return list.map(provider => {
+                            const status = getTranslationProviderStatus(provider.value as 'deepl' | 'google');
+                            return (
+                              <SelectItem key={provider.value} value={provider.value}>
+                                <div className="flex flex-col">
+                                  <span className="font-medium">{provider.label}</span>
+                                  {status && (
+                                    <span className="text-xs text-gray-500">
+                                      {status.verifiedDate}
+                                    </span>
+                                  )}
+                                </div>
+                              </SelectItem>
+                            );
+                          });
+                        })()}
                       </SelectContent>
                     </Select>
                   </div>
@@ -1859,7 +1935,7 @@ function LLMSettings() {
                           });
                         } catch (error) {
                           toast({
-                            title: "Hata",
+                            title: "Error",
                             description: "Could not update OCR provider",
                             variant: "destructive",
                           });
@@ -1945,7 +2021,7 @@ function LLMSettings() {
                           });
                         } catch (error) {
                           toast({
-                            title: "Hata",
+                            title: "Error",
                             description: "Could not update rerank provider",
                             variant: "destructive",
                           });
@@ -1960,6 +2036,12 @@ function LLMSettings() {
                           <div className="flex flex-col">
                             <span className="font-medium">Off</span>
                             <span className="text-xs text-gray-500">Reranking will not be used</span>
+                          </div>
+                        </SelectItem>
+                        <SelectItem value="local">
+                          <div className="flex flex-col">
+                            <span className="font-medium">Local Reranker</span>
+                            <span className="text-xs text-gray-500">Free cross-encoder · no API key · CPU</span>
                           </div>
                         </SelectItem>
                         <SelectItem value="jina" disabled={!isProviderValidated('jina')}>
@@ -2012,7 +2094,7 @@ function LLMSettings() {
                           });
                         } catch (error) {
                           toast({
-                            title: "Hata",
+                            title: "Error",
                             description: "Could not update strategy",
                             variant: "destructive",
                           });
@@ -2027,7 +2109,7 @@ function LLMSettings() {
                           <div className="flex flex-col">
                             <div className="flex items-center gap-2">
                               <span className="font-medium">Recursive Character</span>
-                              <span className="text-[10px] bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 px-1.5 py-0.5 rounded">Standart</span>
+                              <span className="text-[10px] text-muted-foreground border border-border rounded px-1.5 py-0.5">Standard</span>
                             </div>
                             <span className="text-xs text-gray-500">Smart splitting with multi-level delimiters • 1000 char / 200 overlap</span>
                           </div>
@@ -2036,7 +2118,7 @@ function LLMSettings() {
                           <div className="flex flex-col">
                             <div className="flex items-center gap-2">
                               <span className="font-medium">Sentence-Based</span>
-                              <span className="text-[10px] bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300 px-1.5 py-0.5 rounded">Structure Preserving</span>
+                              <span className="text-[10px] text-muted-foreground border border-border rounded px-1.5 py-0.5">Structure Preserving</span>
                             </div>
                             <span className="text-xs text-gray-500">Splits while preserving sentence boundaries • 1000 char / 200 overlap</span>
                           </div>
@@ -2045,7 +2127,7 @@ function LLMSettings() {
                           <div className="flex flex-col">
                             <div className="flex items-center gap-2">
                               <span className="font-medium">Paragraph-Based</span>
-                              <span className="text-[10px] bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300 px-1.5 py-0.5 rounded">Structure Preserving</span>
+                              <span className="text-[10px] text-muted-foreground border border-border rounded px-1.5 py-0.5">Structure Preserving</span>
                             </div>
                             <span className="text-xs text-gray-500">Splits while preserving paragraph boundaries • 1500 char / 300 overlap</span>
                           </div>
@@ -2054,7 +2136,7 @@ function LLMSettings() {
                           <div className="flex flex-col">
                             <div className="flex items-center gap-2">
                               <span className="font-medium">Semantic Sections</span>
-                              <span className="text-[10px] bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300 px-1.5 py-0.5 rounded">Semantik</span>
+                              <span className="text-[10px] text-muted-foreground border border-border rounded px-1.5 py-0.5">Semantic</span>
                             </div>
                             <span className="text-xs text-gray-500">Meaningful splits based on heading/section structure • 1200 char / 200 overlap</span>
                           </div>
@@ -2063,7 +2145,7 @@ function LLMSettings() {
                           <div className="flex flex-col">
                             <div className="flex items-center gap-2">
                               <span className="font-medium">Fixed Size</span>
-                              <span className="text-[10px] bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300 px-1.5 py-0.5 rounded">Basit</span>
+                              <span className="text-[10px] text-muted-foreground border border-border rounded px-1.5 py-0.5">Basic</span>
                             </div>
                             <span className="text-xs text-gray-500">Fixed-length character chunks • 1000 char / 100 overlap</span>
                           </div>
@@ -2072,12 +2154,12 @@ function LLMSettings() {
                           <div className="flex flex-col">
                             <div className="flex items-center gap-2">
                               <span className="font-medium">AI Semantic (Claude-3-Haiku)</span>
-                              <span className="text-[10px] bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300 px-1.5 py-0.5 rounded">AI-Powered</span>
+                              <span className="text-[10px] text-muted-foreground border border-border rounded px-1.5 py-0.5">AI-Powered</span>
                             </div>
                             {isProviderValidated('anthropic') ? (
                               <span className="text-xs text-emerald-600">LLM-based meaningful boundary detection • High accuracy</span>
                             ) : (
-                              <span className="text-xs text-red-500">Anthropic API key gerekli</span>
+                              <span className="text-xs text-red-500">Anthropic API key required</span>
                             )}
                           </div>
                         </SelectItem>
@@ -2087,20 +2169,19 @@ function LLMSettings() {
 
                   {/* Active Strategy Info Card */}
                   {(() => {
-                    const strategyInfo: Record<string, { icon: string; desc: string; chunkSize: string; overlap: string; boundary: string; costLevel: string }> = {
-                      'recursive': { icon: '🔄', desc: 'Splits in order: Paragraph → Line → Sentence → Word. The most balanced strategy.', chunkSize: '1000', overlap: '200', boundary: 'Smart', costLevel: 'Free' },
-                      'sentence': { icon: '📝', desc: 'Detects sentence endings (.!?) and preserves natural language structure.', chunkSize: '1000', overlap: '200', boundary: 'Sentence Boundary', costLevel: 'Free' },
-                      'paragraph': { icon: '📄', desc: 'Splits at paragraph breaks to preserve context. Ideal for long documents.', chunkSize: '1500', overlap: '300', boundary: 'Paragraph Boundary', costLevel: 'Free' },
-                      'semantic': { icon: '🧠', desc: 'Splits into semantic units by analyzing heading and section structure.', chunkSize: '1200', overlap: '200', boundary: 'Heading/Section', costLevel: 'Free' },
-                      'fixed': { icon: '📏', desc: 'Splits into fixed-length character chunks. Fast but may lose context.', chunkSize: '1000', overlap: '100', boundary: 'None', costLevel: 'Free' },
-                      'semantic-haiku': { icon: '✨', desc: 'Uses Claude-3-Haiku to detect semantic boundaries. Highest accuracy.', chunkSize: 'Dynamic', overlap: 'Dynamic', boundary: 'AI Detection', costLevel: 'API cost' }
+                    const strategyInfo: Record<string, { desc: string; chunkSize: string; overlap: string; boundary: string; costLevel: string }> = {
+                      'recursive': { desc: 'Splits in order: Paragraph → Line → Sentence → Word. The most balanced strategy.', chunkSize: '1000', overlap: '200', boundary: 'Smart', costLevel: 'Free' },
+                      'sentence': { desc: 'Detects sentence endings (.!?) and preserves natural language structure.', chunkSize: '1000', overlap: '200', boundary: 'Sentence Boundary', costLevel: 'Free' },
+                      'paragraph': { desc: 'Splits at paragraph breaks to preserve context. Ideal for long documents.', chunkSize: '1500', overlap: '300', boundary: 'Paragraph Boundary', costLevel: 'Free' },
+                      'semantic': { desc: 'Splits into semantic units by analyzing heading and section structure.', chunkSize: '1200', overlap: '200', boundary: 'Heading/Section', costLevel: 'Free' },
+                      'fixed': { desc: 'Splits into fixed-length character chunks. Fast but may lose context.', chunkSize: '1000', overlap: '100', boundary: 'None', costLevel: 'Free' },
+                      'semantic-haiku': { desc: 'Uses Claude-3-Haiku to detect semantic boundaries. Highest accuracy.', chunkSize: 'Dynamic', overlap: 'Dynamic', boundary: 'AI Detection', costLevel: 'API cost' }
                     };
                     const active = strategyInfo[tempConfig?.chunkingStrategy || 'semantic'];
                     if (!active) return null;
                     return (
-                      <div className="mt-3 p-3 rounded-lg bg-gradient-to-r from-slate-50 to-slate-100 dark:from-slate-900/50 dark:to-slate-800/50 border border-slate-200 dark:border-slate-700">
+                      <div className="mt-3 p-3 rounded-lg bg-muted/40 border border-border">
                         <div className="flex items-start gap-2">
-                          <span className="text-lg">{active.icon}</span>
                           <div className="flex-1 min-w-0">
                             <p className="text-xs text-muted-foreground">{active.desc}</p>
                             <div className="flex flex-wrap gap-3 mt-2">
@@ -2357,48 +2438,36 @@ function TemplateSelector() {
   const templates = Object.values(chatTemplates);
 
   return (
-    <div className="space-y-6">
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {templates.map((template) => (
-          <Card
+    <div className="flex flex-col gap-2">
+      {templates.map((template) => {
+        const isActive = activeTemplate === template.id;
+        return (
+          <button
+            type="button"
             key={template.id}
-            className={`cursor-pointer transition-all hover:border-primary h-full flex flex-col ${activeTemplate === template.id ? 'border-2 border-primary ring-2 ring-primary/20' : ''} ${loading ? 'opacity-50 pointer-events-none' : ''}`}
+            disabled={loading}
+            aria-current={isActive ? 'true' : undefined}
             onClick={() => !loading && handleTemplateChange(template.id)}
+            className={`group flex w-full items-center gap-4 rounded-lg border px-4 py-3 text-start transition-colors ${
+              isActive
+                ? 'border-primary bg-primary/5'
+                : 'border-border hover:border-primary/50 hover:bg-muted/40'
+            } ${loading ? 'pointer-events-none opacity-50' : ''}`}
           >
-            <CardHeader className="pb-2">
-              <CardTitle className="text-lg flex justify-between items-center">
-                {template.name}
-                {activeTemplate === template.id && <Badge>Active</Badge>}
-              </CardTitle>
-              <CardDescription className="line-clamp-2 min-h-[2.5rem]">{template.description}</CardDescription>
-            </CardHeader>
-            <CardContent className="flex-1 flex flex-col">
-              <div className="aspect-video bg-muted rounded-md mb-4 flex items-center justify-center relative overflow-hidden group">
-                {template.id === 'base' ? (
-                  <div className="text-center">
-                    <Settings className="h-8 w-8 mx-auto mb-2 text-muted-foreground" />
-                    <span className="text-xs text-muted-foreground">Standard Interface</span>
-                  </div>
-                ) : (
-                  <div className="text-center">
-                    <Sparkles className="h-8 w-8 mx-auto mb-2 text-muted-foreground" />
-                    <span className="text-xs text-muted-foreground">Custom Theme</span>
-                  </div>
-                )}
-
-                {/* Hover overlay */}
-                <div className="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                  <Button variant="secondary" size="sm">Select Template</Button>
-                </div>
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-medium">{template.name}</span>
+                {isActive && <Badge className="h-5 px-1.5 text-[10px]">Active</Badge>}
               </div>
-              <div className="flex justify-between items-center text-xs text-muted-foreground mt-auto">
-                <span>v{template.version}</span>
-                <span className="font-mono bg-muted px-1 rounded">{template.id}</span>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+              <p className="mt-0.5 truncate text-xs text-muted-foreground">{template.description}</p>
+            </div>
+            <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 font-mono text-[11px] text-muted-foreground">
+              {template.id}
+            </span>
+            <span className="shrink-0 text-[11px] tabular-nums text-muted-foreground">v{template.version}</span>
+          </button>
+        );
+      })}
     </div>
   );
 }

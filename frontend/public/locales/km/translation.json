@@ -121,6 +121,7 @@
       "temporaryTaxPeriods": "តើរយៈពេលពន្ធបណ្តោះអាសន្នមានអ្វីខ្លះ?",
       "withholdingRates": "តើអត្រាកាត់ទុកជាអ្វី?"
     },
+    "send": "សួរ",
     "sendHint": "ចុច Enter ដើម្បីផ្ញើ Shift+Enter សម្រាប់បន្ទាត់ថ្មី។",
     "sendMessage": "ផ្ញើសារ",
     "systemStatus": "ប្រព័ន្ធ LSEM RAG",

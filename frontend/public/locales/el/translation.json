@@ -121,6 +121,7 @@
       "temporaryTaxPeriods": "[EL] temporaryTaxPeriods",
       "withholdingRates": "[EL] withholdingRates"
     },
+    "send": "Ρώτησε",
     "sendHint": "[EL] sendHint",
     "sendMessage": "[EL] sendMessage",
     "systemStatus": "[EL] systemStatus",
@@ -2672,7 +2673,7 @@
     "topK": "[EL] topK",
     "totalDocuments": "[EL] totalDocuments",
     "useCache": "[EL] useCache",
-    "yourQuestion": "[EL] yourQuestion"
+    "yourQuestion": "Η ερώτησή σας"
   },
   "queryMode": "query Mode",
   "queryModeFeatures": "query Mode Features",

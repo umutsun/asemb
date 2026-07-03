@@ -2451,6 +2451,7 @@
     "exampleQuestions": "Example questions:",
     "attachFile": "Attach file",
     "voiceInput": "Voice input",
+    "send": "Ask",
     "sendMessage": "Send message",
     "sendHint": "Press Enter to send, Shift+Enter for new line",
     "systemStatus": "LSEM RAG System",

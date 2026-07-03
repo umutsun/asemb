@@ -1,0 +1,583 @@
+/**
+ * Counsel — editorial law-review chat
+ * Serif display, single viridian accent, footnote-style sources.
+ * Quiet, but with typographic authority; light mode is warm paper.
+ *
+ * All critical colors are keyed to the container's OWN theme class
+ * (.counsel-container.light / .counsel-container.dark) via CSS variables,
+ * never to the global html.dark — the two theme systems can desync.
+ */
+
+/* ============ Tokens ============ */
+.counsel-container,
+.counsel-container.dark {
+  --counsel-bg: #101413;               /* deep green-black */
+  --counsel-surface: #161c1a;
+  --counsel-ink: #e7e5de;
+  --counsel-muted: #979b93;
+  --counsel-accent: #5cc2a7;
+  --counsel-accent-soft: rgba(92, 194, 167, 0.10);
+  --counsel-hairline: rgba(231, 229, 222, 0.16);
+  --counsel-hairline-soft: rgba(231, 229, 222, 0.08);
+  --counsel-hover: rgba(231, 229, 222, 0.05);
+  --counsel-warn: #d9a441;
+  --counsel-danger: #e5766d;
+  /* Text on accent/danger fills: dark ink — the dark-mode accent (#5cc2a7)
+     and danger (#e5766d) are light, so white text fails contrast on them */
+  --counsel-on-accent: #101413;
+  --counsel-q-verygood: var(--counsel-accent);
+  --counsel-q-good: #8fd0bd;
+  --counsel-q-medium: #d9a441;
+  --counsel-q-low: var(--counsel-muted);
+  --counsel-serif: Georgia, Cambria, 'Times New Roman', serif;
+  --counsel-mono: Consolas, ui-monospace, SFMono-Regular, Menlo, monospace;
+  --counsel-shadow: none;              /* composer shadow is light-mode only */
+}
+
+.counsel-container.light {
+  --counsel-bg: #f7f6f2;               /* warm paper */
+  --counsel-surface: #ffffff;
+  --counsel-ink: #1b1e20;
+  --counsel-muted: #6d716f;
+  --counsel-accent: #14615a;           /* viridian */
+  --counsel-accent-soft: rgba(20, 97, 90, 0.08);
+  --counsel-hairline: rgba(27, 30, 32, 0.14);
+  --counsel-hairline-soft: rgba(27, 30, 32, 0.08);
+  --counsel-hover: rgba(27, 30, 32, 0.04);
+  --counsel-warn: #b45309;
+  --counsel-danger: #b3261e;
+  /* Text on accent/danger fills: white on the deep viridian/red is fine */
+  --counsel-on-accent: #ffffff;
+  --counsel-q-verygood: var(--counsel-accent);
+  --counsel-q-good: #3f7a72;
+  --counsel-q-medium: #b45309;
+  --counsel-q-low: var(--counsel-muted);
+  --counsel-shadow: 0 1px 2px rgba(27, 30, 32, 0.05);
+}
+
+/* ============ Container ============ */
+.counsel-container {
+  min-height: 100vh;
+  background: var(--counsel-bg);
+  color: var(--counsel-ink);
+  /* Body copy pinned to the approved sans stack (serif/mono via variables) */
+  font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+  position: relative;
+  overflow: hidden;
+}
+
+/* Thin, muted scrollbars everywhere inside the template */
+.counsel-container ::-webkit-scrollbar { width: 6px; height: 6px; }
+.counsel-container ::-webkit-scrollbar-track { background: transparent; }
+.counsel-container ::-webkit-scrollbar-thumb { background: var(--counsel-hairline); border-radius: 3px; }
+.counsel-container ::-webkit-scrollbar-thumb:hover { background: var(--counsel-muted); }
+
+/* ============ Header ============ */
+.counsel-header {
+  height: 58px;
+  border-bottom: 1px solid var(--counsel-hairline-soft);
+  background: var(--counsel-bg);
+}
+
+.counsel-brand-name {
+  font-family: var(--counsel-serif);
+  font-size: 18px;
+  font-weight: 400;
+  letter-spacing: 0.01em;
+  color: var(--counsel-ink);
+}
+
+.counsel-brand-sub {
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--counsel-muted);
+}
+
+/* ============ Welcome (empty state) ============ */
+.counsel-welcome-title {
+  font-family: var(--counsel-serif);
+  font-size: 26px;
+  font-weight: 500;
+  line-height: 1.3;
+  letter-spacing: -0.005em;
+  color: var(--counsel-ink);
+}
+
+/* ============ User message: no bubble, accent-underlined serif question ============ */
+.counsel-user-q {
+  display: inline-block;
+  font-family: var(--counsel-serif);
+  font-size: 17px;
+  line-height: 1.5;
+  color: var(--counsel-ink);
+  border-bottom: 2px solid var(--counsel-accent);
+  padding-bottom: 8px;
+  white-space: pre-wrap;
+}
+
+.counsel-user-time {
+  display: block;
+  margin-top: 8px;
+  font-size: 11.5px;
+  color: var(--counsel-muted);
+}
+
+/* ============ Prose (assistant markdown) ============ */
+.counsel-prose {
+  font-size: 15.5px;
+  line-height: 1.75;
+  color: var(--counsel-ink);
+}
+
+/* Serif headings — typographic authority instead of weight */
+.counsel-prose h1,
+.counsel-prose h2,
+.counsel-prose h3 {
+  font-family: var(--counsel-serif);
+  font-weight: 500;
+  color: var(--counsel-ink);
+}
+
+.counsel-prose h1 {
+  font-size: 23px;
+  line-height: 1.3;
+  letter-spacing: -0.005em;
+  margin: 24px 0 14px;
+}
+
+.counsel-prose h2 {
+  font-size: 19px;
+  line-height: 1.35;
+  letter-spacing: -0.005em;
+  margin: 22px 0 10px;
+}
+
+.counsel-prose h3 {
+  font-size: 17px;
+  line-height: 1.4;
+  margin: 18px 0 8px;
+}
+
+.counsel-prose h1:first-child,
+.counsel-prose h2:first-child,
+.counsel-prose h3:first-child { margin-top: 0; }
+
+/* Accent list markers */
+.counsel-prose li::marker {
+  color: var(--counsel-accent);
+  font-weight: 600;
+}
+
+/* ============ Inline citation [n] markers ============ */
+.counsel-cite {
+  font-family: var(--counsel-mono);
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--counsel-accent);
+  line-height: 0;
+  padding: 0 1px;
+}
+
+/* ============ Message mount animation (only animation in the template) ============ */
+.counsel-msg-in { animation: counsel-in 150ms ease-out; }
+
+@keyframes counsel-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: none; }
+}
+
+/* Keyboard focus for the citation interactions: inline [n] markers and source
+   ledger rows are focusable (role=button), so give them a visible accent ring */
+.counsel-cite:focus-visible,
+.counsel-src-clickable:focus-visible {
+  outline: 2px solid var(--counsel-accent);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+/* ============ Citation scroll highlight (brief accent-tinted fade) ============ */
+.counsel-cite-flash {
+  animation: counsel-flash 1.6s ease-out;
+  border-radius: 4px;
+}
+
+@keyframes counsel-flash {
+  0%, 25% { background-color: var(--counsel-accent-soft); }
+  100% { background-color: transparent; }
+}
+
+/* ============ Typing indicator ============ */
+.counsel-typing {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 0.5rem 0;
+}
+
+.counsel-typing-dot {
+  width: 4px;
+  height: 4px;
+  border-radius: 9999px;
+  background: var(--counsel-muted);
+  animation: counsel-pulse 1.2s ease-in-out infinite;
+}
+
+.counsel-typing-dot:nth-child(2) { animation-delay: 0.15s; }
+.counsel-typing-dot:nth-child(3) { animation-delay: 0.3s; }
+
+@keyframes counsel-pulse {
+  0%, 60%, 100% { opacity: 0.35; }
+  30% { opacity: 1; }
+}
+
+/* ============ Answer-quality text (level -> text color, no pill) ============ */
+.counsel-q-veryGood { color: var(--counsel-q-verygood); }
+.counsel-q-good     { color: var(--counsel-q-good); }
+.counsel-q-medium   { color: var(--counsel-q-medium); }
+.counsel-q-low      { color: var(--counsel-q-low); }
+
+/* ============ Sources: footnote ledger ============ */
+.counsel-src-label {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 11px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--counsel-muted);
+  margin-bottom: 14px;
+}
+
+/* Hairline rule extending to the right of the label */
+.counsel-src-label::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--counsel-hairline-soft);
+}
+
+.counsel-src {
+  display: flex;
+  gap: 14px;
+  padding: 10px 0;
+}
+
+.counsel-src + .counsel-src { border-top: 1px solid var(--counsel-hairline-soft); }
+
+.counsel-src-n {
+  font-family: var(--counsel-mono);
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--counsel-accent);
+  flex-shrink: 0;
+  width: 20px;
+  padding-top: 1px;
+}
+
+.counsel-src-title {
+  font-family: var(--counsel-serif);
+  font-size: 15px;
+  line-height: 1.45;
+  color: var(--counsel-ink);
+  transition: color 0.15s ease;
+}
+
+.counsel-src-clickable { cursor: pointer; }
+.counsel-src-clickable:hover .counsel-src-title { color: var(--counsel-accent); }
+
+.counsel-src-meta {
+  margin-top: 3px;
+  font-size: 12px;
+  color: var(--counsel-muted);
+}
+
+.counsel-src-meta b {
+  font-weight: 600;
+  color: var(--counsel-ink);
+}
+
+.counsel-src-ex {
+  margin-top: 6px;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--counsel-muted);
+  font-style: italic;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* ============ Follow-up suggestions: stacked hairline rows with hover arrow ============ */
+.counsel-fups {
+  margin-top: 20px;
+  border-top: 1px solid var(--counsel-hairline-soft);
+  display: flex;
+  flex-direction: column;
+}
+
+.counsel-fup {
+  appearance: none;
+  background: none;
+  border: none;
+  border-bottom: 1px solid var(--counsel-hairline-soft);
+  width: 100%;
+  text-align: start;
+  padding: 11px 2px;
+  font-size: 14px;
+  font-family: inherit;
+  color: var(--counsel-ink);
+  cursor: pointer;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  transition: color 0.15s ease;
+}
+
+.counsel-fup::after {
+  content: "→";
+  color: var(--counsel-accent);
+  opacity: 0;
+  transition: opacity 0.15s ease, transform 0.15s ease;
+}
+
+.counsel-fup:hover { color: var(--counsel-accent); }
+.counsel-fup:hover::after { opacity: 1; transform: translateX(2px); }
+
+/* Logical arrow direction under RTL — keyed to the follow-ups container's OWN
+   dir attribute (set from the message/UI language), so an LTR answer inside an
+   RTL page keeps the correct right-pointing arrow. */
+.counsel-fups[dir="rtl"] .counsel-fup::after { content: "←"; }
+.counsel-fups[dir="rtl"] .counsel-fup:hover::after { transform: translateX(-2px); }
+
+/* ============ Composer ============ */
+.counsel-composer {
+  background: var(--counsel-surface);
+  border: 1px solid var(--counsel-hairline);
+  border-radius: 4px;
+  /* Slightly tighter than the mock's 14px/16px: this composer also hosts
+     36px icon controls, so 10px/14px lands at the same visual height. */
+  padding: 10px 14px;
+  box-shadow: var(--counsel-shadow);
+  transition: border-color 0.15s ease;
+}
+
+.counsel-composer:focus-within { border-color: var(--counsel-accent); }
+
+.counsel-composer textarea {
+  font-family: var(--counsel-serif);
+  font-size: 15px;
+}
+
+.counsel-composer textarea::placeholder {
+  color: var(--counsel-muted);
+  font-style: italic;
+}
+
+.counsel-send {
+  appearance: none;
+  border: none;
+  cursor: pointer;
+  flex-shrink: 0;
+  background: var(--counsel-accent);
+  color: var(--counsel-on-accent);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 9px 16px;
+  border-radius: 3px;
+  transition: opacity 0.15s ease;
+}
+
+.counsel-send:hover { opacity: 0.9; }
+.counsel-send:disabled { opacity: 0.4; cursor: not-allowed; }
+
+/* ============ Popover panels (history / suggest / slash) ============ */
+.counsel-panel {
+  position: absolute;
+  bottom: 100%;
+  left: 0;
+  right: 0;
+  margin-bottom: 0.5rem;
+  background: var(--counsel-surface);
+  border: 1px solid var(--counsel-hairline);
+  border-radius: 6px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.counsel-panel-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--counsel-hairline);
+  color: var(--counsel-muted);
+}
+
+.counsel-panel-search input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  outline: none;
+  font-size: 0.875rem;
+  color: var(--counsel-ink);
+}
+
+.counsel-panel-search input::placeholder { color: var(--counsel-muted); }
+
+.counsel-panel-list {
+  flex: 1;
+  max-height: 280px;
+  padding: 6px;
+  overflow-y: auto;
+}
+
+.counsel-panel-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 10px;
+  border-radius: 4px;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  text-align: start;
+  font-size: 0.875rem;
+  color: var(--counsel-ink);
+  transition: background 0.15s ease;
+}
+
+.counsel-panel-row:hover,
+.counsel-panel-row.selected,
+.counsel-panel-row.active { background: var(--counsel-hover); }
+
+.counsel-panel-label {
+  font-size: 11px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--counsel-muted);
+  padding: 8px 10px 4px;
+}
+
+.counsel-panel-empty {
+  text-align: center;
+  padding: 24px 16px;
+  color: var(--counsel-muted);
+  font-size: 0.875rem;
+}
+
+.counsel-panel-skeleton {
+  height: 36px;
+  margin: 4px 0;
+  border-radius: 4px;
+  background: var(--counsel-hover);
+}
+
+/* History rows: title + time + delete affordance */
+.counsel-history-item-title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.counsel-history-item-time {
+  font-size: 0.75rem;
+  color: var(--counsel-muted);
+  flex-shrink: 0;
+}
+
+.counsel-history-item-delete {
+  opacity: 0;
+  padding: 5px;
+  border-radius: 4px;
+  color: var(--counsel-muted);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  transition: opacity 0.15s ease, color 0.15s ease;
+}
+
+.counsel-panel-row:hover .counsel-history-item-delete { opacity: 1; }
+/* Keep the delete affordance visible while focused via keyboard */
+.counsel-panel-row:focus-within .counsel-history-item-delete { opacity: 1; }
+.counsel-history-item-delete:focus-visible { opacity: 1; }
+.counsel-history-item-delete:hover { color: var(--counsel-danger); }
+
+.counsel-history-confirm-yes {
+  padding: 3px 10px;
+  font-size: 11px;
+  font-weight: 500;
+  background: var(--counsel-danger);
+  color: var(--counsel-on-accent);
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.counsel-history-confirm-no {
+  padding: 3px 6px;
+  background: transparent;
+  color: var(--counsel-muted);
+  border: 1px solid var(--counsel-hairline);
+  border-radius: 4px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+}
+
+/* Slash command rows */
+.counsel-slash-trigger {
+  font-family: var(--counsel-mono);
+  font-size: 0.8125rem;
+  color: var(--counsel-muted);
+  min-width: 4.5rem;
+}
+
+.counsel-slash-submenu-row { padding-inline-start: 2.5rem; }
+
+/* ============ User-menu dropdown (renders in a portal OUTSIDE the container,
+   so CSS vars are unavailable — literal colors keyed by an explicit mode class) */
+.counsel-dropdown { border-radius: 6px; }
+
+.counsel-dropdown.counsel-dark {
+  background: #161c1a;
+  border: 1px solid rgba(231, 229, 222, 0.16);
+  color: #e7e5de;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+}
+
+.counsel-dropdown.counsel-light {
+  background: #ffffff;
+  border: 1px solid rgba(27, 30, 32, 0.14);
+  color: #1b1e20;
+  box-shadow: 0 4px 16px rgba(27, 30, 32, 0.10);
+}
+
+/* Item hover / keyboard focus / Radix highlight: explicit background AND text
+   color per mode, so the global shadcn html.dark tokens (focus:bg-accent /
+   focus:text-accent-foreground) can never desync the portal menu's legibility. */
+.counsel-dropdown.counsel-dark .counsel-dropdown-item:hover,
+.counsel-dropdown.counsel-dark .counsel-dropdown-item:focus,
+.counsel-dropdown.counsel-dark .counsel-dropdown-item[data-highlighted] {
+  background: rgba(231, 229, 222, 0.05);
+  color: #e7e5de;
+}
+
+.counsel-dropdown.counsel-light .counsel-dropdown-item:hover,
+.counsel-dropdown.counsel-light .counsel-dropdown-item:focus,
+.counsel-dropdown.counsel-light .counsel-dropdown-item[data-highlighted] {
+  background: rgba(27, 30, 32, 0.04);
+  color: #1b1e20;
+}

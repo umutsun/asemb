@@ -1,0 +1,78 @@
+{
+  "id": "counsel",
+  "name": "Counsel",
+  "description": "Editorial law-review chat: serif display, viridian accent, footnote-style sources",
+  "version": "1.0.0",
+  "author": "LSEMB Team",
+  "theme": {
+    "supportedModes": ["dark", "light"],
+    "defaultMode": "light",
+    "colors": {
+      "dark": {
+        "primary": "#5cc2a7",
+        "secondary": "#8fd0bd",
+        "background": {
+          "deep": "#101413",
+          "mid": "#161c1a",
+          "light": "#1d2523"
+        },
+        "text": {
+          "primary": "#e7e5de",
+          "secondary": "#979b93",
+          "muted": "rgba(151, 155, 147, 0.7)"
+        },
+        "accent": {
+          "viridian": "#5cc2a7",
+          "good": "#8fd0bd",
+          "amber": "#d9a441",
+          "danger": "#e5766d"
+        }
+      },
+      "light": {
+        "primary": "#14615a",
+        "secondary": "#3f7a72",
+        "background": {
+          "deep": "#f7f6f2",
+          "mid": "#ffffff",
+          "light": "#efede7"
+        },
+        "text": {
+          "primary": "#1b1e20",
+          "secondary": "#6d716f",
+          "muted": "rgba(109, 113, 111, 0.7)"
+        },
+        "accent": {
+          "viridian": "#14615a",
+          "good": "#3f7a72",
+          "amber": "#b45309",
+          "danger": "#b3261e"
+        }
+      }
+    },
+    "effects": {
+      "glassmorphism": false,
+      "particles": false,
+      "markerHighlights": true,
+      "progressCircles": false,
+      "themeToggle": true
+    }
+  },
+  "features": {
+    "enableSourcesSection": true,
+    "enableKeywordHighlighting": true,
+    "enableSourceExpansion": true,
+    "sourceDisplayStyle": "footnote",
+    "enableResponseTime": true,
+    "enableTokenCount": false,
+    "enableConfidenceScore": false,
+    "inputStyle": "floating",
+    "messageStyle": "editorial"
+  },
+  "animations": {
+    "messageEntry": "fadeSlide",
+    "typingIndicator": "pulse",
+    "particlesDensity": "none",
+    "transitionDuration": "150ms",
+    "themeTransition": "150ms"
+  }
+}

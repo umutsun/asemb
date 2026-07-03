@@ -121,6 +121,7 @@
       "temporaryTaxPeriods": "Was sind die vorläufigen Steuerzeiträume?",
       "withholdingRates": "Wie hoch sind die Quellensteuersätze?"
     },
+    "send": "Fragen",
     "sendHint": "Enter zum Senden drücken, Umschalt+Enter für neue Zeile",
     "sendMessage": "Nachricht senden",
     "systemStatus": "LSEM RAG System",
@@ -2672,7 +2673,7 @@
     "topK": "Top K",
     "totalDocuments": "Total Dokumente",
     "useCache": "Use Cache",
-    "yourQuestion": "Your Question"
+    "yourQuestion": "Ihre Frage"
   },
   "queryMode": "Abfragemodus",
   "queryModeFeatures": "Abfragemodus-Features",

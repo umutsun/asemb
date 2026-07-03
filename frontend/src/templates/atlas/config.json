@@ -1,0 +1,78 @@
+{
+  "id": "atlas",
+  "name": "Atlas",
+  "description": "Product-grade chat: layered surfaces, ultramarine accent, source cards",
+  "version": "1.0.0",
+  "author": "LSEMB Team",
+  "theme": {
+    "supportedModes": ["dark", "light"],
+    "defaultMode": "light",
+    "colors": {
+      "dark": {
+        "primary": "#4d6bff",
+        "secondary": "#8da2ff",
+        "background": {
+          "deep": "#131519",
+          "mid": "#1b1e24",
+          "light": "#22262e"
+        },
+        "text": {
+          "primary": "#e9eaee",
+          "secondary": "#9aa0ac",
+          "muted": "rgba(154, 160, 172, 0.7)"
+        },
+        "accent": {
+          "ultramarine": "#4d6bff",
+          "good": "#7dd3fc",
+          "amber": "#fbbf24",
+          "danger": "#f87171"
+        }
+      },
+      "light": {
+        "primary": "#3557e8",
+        "secondary": "#2743b8",
+        "background": {
+          "deep": "#f5f6f8",
+          "mid": "#ffffff",
+          "light": "#eef0f4"
+        },
+        "text": {
+          "primary": "#16181d",
+          "secondary": "#676c78",
+          "muted": "rgba(103, 108, 120, 0.7)"
+        },
+        "accent": {
+          "ultramarine": "#3557e8",
+          "good": "#0369a1",
+          "amber": "#b45309",
+          "danger": "#b3261e"
+        }
+      }
+    },
+    "effects": {
+      "glassmorphism": false,
+      "particles": false,
+      "markerHighlights": true,
+      "progressCircles": false,
+      "themeToggle": true
+    }
+  },
+  "features": {
+    "enableSourcesSection": true,
+    "enableKeywordHighlighting": true,
+    "enableSourceExpansion": true,
+    "sourceDisplayStyle": "cards",
+    "enableResponseTime": true,
+    "enableTokenCount": false,
+    "enableConfidenceScore": false,
+    "inputStyle": "floating",
+    "messageStyle": "product"
+  },
+  "animations": {
+    "messageEntry": "fadeSlide",
+    "typingIndicator": "pulse",
+    "particlesDensity": "none",
+    "transitionDuration": "150ms",
+    "themeTransition": "150ms"
+  }
+}

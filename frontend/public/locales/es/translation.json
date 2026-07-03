@@ -121,6 +121,7 @@
       "temporaryTaxPeriods": "What are the temporary tax periods?",
       "withholdingRates": "What are the withholding rates?"
     },
+    "send": "Preguntar",
     "sendHint": "Press Enter to send, Shift+Enter for new line",
     "sendMessage": "Send message",
     "systemStatus": "LSEM RAG System",
@@ -2672,7 +2673,7 @@
     "topK": "Top K",
     "totalDocuments": "Total Documentos",
     "useCache": "Use Cache",
-    "yourQuestion": "Your Question"
+    "yourQuestion": "Tu pregunta"
   },
   "queryMode": "query Mode",
   "queryModeFeatures": "query Mode Features",
