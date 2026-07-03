@@ -1,0 +1,645 @@
+<title>Zen UI — Yön Seçimi</title>
+<style>
+/* ================= Page chrome (neutral, stays out of the way) ================= */
+:root {
+  --chrome-bg: #101113;
+  --chrome-ink: #d6d7da;
+  --chrome-muted: #7d8087;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
+body {
+  background: var(--chrome-bg);
+  color: var(--chrome-ink);
+  font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+  min-height: 100vh;
+}
+.chrome {
+  max-width: 1040px;
+  margin: 0 auto;
+  padding: 28px 20px 60px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.chrome-head { display: flex; flex-direction: column; gap: 6px; }
+.chrome-head h1 { font-size: 17px; font-weight: 600; margin: 0; letter-spacing: -0.01em; }
+.chrome-head p { margin: 0; font-size: 13px; color: var(--chrome-muted); line-height: 1.5; }
+.tabs { display: flex; gap: 8px; flex-wrap: wrap; }
+.tab {
+  appearance: none; border: 1px solid #2a2c30; background: #17181b; color: var(--chrome-ink);
+  font: 600 13px/1 "Segoe UI", sans-serif; padding: 10px 16px; border-radius: 999px; cursor: pointer;
+  display: flex; align-items: center; gap: 8px;
+}
+.tab small { font-weight: 400; color: var(--chrome-muted); }
+.tab.active { background: #e8e9eb; color: #17181b; border-color: #e8e9eb; }
+.tab.active small { color: #55575c; }
+.tab:focus-visible { outline: 2px solid #8da2ff; outline-offset: 2px; }
+.variant-note { font-size: 12.5px; color: var(--chrome-muted); line-height: 1.55; max-width: 74ch; }
+.variant-note b { color: var(--chrome-ink); font-weight: 600; }
+.panel { display: none; flex-direction: column; gap: 12px; }
+.panel.active { display: flex; }
+
+/* ================= Shared frame skeleton ================= */
+.frame {
+  height: min(760px, 86vh);
+  border-radius: 14px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid #26282c;
+}
+.f-head { flex-shrink: 0; display: flex; align-items: center; justify-content: space-between; }
+.f-scroll { flex: 1; overflow-y: auto; }
+.f-composer { flex-shrink: 0; }
+.mode-btn {
+  appearance: none; cursor: pointer; background: transparent; border: none;
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 30px; height: 30px; border-radius: 8px; font-size: 14px;
+}
+.mode-btn:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; }
+.f-scroll::-webkit-scrollbar { width: 8px; }
+.f-scroll::-webkit-scrollbar-track { background: transparent; }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+
+/* ======================================================================
+   VARIANT A — “Counsel”: editorial law-review. Serif display, viridian
+   accent, footnote-style sources. Quiet but with typographic authority.
+   ====================================================================== */
+.vA {
+  --bg: #f7f6f2; --surface: #ffffff; --ink: #1b1e20; --muted: #6d716f;
+  --accent: #14615a; --accent-soft: rgba(20, 97, 90, 0.08);
+  --line: rgba(27, 30, 32, 0.14); --line-soft: rgba(27, 30, 32, 0.08);
+  --shadow: 0 1px 2px rgba(27, 30, 32, 0.05);
+  background: var(--bg); color: var(--ink);
+  font-family: "Segoe UI", system-ui, sans-serif;
+}
+.vA.dark {
+  --bg: #101413; --surface: #161c1a; --ink: #e7e5de; --muted: #979b93;
+  --accent: #5cc2a7; --accent-soft: rgba(92, 194, 167, 0.10);
+  --line: rgba(231, 229, 222, 0.16); --line-soft: rgba(231, 229, 222, 0.08);
+  --shadow: none;
+}
+.vA .f-head {
+  padding: 0 28px; height: 58px; border-bottom: 1px solid var(--line-soft);
+}
+.vA .brand { display: flex; align-items: baseline; gap: 10px; }
+.vA .brand-name { font-family: Georgia, Cambria, "Times New Roman", serif; font-size: 18px; letter-spacing: 0.01em; }
+.vA .brand-sub { font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--muted); }
+.vA .f-head-right { display: flex; align-items: center; gap: 14px; color: var(--muted); font-size: 12px; }
+.vA .mode-btn { color: var(--muted); } .vA .mode-btn:hover { color: var(--ink); }
+.vA .f-scroll { padding: 36px 28px 24px; }
+.vA .col { max-width: 660px; margin: 0 auto; display: flex; flex-direction: column; gap: 30px; }
+
+.vA .msg-user { align-self: flex-end; max-width: 85%; text-align: right; }
+.vA .msg-user .q {
+  display: inline-block; font-family: Georgia, Cambria, serif; font-size: 17px; line-height: 1.5;
+  color: var(--ink); border-bottom: 2px solid var(--accent); padding-bottom: 8px;
+}
+.vA .msg-user time { display: block; margin-top: 8px; font-size: 11.5px; color: var(--muted); }
+
+.vA .ai { display: flex; flex-direction: column; gap: 4px; }
+.vA .ai h2 {
+  font-family: Georgia, Cambria, serif; font-weight: 500; font-size: 23px; line-height: 1.3;
+  letter-spacing: -0.005em; margin: 0 0 14px; text-wrap: balance;
+}
+.vA .ai p { margin: 0 0 14px; font-size: 15.5px; line-height: 1.75; }
+.vA .ai strong { font-weight: 600; }
+.vA .ai ol { margin: 0 0 14px; padding-inline-start: 22px; display: flex; flex-direction: column; gap: 10px; }
+.vA .ai li { font-size: 15.5px; line-height: 1.7; padding-inline-start: 4px; }
+.vA .ai li::marker { color: var(--accent); font-weight: 600; font-size: 14px; }
+.vA .cite {
+  font-family: Consolas, ui-monospace, monospace; font-size: 11px; vertical-align: super; line-height: 0;
+  color: var(--accent); text-decoration: none; font-weight: 700; padding: 0 1px; cursor: pointer;
+}
+.vA .cite:hover { text-decoration: underline; }
+.vA .meta { display: flex; align-items: center; gap: 10px; font-size: 12px; color: var(--muted); margin-top: 2px; }
+.vA .meta .q-good { color: var(--accent); font-weight: 600; }
+.vA .meta .dot::before { content: "·"; }
+
+.vA .sources { margin-top: 22px; }
+.vA .src-label {
+  display: flex; align-items: center; gap: 12px; font-size: 11px; letter-spacing: 0.16em;
+  text-transform: uppercase; color: var(--muted); margin-bottom: 14px;
+}
+.vA .src-label::after { content: ""; flex: 1; height: 1px; background: var(--line-soft); }
+.vA .src { display: flex; gap: 14px; padding: 10px 0; cursor: pointer; }
+.vA .src + .src { border-top: 1px solid var(--line-soft); }
+.vA .src:hover .src-title { color: var(--accent); }
+.vA .src-n {
+  font-family: Consolas, ui-monospace, monospace; font-size: 13px; font-weight: 700;
+  color: var(--accent); flex-shrink: 0; width: 20px; padding-top: 1px;
+}
+.vA .src-body { min-width: 0; }
+.vA .src-title { font-family: Georgia, Cambria, serif; font-size: 15px; line-height: 1.45; transition: color .15s; }
+.vA .src-meta { margin-top: 3px; font-size: 12px; color: var(--muted); }
+.vA .src-meta b { font-weight: 600; color: var(--ink); }
+.vA .src-ex { margin-top: 6px; font-size: 13px; line-height: 1.6; color: var(--muted); font-style: italic;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+
+.vA .fups { display: flex; flex-direction: column; gap: 0; margin-top: 20px; border-top: 1px solid var(--line-soft); }
+.vA .fup {
+  appearance: none; background: none; border: none; border-bottom: 1px solid var(--line-soft);
+  text-align: start; padding: 11px 2px; font-size: 14px; color: var(--ink); cursor: pointer;
+  font-family: inherit; display: flex; justify-content: space-between; align-items: center; gap: 12px;
+}
+.vA .fup::after { content: "→"; color: var(--accent); opacity: 0; transition: opacity .15s, transform .15s; }
+.vA .fup:hover::after { opacity: 1; transform: translateX(2px); }
+.vA .fup:hover { color: var(--accent); }
+
+.vA .f-composer { padding: 14px 28px 22px; }
+.vA .composer {
+  max-width: 660px; margin: 0 auto; display: flex; align-items: center; gap: 12px;
+  background: var(--surface); border: 1px solid var(--line); border-radius: 4px;
+  padding: 14px 16px; box-shadow: var(--shadow);
+}
+.vA .composer input {
+  flex: 1; background: none; border: none; outline: none; font: 15px/1.4 "Segoe UI", sans-serif;
+  color: var(--ink); font-family: Georgia, Cambria, serif;
+}
+.vA .composer input::placeholder { color: var(--muted); font-style: italic; }
+.vA .send {
+  appearance: none; border: none; cursor: pointer; background: var(--accent); color: #fff;
+  font: 600 12px/1 "Segoe UI", sans-serif; letter-spacing: 0.08em; text-transform: uppercase;
+  padding: 9px 16px; border-radius: 3px;
+}
+
+/* ======================================================================
+   VARIANT B — “Atlas”: product-grade SaaS polish. Layered surfaces, soft
+   shadows, ultramarine accent, source cards, pill follow-ups.
+   ====================================================================== */
+.vB {
+  --bg: #f5f6f8; --surface: #ffffff; --surface-2: #eef0f4; --ink: #16181d; --muted: #676c78;
+  --accent: #3557e8; --accent-ink: #2743b8; --accent-soft: rgba(53, 87, 232, 0.08);
+  --border: #e3e5ea; --border-strong: #d5d8df;
+  --shadow-sm: 0 1px 2px rgba(22,24,29,.05), 0 2px 8px rgba(22,24,29,.05);
+  --shadow-lg: 0 4px 12px rgba(22,24,29,.08), 0 12px 32px rgba(22,24,29,.10);
+  background: var(--bg); color: var(--ink);
+  font-family: "Segoe UI", system-ui, sans-serif;
+}
+.vB.dark {
+  --bg: #131519; --surface: #1b1e24; --surface-2: #22262e; --ink: #e9eaee; --muted: #9aa0ac;
+  --accent: #4d6bff; --accent-ink: #8da2ff; --accent-soft: rgba(141, 162, 255, 0.10);
+  --border: #2a2e36; --border-strong: #363b45;
+  --shadow-sm: 0 1px 2px rgba(0,0,0,.25);
+  --shadow-lg: 0 8px 32px rgba(0,0,0,.4);
+}
+.vB .f-head {
+  padding: 0 24px; height: 56px; border-bottom: 1px solid var(--border);
+  background: color-mix(in srgb, var(--surface) 70%, transparent); backdrop-filter: blur(8px);
+}
+.vB .brand { display: flex; align-items: center; gap: 10px; }
+.vB .brand-mark {
+  width: 26px; height: 26px; border-radius: 8px; background: var(--accent);
+  display: grid; place-items: center; color: #fff; font: 700 13px/1 "Segoe UI", sans-serif;
+}
+.vB .brand-name { font-size: 14.5px; font-weight: 650; letter-spacing: -0.01em; }
+.vB .brand-tag {
+  font-size: 11px; font-weight: 600; color: var(--muted); background: var(--surface-2);
+  border: 1px solid var(--border); padding: 3px 8px; border-radius: 999px;
+}
+.vB .f-head-right { display: flex; align-items: center; gap: 10px; color: var(--muted); font-size: 12px; }
+.vB .mode-btn { color: var(--muted); border: 1px solid var(--border); background: var(--surface); }
+.vB .mode-btn:hover { color: var(--ink); border-color: var(--border-strong); }
+.vB .f-scroll { padding: 32px 24px 24px; }
+.vB .col { max-width: 700px; margin: 0 auto; display: flex; flex-direction: column; gap: 28px; }
+
+.vB .msg-user { align-self: flex-end; max-width: 78%; }
+.vB .msg-user .q {
+  background: var(--accent); color: #fff; font-size: 15px; line-height: 1.55;
+  padding: 12px 18px; border-radius: 18px 18px 4px 18px; box-shadow: var(--shadow-sm);
+}
+.vB.dark .msg-user .q { background: #3a53c9; }
+.vB .msg-user time { display: block; text-align: right; margin-top: 6px; font-size: 11.5px; color: var(--muted); }
+
+.vB .ai h2 { font-size: 19px; font-weight: 650; letter-spacing: -0.015em; line-height: 1.35; margin: 0 0 12px; text-wrap: balance; }
+.vB .ai p { margin: 0 0 13px; font-size: 15px; line-height: 1.68; }
+.vB .ai strong { font-weight: 650; }
+.vB .ai ol { margin: 0 0 13px; padding: 0; list-style: none; counter-reset: item; display: flex; flex-direction: column; gap: 8px; }
+.vB .ai li { counter-increment: item; display: flex; gap: 12px; font-size: 15px; line-height: 1.65; }
+.vB .ai li::before {
+  content: counter(item); flex-shrink: 0; width: 22px; height: 22px; margin-top: 1px;
+  border-radius: 7px; background: var(--accent-soft); color: var(--accent-ink);
+  font: 650 12px/22px "Segoe UI", sans-serif; text-align: center;
+}
+.vB .cite {
+  display: inline-flex; align-items: center; justify-content: center; min-width: 17px; height: 17px;
+  border-radius: 5px; background: var(--accent-soft); color: var(--accent-ink);
+  font: 650 10.5px/1 Consolas, monospace; padding: 0 3px; margin: 0 1px; vertical-align: 2px;
+  cursor: pointer; transition: background .15s; text-decoration: none;
+}
+.vB .cite:hover { background: var(--accent); color: #fff; }
+.vB .meta { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--muted); margin-top: 10px; }
+.vB .meta .q-pill {
+  display: inline-flex; align-items: center; gap: 5px; font-weight: 600; font-size: 11.5px;
+  color: #0d8a53; background: rgba(13, 138, 83, 0.09); padding: 3px 9px; border-radius: 999px;
+}
+.vB.dark .meta .q-pill { color: #4ade80; background: rgba(74, 222, 128, 0.10); }
+.vB .meta .q-pill::before { content: ""; width: 5px; height: 5px; border-radius: 99px; background: currentColor; }
+.vB .icon-btn { appearance: none; background: none; border: none; cursor: pointer; color: var(--muted); padding: 4px; border-radius: 6px; display: inline-flex; }
+.vB .icon-btn:hover { color: var(--ink); background: var(--surface-2); }
+
+.vB .sources { margin-top: 20px; display: flex; flex-direction: column; gap: 8px; }
+.vB .src-label { font-size: 12px; font-weight: 650; color: var(--muted); margin-bottom: 2px; display: flex; align-items: center; gap: 6px; }
+.vB .src-label span { color: var(--ink); }
+.vB .src {
+  display: flex; gap: 14px; align-items: flex-start; background: var(--surface);
+  border: 1px solid var(--border); border-radius: 12px; padding: 13px 16px;
+  cursor: pointer; transition: border-color .15s, box-shadow .15s;
+}
+.vB .src:hover { border-color: var(--accent); box-shadow: var(--shadow-sm); }
+.vB .src-icon {
+  flex-shrink: 0; width: 36px; height: 36px; border-radius: 9px; background: var(--accent-soft);
+  color: var(--accent-ink); display: grid; place-items: center;
+}
+.vB .src-body { min-width: 0; flex: 1; }
+.vB .src-top { display: flex; align-items: baseline; gap: 8px; }
+.vB .src-n { font: 650 11px/1 Consolas, monospace; color: var(--accent-ink); }
+.vB .src-title { font-size: 14px; font-weight: 600; line-height: 1.4; }
+.vB .src-meta { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 7px; }
+.vB .chip {
+  font-size: 11px; font-weight: 600; color: var(--muted); background: var(--surface-2);
+  border: 1px solid var(--border); padding: 2.5px 8px; border-radius: 6px; white-space: nowrap;
+}
+.vB .chip.art { color: var(--accent-ink); background: var(--accent-soft); border-color: transparent; }
+.vB .src-ex { margin-top: 8px; font-size: 12.5px; line-height: 1.55; color: var(--muted);
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+
+.vB .fups { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 18px; }
+.vB .fup {
+  appearance: none; cursor: pointer; background: var(--surface); border: 1px solid var(--border);
+  color: var(--ink); font: 500 13px/1.4 "Segoe UI", sans-serif; padding: 8px 14px; border-radius: 999px;
+  transition: border-color .15s, background .15s;
+}
+.vB .fup:hover { border-color: var(--accent); color: var(--accent-ink); background: var(--accent-soft); }
+
+.vB .f-composer { padding: 12px 24px 20px; }
+.vB .composer {
+  max-width: 700px; margin: 0 auto; display: flex; align-items: flex-end; gap: 10px;
+  background: var(--surface); border: 1px solid var(--border); border-radius: 16px;
+  padding: 12px 12px 12px 18px; box-shadow: var(--shadow-lg);
+}
+.vB .composer:focus-within { border-color: var(--accent); }
+.vB .composer input { flex: 1; background: none; border: none; outline: none; font: 15px/1.5 "Segoe UI", sans-serif; color: var(--ink); padding: 6px 0; }
+.vB .composer input::placeholder { color: var(--muted); }
+.vB .send {
+  appearance: none; border: none; cursor: pointer; width: 36px; height: 36px; border-radius: 11px;
+  background: var(--accent); color: #fff; display: grid; place-items: center; transition: filter .15s;
+}
+.vB .send:hover { filter: brightness(1.1); }
+.vB .composer-hint { max-width: 700px; margin: 8px auto 0; text-align: center; font-size: 11px; color: var(--muted); }
+
+/* ======================================================================
+   VARIANT C — “Majlis”: legal gravitas. Ink-and-brass, small-caps labels,
+   docket-style source ledger with dotted leaders. Dark-first.
+   ====================================================================== */
+.vC {
+  --bg: #0d1014; --panel: #14181e; --ink: #eae6dc; --muted: #8e8b81;
+  --brass: #c3a05f; --brass-soft: rgba(195, 160, 95, 0.10);
+  --line: rgba(234, 230, 220, 0.12); --line-soft: rgba(234, 230, 220, 0.07);
+  background: var(--bg); color: var(--ink);
+  font-family: "Segoe UI", system-ui, sans-serif;
+}
+.vC.light {
+  --bg: #f1efe9; --panel: #faf9f5; --ink: #1e2732; --muted: #6e6a5e;
+  --brass: #8a6d39; --brass-soft: rgba(138, 109, 57, 0.09);
+  --line: rgba(30, 39, 50, 0.18); --line-soft: rgba(30, 39, 50, 0.09);
+}
+.vC .f-head { padding: 0 28px; height: 60px; border-bottom: 1px solid var(--line); }
+.vC .brand { display: flex; align-items: center; gap: 12px; }
+.vC .brand-rule { width: 22px; height: 1px; background: var(--brass); }
+.vC .brand-name {
+  font-family: Cambria, Georgia, serif; font-size: 15px; letter-spacing: 0.22em;
+  text-transform: uppercase; font-weight: 400;
+}
+.vC .f-head-right { display: flex; align-items: center; gap: 14px; }
+.vC .f-head-right .lang { font-size: 11px; letter-spacing: 0.18em; color: var(--muted); }
+.vC .mode-btn { color: var(--muted); } .vC .mode-btn:hover { color: var(--brass); }
+.vC .f-scroll { padding: 40px 28px 24px; }
+.vC .col { max-width: 660px; margin: 0 auto; display: flex; flex-direction: column; gap: 34px; }
+
+.vC .msg-user { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
+.vC .msg-user .q-label { font-size: 10px; letter-spacing: 0.24em; text-transform: uppercase; color: var(--brass); }
+.vC .msg-user .q {
+  max-width: 85%; text-align: right; font-family: Cambria, Georgia, serif; font-size: 17.5px;
+  line-height: 1.5; color: var(--ink);
+}
+.vC .ai h2 {
+  font-family: Cambria, Georgia, serif; font-weight: 400; font-size: 24px; line-height: 1.3;
+  margin: 0 0 6px; text-wrap: balance;
+}
+.vC .ai .h-rule { width: 44px; height: 2px; background: var(--brass); margin: 0 0 18px; }
+.vC .ai p { margin: 0 0 14px; font-size: 15.5px; line-height: 1.78; }
+.vC .ai strong { font-weight: 600; color: var(--ink); }
+.vC .ai ol { margin: 4px 0 14px; padding: 0; list-style: none; counter-reset: item; display: flex; flex-direction: column; gap: 12px; }
+.vC .ai li { counter-increment: item; display: flex; gap: 16px; font-size: 15.5px; line-height: 1.7; }
+.vC .ai li::before {
+  content: counter(item, decimal-leading-zero); font-family: Consolas, ui-monospace, monospace;
+  font-size: 12px; color: var(--brass); padding-top: 4px; flex-shrink: 0;
+}
+.vC .cite {
+  font-family: Consolas, ui-monospace, monospace; font-size: 11.5px; color: var(--brass);
+  text-decoration: none; cursor: pointer; font-weight: 700; padding: 0 1px;
+}
+.vC .cite:hover { text-decoration: underline; }
+.vC .meta { display: flex; align-items: center; gap: 12px; margin-top: 4px; font-size: 10.5px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--muted); }
+.vC .meta .q-strong { color: var(--brass); }
+
+.vC .sources { margin-top: 26px; border-top: 1px solid var(--line); padding-top: 16px; }
+.vC .src-label { font-size: 10.5px; letter-spacing: 0.24em; text-transform: uppercase; color: var(--muted); margin-bottom: 14px; }
+.vC .src { display: flex; gap: 16px; padding: 11px 0; cursor: pointer; align-items: baseline; }
+.vC .src + .src { border-top: 1px solid var(--line-soft); }
+.vC .src-n { font-family: Consolas, ui-monospace, monospace; font-size: 12px; color: var(--brass); flex-shrink: 0; }
+.vC .src-body { flex: 1; min-width: 0; }
+.vC .src-line { display: flex; align-items: baseline; gap: 8px; }
+.vC .src-title { font-family: Cambria, Georgia, serif; font-size: 15.5px; line-height: 1.45; }
+.vC .src:hover .src-title { color: var(--brass); }
+.vC .src-leader { flex: 1; border-bottom: 1px dotted var(--line); min-width: 24px; transform: translateY(-3px); }
+.vC .src-year { font-family: Consolas, ui-monospace, monospace; font-size: 12px; color: var(--muted); }
+.vC .src-meta { margin-top: 4px; font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); }
+.vC .src-meta b { color: var(--brass); font-weight: 600; }
+.vC .src-ex { margin-top: 6px; font-size: 13px; line-height: 1.6; color: var(--muted);
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+
+.vC .fups { margin-top: 24px; display: flex; flex-direction: column; gap: 10px; }
+.vC .fups-label { font-size: 10.5px; letter-spacing: 0.24em; text-transform: uppercase; color: var(--muted); margin-bottom: 2px; }
+.vC .fup {
+  appearance: none; background: none; border: none; cursor: pointer; text-align: start; padding: 0;
+  font-family: Cambria, Georgia, serif; font-size: 15px; color: var(--ink);
+  display: flex; align-items: baseline; gap: 10px;
+}
+.vC .fup::before { content: "→"; color: var(--brass); font-family: "Segoe UI", sans-serif; font-size: 13px; }
+.vC .fup:hover { color: var(--brass); }
+
+.vC .f-composer { padding: 14px 28px 24px; border-top: 1px solid var(--line-soft); }
+.vC .composer { max-width: 660px; margin: 0 auto; display: flex; align-items: center; gap: 14px; }
+.vC .composer input {
+  flex: 1; background: var(--panel); border: 1px solid var(--line); border-radius: 2px;
+  outline: none; font-family: Cambria, Georgia, serif; font-size: 15.5px; color: var(--ink);
+  padding: 14px 18px;
+}
+.vC .composer input:focus { border-color: var(--brass); }
+.vC .composer input::placeholder { color: var(--muted); }
+.vC .send {
+  appearance: none; cursor: pointer; background: none; border: 1px solid var(--brass);
+  color: var(--brass); font: 400 11px/1 "Segoe UI", sans-serif; letter-spacing: 0.22em;
+  text-transform: uppercase; padding: 14px 20px; border-radius: 2px; transition: background .15s, color .15s;
+}
+.vC .send:hover { background: var(--brass); color: var(--bg); }
+</style>
+
+<div class="chrome">
+  <div class="chrome-head">
+    <h1>Zen UI — üç görsel yön, aynı işlevsellik</h1>
+    <p>Gerçek korpus içeriğiyle (kurumlar vergisi gecikme cezaları) birebir ekran taklidi. Sekmelerle yön değiştirin; her çerçevenin sağ üstündeki ◐ ile light/dark modu deneyin. Beğendiğiniz yönü aynen koda taşıyacağım — karıştırmak da mümkün (örn. B'nin kaynak kartları + A'nın tipografisi).</p>
+  </div>
+
+  <div class="tabs" role="tablist">
+    <button class="tab active" role="tab" data-panel="pA">A — Counsel <small>hukuk dergisi</small></button>
+    <button class="tab" role="tab" data-panel="pB">B — Atlas <small>ürün cilası</small></button>
+    <button class="tab" role="tab" data-panel="pC">C — Majlis <small>mürekkep &amp; pirinç</small></button>
+  </div>
+
+  <!-- ================= PANEL A ================= -->
+  <section class="panel active" id="pA">
+    <p class="variant-note"><b>Counsel — editoryal, hukuk dergisi havası.</b> Serif başlıklar, koyu yeşil (viridian) tek aksan, dipnot düzeninde kaynaklar. Kartsız; otoriteyi tipografi taşıyor. Takip soruları satır-listesi.</p>
+    <div class="frame vA" id="fA">
+      <header class="f-head">
+        <div class="brand"><span class="brand-name">Legal Counsel</span><span class="brand-sub">UAE Legislation</span></div>
+        <div class="f-head-right"><span>EN</span><button class="mode-btn" data-frame="fA" aria-label="Tema değiştir">◐</button></div>
+      </header>
+      <div class="f-scroll"><div class="col">
+
+        <div class="msg-user">
+          <span class="q">What are the penalties for late payment of corporate tax?</span>
+          <time>14:31</time>
+        </div>
+
+        <article class="ai">
+          <h2>Late-Payment Penalties under UAE Corporate Tax</h2>
+          <p>Late payment of corporate tax is penalised under <strong>Federal Decree-Law No. 47 of 2022</strong>, with the penalty schedule set by <strong>Cabinet Decision No. 75 of 2023</strong><a class="cite">[1]</a><a class="cite">[2]</a>. Two layers apply:</p>
+          <ol>
+            <li><strong>Monthly late-payment penalty</strong> — 14% per annum, applied monthly on the unpaid tax from the day after the payment deadline<a class="cite">[2]</a>.</li>
+            <li><strong>Fixed administrative penalties</strong> — for related failures such as late registration or late filing of the tax return, per the schedule annexed to Cabinet Decision No. 75 of 2023<a class="cite">[2]</a>.</li>
+            <li><strong>Voluntary disclosure</strong> — submitting a disclosure before an audit notice can reduce the applicable penalties under the Tax Procedures Law<a class="cite">[3]</a>.</li>
+          </ol>
+          <p>Penalties accrue on the net unpaid amount; settling the principal stops further monthly accrual<a class="cite">[1]</a>.</p>
+          <div class="meta"><span>14:32</span><span class="dot"></span><span class="q-good">Strong sources</span><span class="dot"></span><span>3 references</span></div>
+
+          <div class="sources">
+            <div class="src-label">Sources</div>
+            <div class="src">
+              <span class="src-n">1</span>
+              <div class="src-body">
+                <div class="src-title">Federal Decree-Law No. 47 of 2022 — Taxation of Corporations and Businesses</div>
+                <div class="src-meta"><b>Article 60</b> · Legislation · 2022</div>
+                <div class="src-ex">“The Authority shall impose administrative penalties on any Person who violates the provisions of this Decree-Law in accordance with the schedule issued by the Cabinet…”</div>
+              </div>
+            </div>
+            <div class="src">
+              <span class="src-n">2</span>
+              <div class="src-body">
+                <div class="src-title">Cabinet Decision No. 75 of 2023 — Administrative Penalties for Corporate Tax</div>
+                <div class="src-meta"><b>Article 3</b> · Legislation · 2023</div>
+                <div class="src-ex">“A monthly penalty of 14% per annum shall apply to unsettled Payable Tax, calculated from the day following the due date of payment…”</div>
+              </div>
+            </div>
+            <div class="src">
+              <span class="src-n">3</span>
+              <div class="src-body">
+                <div class="src-title">Federal Decree-Law No. 28 of 2022 — Tax Procedures</div>
+                <div class="src-meta"><b>Article 22</b> · Legislation · 2022</div>
+                <div class="src-ex">“The Person may submit a Voluntary Disclosure to correct an error or omission in a Tax Return before being notified of a Tax Audit…”</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="fups">
+            <button class="fup">How is the 14% monthly penalty calculated in practice?</button>
+            <button class="fup">Can penalties be waived after a voluntary disclosure?</button>
+            <button class="fup">What is the deadline for filing the corporate tax return?</button>
+          </div>
+        </article>
+
+      </div></div>
+      <footer class="f-composer">
+        <div class="composer">
+          <input type="text" placeholder="Ask about UAE legislation…" aria-label="Soru" />
+          <button class="send">Ask</button>
+        </div>
+      </footer>
+    </div>
+  </section>
+
+  <!-- ================= PANEL B ================= -->
+  <section class="panel" id="pB">
+    <p class="variant-note"><b>Atlas — modern ürün cilası (Linear/Claude sınıfı).</b> Katmanlı yüzeyler + yumuşak gölgeler, ultramarin aksan, ikonlu kaynak kartları, madde/yıl çipleri, hap takip soruları, gölgeli yüzer composer. Depth var ama cam/gradient yok.</p>
+    <div class="frame vB" id="fB">
+      <header class="f-head">
+        <div class="brand">
+          <span class="brand-mark">§</span>
+          <span class="brand-name">LSEMB Legal</span>
+          <span class="brand-tag">UAE Corpus</span>
+        </div>
+        <div class="f-head-right"><span>EN</span><button class="mode-btn" data-frame="fB" aria-label="Tema değiştir">◐</button></div>
+      </header>
+      <div class="f-scroll"><div class="col">
+
+        <div class="msg-user">
+          <div class="q">What are the penalties for late payment of corporate tax?</div>
+          <time>14:31</time>
+        </div>
+
+        <article class="ai">
+          <h2>Late-Payment Penalties under UAE Corporate Tax</h2>
+          <p>Late payment of corporate tax is penalised under <strong>Federal Decree-Law No. 47 of 2022</strong>, with the penalty schedule set by <strong>Cabinet Decision No. 75 of 2023</strong> <a class="cite">1</a> <a class="cite">2</a>. Two layers apply:</p>
+          <ol>
+            <li><span><strong>Monthly late-payment penalty</strong> — 14% per annum, applied monthly on the unpaid tax from the day after the payment deadline <a class="cite">2</a>.</span></li>
+            <li><span><strong>Fixed administrative penalties</strong> — for related failures such as late registration or late filing of the tax return, per the schedule annexed to Cabinet Decision No. 75 of 2023 <a class="cite">2</a>.</span></li>
+            <li><span><strong>Voluntary disclosure</strong> — submitting a disclosure before an audit notice can reduce the applicable penalties under the Tax Procedures Law <a class="cite">3</a>.</span></li>
+          </ol>
+          <p>Penalties accrue on the net unpaid amount; settling the principal stops further monthly accrual <a class="cite">1</a>.</p>
+          <div class="meta">
+            <span class="q-pill">Strong sources</span>
+            <span>14:32</span>
+            <span style="flex:1"></span>
+            <button class="icon-btn" aria-label="Kopyala"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button>
+            <button class="icon-btn" aria-label="Sesli oku"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/></svg></button>
+          </div>
+
+          <div class="sources">
+            <div class="src-label"><span>Sources</span> · 3</div>
+            <div class="src">
+              <div class="src-icon"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3l8 4v5c0 5-3.5 8-8 9-4.5-1-8-4-8-9V7l8-4z"/></svg></div>
+              <div class="src-body">
+                <div class="src-top"><span class="src-n">[1]</span><span class="src-title">Federal Decree-Law No. 47 of 2022 — Taxation of Corporations and Businesses</span></div>
+                <div class="src-meta"><span class="chip art">Article 60</span><span class="chip">Legislation</span><span class="chip">2022</span></div>
+                <div class="src-ex">“The Authority shall impose administrative penalties on any Person who violates the provisions of this Decree-Law in accordance with the schedule issued by the Cabinet…”</div>
+              </div>
+            </div>
+            <div class="src">
+              <div class="src-icon"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg></div>
+              <div class="src-body">
+                <div class="src-top"><span class="src-n">[2]</span><span class="src-title">Cabinet Decision No. 75 of 2023 — Administrative Penalties for Corporate Tax</span></div>
+                <div class="src-meta"><span class="chip art">Article 3</span><span class="chip">Legislation</span><span class="chip">2023</span></div>
+                <div class="src-ex">“A monthly penalty of 14% per annum shall apply to unsettled Payable Tax, calculated from the day following the due date of payment…”</div>
+              </div>
+            </div>
+            <div class="src">
+              <div class="src-icon"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg></div>
+              <div class="src-body">
+                <div class="src-top"><span class="src-n">[3]</span><span class="src-title">Federal Decree-Law No. 28 of 2022 — Tax Procedures</span></div>
+                <div class="src-meta"><span class="chip art">Article 22</span><span class="chip">Legislation</span><span class="chip">2022</span></div>
+                <div class="src-ex">“The Person may submit a Voluntary Disclosure to correct an error or omission in a Tax Return before being notified of a Tax Audit…”</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="fups">
+            <button class="fup">How is the 14% monthly penalty calculated?</button>
+            <button class="fup">Can penalties be waived after voluntary disclosure?</button>
+            <button class="fup">Corporate tax return filing deadline?</button>
+          </div>
+        </article>
+
+      </div></div>
+      <footer class="f-composer">
+        <div class="composer">
+          <input type="text" placeholder="Ask about UAE legislation…" aria-label="Soru" />
+          <button class="send" aria-label="Gönder"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 19V5"/><path d="M5 12l7-7 7 7"/></svg></button>
+        </div>
+        <div class="composer-hint">Answers are grounded in the ingested UAE corpus and may be incomplete — verify critical matters with counsel.</div>
+      </footer>
+    </div>
+  </section>
+
+  <!-- ================= PANEL C ================= -->
+  <section class="panel" id="pC">
+    <p class="variant-note"><b>Majlis — mürekkep &amp; pirinç, hukuki ağırlık.</b> Koyu zemin öncelikli; pirinç (brass) sadece rakamlarda, cetvellerde ve gönder düğmesinde. Small-caps etiketler, noktalı kılavuz çizgili “dosya defteri” kaynak listesi, serif sorular. En cesur yön.</p>
+    <div class="frame vC" id="fC">
+      <header class="f-head">
+        <div class="brand"><span class="brand-rule"></span><span class="brand-name">Majlis Legal</span></div>
+        <div class="f-head-right"><span class="lang">EN / AR</span><button class="mode-btn" data-frame="fC" aria-label="Tema değiştir">◐</button></div>
+      </header>
+      <div class="f-scroll"><div class="col">
+
+        <div class="msg-user">
+          <span class="q-label">Inquiry — 14:31</span>
+          <span class="q">What are the penalties for late payment of corporate tax?</span>
+        </div>
+
+        <article class="ai">
+          <h2>Late-Payment Penalties under UAE Corporate Tax</h2>
+          <div class="h-rule"></div>
+          <p>Late payment of corporate tax is penalised under <strong>Federal Decree-Law No. 47 of 2022</strong>, with the penalty schedule set by <strong>Cabinet Decision No. 75 of 2023</strong> <a class="cite">[1]</a><a class="cite">[2]</a>. Two layers apply:</p>
+          <ol>
+            <li><span><strong>Monthly late-payment penalty</strong> — 14% per annum, applied monthly on the unpaid tax from the day after the payment deadline <a class="cite">[2]</a>.</span></li>
+            <li><span><strong>Fixed administrative penalties</strong> — for related failures such as late registration or late filing of the tax return, per the schedule annexed to Cabinet Decision No. 75 of 2023 <a class="cite">[2]</a>.</span></li>
+            <li><span><strong>Voluntary disclosure</strong> — submitting a disclosure before an audit notice can reduce the applicable penalties under the Tax Procedures Law <a class="cite">[3]</a>.</span></li>
+          </ol>
+          <p>Penalties accrue on the net unpaid amount; settling the principal stops further monthly accrual <a class="cite">[1]</a>.</p>
+          <div class="meta"><span>14:32</span><span class="q-strong">Strong sources</span><span>3 references</span></div>
+
+          <div class="sources">
+            <div class="src-label">Cited Instruments</div>
+            <div class="src">
+              <span class="src-n">01</span>
+              <div class="src-body">
+                <div class="src-line"><span class="src-title">Federal Decree-Law No. 47 of 2022 — Taxation of Corporations and Businesses</span><span class="src-leader"></span><span class="src-year">2022</span></div>
+                <div class="src-meta"><b>Art. 60</b> — Legislation</div>
+                <div class="src-ex">“The Authority shall impose administrative penalties on any Person who violates the provisions of this Decree-Law in accordance with the schedule issued by the Cabinet…”</div>
+              </div>
+            </div>
+            <div class="src">
+              <span class="src-n">02</span>
+              <div class="src-body">
+                <div class="src-line"><span class="src-title">Cabinet Decision No. 75 of 2023 — Administrative Penalties for Corporate Tax</span><span class="src-leader"></span><span class="src-year">2023</span></div>
+                <div class="src-meta"><b>Art. 3</b> — Legislation</div>
+                <div class="src-ex">“A monthly penalty of 14% per annum shall apply to unsettled Payable Tax, calculated from the day following the due date of payment…”</div>
+              </div>
+            </div>
+            <div class="src">
+              <span class="src-n">03</span>
+              <div class="src-body">
+                <div class="src-line"><span class="src-title">Federal Decree-Law No. 28 of 2022 — Tax Procedures</span><span class="src-leader"></span><span class="src-year">2022</span></div>
+                <div class="src-meta"><b>Art. 22</b> — Legislation</div>
+                <div class="src-ex">“The Person may submit a Voluntary Disclosure to correct an error or omission in a Tax Return before being notified of a Tax Audit…”</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="fups">
+            <div class="fups-label">Continue</div>
+            <button class="fup">How is the 14% monthly penalty calculated in practice?</button>
+            <button class="fup">Can penalties be waived after a voluntary disclosure?</button>
+            <button class="fup">What is the deadline for filing the corporate tax return?</button>
+          </div>
+        </article>
+
+      </div></div>
+      <footer class="f-composer">
+        <div class="composer">
+          <input type="text" placeholder="Ask about UAE legislation…" aria-label="Soru" />
+          <button class="send">Submit</button>
+        </div>
+      </footer>
+    </div>
+  </section>
+</div>
+
+<script>
+  const tabs = document.querySelectorAll('.tab');
+  const panels = document.querySelectorAll('.panel');
+  tabs.forEach(t => t.addEventListener('click', () => {
+    tabs.forEach(x => x.classList.remove('active'));
+    panels.forEach(p => p.classList.remove('active'));
+    t.classList.add('active');
+    document.getElementById(t.dataset.panel).classList.add('active');
+  }));
+  document.querySelectorAll('.mode-btn').forEach(b => b.addEventListener('click', () => {
+    const f = document.getElementById(b.dataset.frame);
+    if (f.id === 'fC') f.classList.toggle('light');
+    else f.classList.toggle('dark');
+  }));
+</script>

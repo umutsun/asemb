@@ -1,0 +1,346 @@
+<title>RAG Settings — Redesign Önerisi</title>
+<style>
+:root{
+  --bg:#0a1020; --surface:#111a2e; --surface-2:#0d1526; --raise:#16223a;
+  --ink:#e7ecf5; --muted:#8b97ad; --faint:#5d6b84;
+  --hair:rgba(255,255,255,.07); --hair-2:rgba(255,255,255,.11);
+  --accent:#38bdf8; --accent-ink:#7dd3fc; --accent-soft:rgba(56,189,248,.12);
+  --good:#34d399; --good-soft:rgba(52,211,153,.12);
+  --warn:#fbbf24; --warn-soft:rgba(251,191,36,.11);
+  --danger:#f87171;
+  --r:10px;
+}
+*{box-sizing:border-box;}
+html,body{margin:0;padding:0;}
+body{
+  background:
+    radial-gradient(900px 500px at 78% -8%, rgba(56,189,248,.06), transparent 60%),
+    var(--bg);
+  color:var(--ink);
+  font-family:"Segoe UI",system-ui,-apple-system,sans-serif;
+  font-size:14px; line-height:1.5; min-height:100vh;
+}
+.wrap{max-width:1080px;margin:0 auto;padding:26px 20px 72px;}
+.intro{display:flex;flex-direction:column;gap:7px;margin-bottom:20px;}
+.intro h1{margin:0;font-size:19px;font-weight:650;letter-spacing:-.01em;}
+.intro p{margin:0;color:var(--muted);font-size:13px;max-width:82ch;line-height:1.55;}
+.intro .before{color:var(--faint);}
+.intro b{color:var(--ink);font-weight:600;}
+
+/* ===== settings shell ===== */
+.shell{
+  display:grid;grid-template-columns:212px 1fr;gap:0;
+  border:1px solid var(--hair);border-radius:14px;overflow:hidden;
+  background:linear-gradient(180deg,rgba(255,255,255,.015),transparent 30%),var(--surface);
+  min-height:600px;
+}
+/* left nav */
+.nav{border-right:1px solid var(--hair);padding:14px 10px;display:flex;flex-direction:column;gap:2px;background:var(--surface-2);}
+.nav-eyebrow{font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--faint);padding:6px 10px 10px;}
+.nav-item{
+  display:flex;align-items:center;gap:10px;width:100%;
+  padding:9px 11px;border-radius:8px;border:none;background:transparent;cursor:pointer;
+  color:var(--muted);font:inherit;font-size:13px;text-align:start;transition:background .14s,color .14s;
+}
+.nav-item:hover{background:var(--hair);color:var(--ink);}
+.nav-item.active{background:var(--accent-soft);color:var(--accent-ink);font-weight:600;}
+.nav-item .dot{width:6px;height:6px;border-radius:9px;background:currentColor;opacity:.0;flex-shrink:0;}
+.nav-item.active .dot{opacity:1;}
+.nav-item .count{margin-inline-start:auto;font-size:11px;color:var(--faint);font-variant-numeric:tabular-nums;}
+.nav-item.active .count{color:var(--accent-ink);}
+.nav-sep{height:1px;background:var(--hair);margin:8px 6px;}
+.nav-save{margin-top:auto;padding:8px 6px 2px;}
+.btn-save{
+  width:100%;padding:9px;border-radius:8px;border:none;cursor:pointer;
+  background:var(--accent);color:#06121f;font:inherit;font-weight:650;font-size:13px;
+}
+.btn-save:hover{filter:brightness(1.07);}
+.nav-note{font-size:10.5px;color:var(--faint);text-align:center;margin-top:7px;}
+
+/* right pane */
+.pane{padding:24px 26px 30px;min-width:0;}
+.pane-head{margin-bottom:18px;}
+.pane-head h2{margin:0 0 3px;font-size:16px;font-weight:650;letter-spacing:-.01em;}
+.pane-head p{margin:0;color:var(--muted);font-size:12.5px;max-width:70ch;}
+.panel{display:none;}
+.panel.active{display:block;animation:fade .18s ease-out;}
+@keyframes fade{from{opacity:0;transform:translateY(4px);}to{opacity:1;transform:none;}}
+
+/* preset cards */
+.presets{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:18px;}
+.preset{
+  text-align:start;cursor:pointer;border:1px solid var(--hair-2);border-radius:var(--r);
+  background:var(--surface-2);padding:13px 13px 14px;color:inherit;font:inherit;
+  display:flex;flex-direction:column;gap:6px;transition:border-color .14s,background .14s;
+}
+.preset:hover{border-color:var(--accent);}
+.preset.sel{border-color:var(--accent);background:var(--accent-soft);}
+.preset .pt{display:flex;align-items:center;justify-content:space-between;}
+.preset .pt b{font-size:13.5px;font-weight:650;}
+.preset .tick{width:15px;height:15px;border-radius:99px;border:1.5px solid var(--faint);display:grid;place-items:center;}
+.preset.sel .tick{border-color:var(--accent);background:var(--accent);}
+.preset.sel .tick::after{content:"";width:6px;height:6px;border-radius:99px;background:#06121f;}
+.preset small{color:var(--muted);font-size:11.5px;line-height:1.5;}
+.preset .tag{align-self:flex-start;margin-top:2px;font-size:10px;letter-spacing:.05em;text-transform:uppercase;color:var(--accent-ink);background:var(--accent-soft);padding:2px 7px;border-radius:5px;}
+
+/* control rows */
+.group{border:1px solid var(--hair);border-radius:var(--r);overflow:hidden;margin-bottom:14px;}
+.group-h{padding:10px 14px;font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--faint);background:var(--surface-2);border-bottom:1px solid var(--hair);}
+.row{display:flex;align-items:center;gap:16px;padding:13px 14px;}
+.row+.row{border-top:1px solid var(--hair);}
+.row .lab{flex:1;min-width:0;}
+.row .lab .t{font-size:13px;font-weight:550;}
+.row .lab .h{font-size:11.5px;color:var(--muted);margin-top:2px;line-height:1.45;}
+.row .ctl{flex-shrink:0;display:flex;align-items:center;gap:12px;}
+
+/* value chip */
+.vchip{font-variant-numeric:tabular-nums;font-size:12px;font-weight:650;color:var(--accent-ink);background:var(--accent-soft);border-radius:6px;padding:3px 9px;min-width:46px;text-align:center;}
+/* slider */
+.slider{-webkit-appearance:none;appearance:none;width:190px;height:4px;border-radius:99px;background:var(--raise);outline:none;}
+.slider::-webkit-slider-thumb{-webkit-appearance:none;width:15px;height:15px;border-radius:99px;background:var(--accent);cursor:pointer;border:2px solid var(--surface);box-shadow:0 0 0 1px var(--accent);}
+.slider::-moz-range-thumb{width:14px;height:14px;border-radius:99px;background:var(--accent);cursor:pointer;border:2px solid var(--surface);}
+/* switch */
+.sw{width:38px;height:22px;border-radius:99px;background:var(--raise);position:relative;cursor:pointer;border:1px solid var(--hair-2);transition:background .16s;flex-shrink:0;}
+.sw::after{content:"";position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:99px;background:var(--muted);transition:transform .16s,background .16s;}
+.sw.on{background:var(--accent-soft);border-color:var(--accent);}
+.sw.on::after{transform:translateX(16px);background:var(--accent);}
+/* segmented */
+.seg{display:inline-flex;border:1px solid var(--hair-2);border-radius:8px;overflow:hidden;}
+.seg button{border:none;background:transparent;color:var(--muted);font:inherit;font-size:12px;padding:6px 12px;cursor:pointer;}
+.seg button.on{background:var(--accent-soft);color:var(--accent-ink);font-weight:600;}
+.seg button+button{border-inline-start:1px solid var(--hair);}
+/* select-ish */
+.selbox{display:inline-flex;align-items:center;gap:8px;border:1px solid var(--hair-2);border-radius:8px;padding:7px 11px;font-size:12.5px;color:var(--ink);background:var(--surface-2);min-width:150px;justify-content:space-between;}
+.selbox svg{color:var(--faint);}
+
+/* advanced expander */
+.adv{margin-top:2px;}
+.adv-t{display:flex;align-items:center;gap:8px;padding:11px 14px;cursor:pointer;color:var(--muted);font-size:12.5px;font-weight:550;user-select:none;border:1px dashed var(--hair-2);border-radius:var(--r);background:transparent;width:100%;font-family:inherit;}
+.adv-t:hover{color:var(--ink);border-color:var(--hair-2);}
+.adv-t .chev{transition:transform .18s;color:var(--faint);}
+.adv.open .adv-t .chev{transform:rotate(90deg);}
+.adv-body{display:none;margin-top:10px;}
+.adv.open .adv-body{display:block;}
+.adv-badge{margin-inline-start:auto;font-size:10px;color:var(--faint);}
+
+/* source priority bars */
+.src-row{display:flex;align-items:center;gap:14px;padding:12px 14px;}
+.src-row+.src-row{border-top:1px solid var(--hair);}
+.src-row .nm{width:150px;flex-shrink:0;}
+.src-row .nm .t{font-size:13px;font-weight:550;}
+.src-row .nm .c{font-size:11px;color:var(--faint);font-variant-numeric:tabular-nums;margin-top:1px;}
+.src-row .bar{flex:1;height:5px;border-radius:99px;background:var(--raise);position:relative;overflow:hidden;}
+.src-row .bar > i{position:absolute;inset:0 auto 0 0;border-radius:99px;background:linear-gradient(90deg,var(--accent),var(--accent-ink));}
+.src-row .w{font-variant-numeric:tabular-nums;font-size:12px;font-weight:650;color:var(--accent-ink);width:34px;text-align:end;}
+
+.callout{display:flex;gap:11px;padding:12px 14px;border-radius:var(--r);background:var(--warn-soft);border:1px solid rgba(251,191,36,.25);margin-bottom:14px;}
+.callout .k{width:3px;border-radius:99px;background:var(--warn);flex-shrink:0;}
+.callout p{margin:0;font-size:12px;color:var(--ink);line-height:1.5;}
+.callout b{color:var(--warn);}
+
+.legend{margin-top:20px;padding:14px 16px;border:1px solid var(--hair);border-radius:12px;background:var(--surface-2);font-size:12.5px;color:var(--muted);line-height:1.6;}
+.legend b{color:var(--ink);}
+.legend ul{margin:8px 0 0;padding-inline-start:18px;}
+.legend li{margin:3px 0;}
+.legend code{font-family:Consolas,monospace;font-size:11.5px;color:var(--accent-ink);background:var(--accent-soft);padding:1px 5px;border-radius:4px;}
+@media(max-width:720px){.shell{grid-template-columns:1fr;}.nav{flex-direction:row;flex-wrap:wrap;border-right:none;border-bottom:1px solid var(--hair);}.nav-save{width:100%;}.presets{grid-template-columns:1fr;}.slider{width:130px;}}
+@media(prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important;}}
+</style>
+
+<div class="wrap">
+  <div class="intro">
+    <h1>RAG Settings — yeniden tasarım önerisi</h1>
+    <p><span class="before">Bugün: tek dev kartta ~55 kontrol, üst üste 10 bölüm; <b class="before" style="color:var(--faint)">similarityThreshold iki yerde</b>, strictMode üç parçaya bölünmüş, evidence-gate yalnızca "custom" modda görünüyor.</span></p>
+    <p><b>Öneri:</b> sol taraftan bölüm seçilen, sağda yalnızca o grubun kontrollerini gösteren odaklı bir düzen. 10 düz bölüm → <b>6 anlamlı grup</b>. Merkezde tek karar: <b>Answer Safety ön ayarı</b> (çoğu eşiği o belirliyor). Nadir kontroller her grubun içinde <b>“Advanced”</b> altında gizli. Sol/üstteki sekmelerle gezin.</p>
+  </div>
+
+  <div class="shell">
+    <!-- LEFT NAV -->
+    <nav class="nav">
+      <div class="nav-eyebrow">RAG</div>
+      <button class="nav-item active" data-p="safety"><span class="dot"></span>Answer Safety<span class="count">4</span></button>
+      <button class="nav-item" data-p="retrieval"><span class="dot"></span>Retrieval<span class="count">9</span></button>
+      <button class="nav-item" data-p="sources"><span class="dot"></span>Sources<span class="count">2</span></button>
+      <button class="nav-item" data-p="cache"><span class="dot"></span>Cache &amp; Memory<span class="count">4</span></button>
+      <div class="nav-sep"></div>
+      <div class="nav-eyebrow">Chatbot</div>
+      <button class="nav-item" data-p="chat"><span class="dot"></span>Chat<span class="count">11</span></button>
+      <button class="nav-item" data-p="patterns"><span class="dot"></span>Question Patterns<span class="count">3</span></button>
+      <div class="nav-save">
+        <button class="btn-save">Save changes</button>
+        <div class="nav-note">Değişiklikler kaydedilmedi</div>
+      </div>
+    </nav>
+
+    <!-- RIGHT PANE -->
+    <div class="pane">
+
+      <!-- SAFETY -->
+      <section class="panel active" id="p-safety">
+        <div class="pane-head">
+          <h2>Answer Safety</h2>
+          <p>Modelin ne zaman cevap verip ne zaman “yeterli kaynak yok” diyeceğini bir ön ayarla belirleyin. Çoğu eşik buradan otomatik ayarlanır.</p>
+        </div>
+        <div class="presets">
+          <button class="preset" data-preset><div class="pt"><b>Strict</b><span class="tick"></span></div><small>Yalnızca güçlü kanıt varsa cevaplar. Hukuki/kritik içerik için.</small></button>
+          <button class="preset sel" data-preset><div class="pt"><b>Balanced</b><span class="tick"></span></div><small>Kanıt ile kapsam arasında denge. Önerilen varsayılan.</small><span class="tag">Şu an aktif</span></button>
+          <button class="preset" data-preset><div class="pt"><b>Comprehensive</b><span class="tick"></span></div><small>Zayıf kanıtla da yanıtlar, daha az reddeder. Keşif için.</small></button>
+        </div>
+
+        <div class="adv" id="advSafety">
+          <button class="adv-t" data-adv="advSafety"><span class="chev">›</span> Custom — eşikleri elle ayarla <span class="adv-badge">8 kontrol</span></button>
+          <div class="adv-body">
+            <div class="group">
+              <div class="group-h">Evidence gate</div>
+              <div class="row"><div class="lab"><div class="t">Kanıt zayıfsa cevap verme</div><div class="h">Yeterince ilgili kaynak yoksa dürüstçe reddet</div></div><div class="ctl"><span class="sw on"></span></div></div>
+              <div class="row"><div class="lab"><div class="t">Minimum kaynak kalitesi</div><div class="h">Bu skorun altındaki kaynaklar sayılmaz</div></div><div class="ctl"><input class="slider" type="range" min="0" max="1" step="0.05" value="0.55"><span class="vchip">0.55</span></div></div>
+              <div class="row"><div class="lab"><div class="t">Minimum destekleyici kaynak</div><div class="h">Cevap için gereken güçlü kaynak sayısı</div></div><div class="ctl"><input class="slider" type="range" min="1" max="10" step="1" value="1"><span class="vchip">1</span></div></div>
+            </div>
+            <div class="group">
+              <div class="group-h">Confidence &amp; determinism</div>
+              <div class="row"><div class="lab"><div class="t">Strictness level</div></div><div class="ctl"><div class="seg"><button>Relaxed</button><button class="on">Medium</button><button>Strict</button></div></div></div>
+              <div class="row"><div class="lab"><div class="t">Answer determinism</div><div class="h">Düşük = daha tutarlı, yüksek = daha yaratıcı (temperature)</div></div><div class="ctl"><input class="slider" type="range" min="0" max="1" step="0.05" value="0.4"><span class="vchip">0.40</span></div></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- RETRIEVAL -->
+      <section class="panel" id="p-retrieval">
+        <div class="pane-head">
+          <h2>Retrieval</h2>
+          <p>Kaç kaynak getirileceği, vektör/anahtar-kelime karışımı ve yeniden sıralama.</p>
+        </div>
+        <div class="group">
+          <div class="group-h">Scope</div>
+          <div class="row"><div class="lab"><div class="t">Similarity threshold</div><div class="h">Düşük değer = daha çok sonuç</div></div><div class="ctl"><input class="slider" type="range" min="0.001" max="0.5" step="0.005" value="0.01"><span class="vchip">0.01</span></div></div>
+          <div class="row"><div class="lab"><div class="t">Results range</div><div class="h">En az / en çok kaç kaynak</div></div><div class="ctl"><span class="vchip">5</span><input class="slider" type="range" min="0" max="50" step="1" value="15" style="width:150px"><span class="vchip">15</span></div></div>
+        </div>
+        <div class="group">
+          <div class="group-h">Hybrid search</div>
+          <div class="row"><div class="lab"><div class="t">Hybrid search (vektör + BM25)</div><div class="h">Anlamsal ve tam-metin aramayı birleştir</div></div><div class="ctl"><span class="sw on"></span></div></div>
+          <div class="row"><div class="lab"><div class="t">BM25 / Vector dengesi</div><div class="h">Sol = anlamsal ağırlıklı, sağ = anahtar-kelime ağırlıklı</div></div><div class="ctl"><span class="vchip">30% BM25</span><input class="slider" type="range" min="0" max="1" step="0.05" value="0.3"></div></div>
+          <div class="row"><div class="lab"><div class="t">Full-text search dili</div></div><div class="ctl"><div class="selbox">Turkish<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg></div></div></div>
+        </div>
+        <div class="group">
+          <div class="group-h">Reranking</div>
+          <div class="row"><div class="lab"><div class="t">Reranker</div><div class="h">Sonuçları çapraz-kodlayıcıyla yeniden sırala</div></div><div class="ctl"><div class="seg"><button>Off</button><button class="on">Local</button><button>Jina</button></div></div></div>
+          <div class="row"><div class="lab"><div class="t">Rerank top N</div><div class="h">Yeniden sıralamadan sonra dönen sonuç sayısı</div></div><div class="ctl"><input class="slider" type="range" min="3" max="25" step="1" value="10"><span class="vchip">10</span></div></div>
+        </div>
+      </section>
+
+      <!-- SOURCES -->
+      <section class="panel" id="p-sources">
+        <div class="pane-head">
+          <h2>Sources</h2>
+          <p>Hangi içerik türlerine ve hangi tablolara daha çok güvenileceği. Ağırlıklar getirmede sıralamayı etkiler.</p>
+        </div>
+        <div class="group">
+          <div class="group-h">Source types</div>
+          <div class="src-row"><div class="nm"><div class="t">Database</div><div class="c">7,023 embeddings</div></div><div class="bar"><i style="width:80%"></i></div><span class="w">8</span></div>
+          <div class="src-row"><div class="nm"><div class="t">Documents</div><div class="c">1,240 embeddings</div></div><div class="bar"><i style="width:50%"></i></div><span class="w">5</span></div>
+          <div class="src-row"><div class="nm"><div class="t">Web content</div><div class="c">612 embeddings</div></div><div class="bar"><i style="width:40%"></i></div><span class="w">4</span></div>
+          <div class="src-row"><div class="nm"><div class="t">Chat history</div><div class="c">318 embeddings</div></div><div class="bar"><i style="width:30%"></i></div><span class="w">3</span></div>
+        </div>
+        <div class="adv" id="advSources">
+          <button class="adv-t" data-adv="advSources"><span class="chev">›</span> Per-table weights <span class="adv-badge">tablo başına ince ayar</span></button>
+          <div class="adv-body">
+            <div class="group">
+              <div class="group-h">Table priorities</div>
+              <div class="src-row"><div class="nm"><div class="t">uae_legislation</div><div class="c">4,102 rows</div></div><div class="bar"><i style="width:100%"></i></div><span class="w">1.0</span></div>
+              <div class="src-row"><div class="nm"><div class="t">document_embeddings</div><div class="c">2,921 rows</div></div><div class="bar"><i style="width:85%"></i></div><span class="w">0.85</span></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- CACHE -->
+      <section class="panel" id="p-cache">
+        <div class="pane-head">
+          <h2>Cache &amp; Memory</h2>
+          <p>Performans ve bağlam: yanıt önbelleği, ajan hafızası, veri tazeliği ve toplu işleme.</p>
+        </div>
+        <div class="group">
+          <div class="group-h">Performance</div>
+          <div class="row"><div class="lab"><div class="t">Semantic response cache</div><div class="h">Benzer soruların yanıtını yeniden kullan</div></div><div class="ctl"><span class="sw"></span></div></div>
+          <div class="row"><div class="lab"><div class="t">Agent memory</div><div class="h">Konuşmalar arası hatırlama</div></div><div class="ctl"><span class="sw"></span></div></div>
+          <div class="row"><div class="lab"><div class="t">Real-time data freshness</div><div class="h">Yeni embedding’leri otomatik yansıt</div></div><div class="ctl"><span class="sw"></span></div></div>
+          <div class="row"><div class="lab"><div class="t">Batch size</div><div class="h">Paralel işlenen chunk sayısı</div></div><div class="ctl"><input class="slider" type="range" min="1" max="10" step="1" value="4"><span class="vchip">4</span></div></div>
+        </div>
+        <div class="callout"><div class="k"></div><p><b>Not:</b> Chunking Strategy artık burada, RAG altında — “Active Service Providers” ekranından buraya taşınacak (istediğiniz gibi).</p></div>
+      </section>
+
+      <!-- CHAT -->
+      <section class="panel" id="p-chat">
+        <div class="pane-head">
+          <h2>Chat</h2>
+          <p>Karşılama, öneri kartları, takip soruları, yanıt sınırları ve giriş özellikleri. <b style="color:var(--accent-ink)">Öneri: bunlar kendi “Chatbot” sekmesine ayrılabilir</b> — RAG getirme ayarlarıyla aynı ekranda olması kafa karıştırıyor.</p>
+        </div>
+        <div class="group">
+          <div class="group-h">Content</div>
+          <div class="row"><div class="lab"><div class="t">Welcome message</div></div><div class="ctl"><div class="selbox" style="min-width:220px;color:var(--muted)">“Merhaba! Nasıl yardımcı olabilirim?”</div></div></div>
+          <div class="row"><div class="lab"><div class="t">Suggestion cards</div><div class="h">Karşılama ekranında tıklanabilir sorular</div></div><div class="ctl"><span class="sw on"></span></div></div>
+          <div class="row"><div class="lab"><div class="t">Follow-up questions</div></div><div class="ctl"><span class="sw on"></span></div></div>
+        </div>
+        <div class="group">
+          <div class="group-h">Input features</div>
+          <div class="row"><div class="lab"><div class="t">PDF upload</div></div><div class="ctl"><span class="sw"></span></div></div>
+          <div class="row"><div class="lab"><div class="t">Voice input (STT)</div></div><div class="ctl"><span class="sw"></span></div></div>
+          <div class="row"><div class="lab"><div class="t">Voice output (TTS)</div></div><div class="ctl"><span class="sw"></span></div></div>
+        </div>
+      </section>
+
+      <!-- PATTERNS -->
+      <section class="panel" id="p-patterns">
+        <div class="pane-head">
+          <h2>Question Patterns</h2>
+          <p>Takip sorularının içerik türüne göre nasıl üretileceğini belirleyen kurallar.</p>
+        </div>
+        <div class="group">
+          <div class="group-h">Patterns · 3</div>
+          <div class="row"><div class="lab"><div class="t">emlak</div><div class="h">satılık · kiralık · daire · konut …</div></div><div class="ctl"><span class="vchip">P1</span></div></div>
+          <div class="row"><div class="lab"><div class="t">saglik</div><div class="h">aşı · sağlık · hastane · tedavi …</div></div><div class="ctl"><span class="vchip">P2</span></div></div>
+          <div class="row"><div class="lab"><div class="t">vergi</div><div class="h">stopaj · kdv · beyanname …</div></div><div class="ctl"><span class="vchip">P3</span></div></div>
+        </div>
+      </section>
+
+    </div>
+  </div>
+
+  <div class="legend">
+    <b>Bu tasarım ne çözüyor?</b>
+    <ul>
+      <li><b>Tek ekran → 6 odaklı grup.</b> Aynı anda sadece bir grubun kontrolleri görünür; kaydırma yorgunluğu biter.</li>
+      <li><b>Tek merkezi karar.</b> Çoğu eşiği <code>Answer Safety</code> ön ayarı belirler; ince ayar isteyen “Custom / Advanced” açar.</li>
+      <li><b>Tekrarlar birleşti.</b> similarityThreshold tek yerde; strictMode’un üç parçası “Answer Safety” altında toplandı.</li>
+      <li><b>Chunking’in yeri RAG.</b> “Cache &amp; Memory” (veya “Retrieval”) altına yerleşecek — sizin istediğiniz taşıma.</li>
+      <li><b>Açık soru:</b> <code>Chat</code> + <code>Question Patterns</code> aslında chatbot ayarı — bunları ayrı bir “Chatbot” üst-sekmesine mi taşıyalım, yoksa RAG altında mı kalsın?</li>
+    </ul>
+  </div>
+</div>
+
+<script>
+  const items=document.querySelectorAll('.nav-item');
+  const panels=document.querySelectorAll('.panel');
+  items.forEach(b=>b.addEventListener('click',()=>{
+    items.forEach(x=>x.classList.remove('active'));
+    panels.forEach(p=>p.classList.remove('active'));
+    b.classList.add('active');
+    document.getElementById('p-'+b.dataset.p).classList.add('active');
+  }));
+  document.querySelectorAll('[data-adv]').forEach(t=>t.addEventListener('click',()=>{
+    document.getElementById(t.dataset.adv).classList.toggle('open');
+  }));
+  document.querySelectorAll('.preset').forEach(p=>p.addEventListener('click',()=>{
+    document.querySelectorAll('.preset').forEach(x=>x.classList.remove('sel'));
+    p.classList.add('sel');
+  }));
+  document.querySelectorAll('.sw').forEach(s=>s.addEventListener('click',()=>s.classList.toggle('on')));
+  document.querySelectorAll('.seg').forEach(seg=>seg.querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>{
+    seg.querySelectorAll('button').forEach(x=>x.classList.remove('on'));b.classList.add('on');
+  })));
+  document.querySelectorAll('.slider').forEach(sl=>{
+    const chip=sl.parentElement.querySelector('.vchip:last-child');
+    if(chip&&!chip.textContent.includes('%'))sl.addEventListener('input',()=>{chip.textContent=(+sl.value).toFixed(sl.step&&sl.step<1?2:0);});
+  });
+</script>
