@@ -117,6 +117,85 @@ export function cleanLLMResponse(content: string): string {
     .trim();
 }
 
+// Finite verbs / clause markers that reliably signal an ATX heading's Title-Case phrase has
+// ended and body prose has begun (e.g. "Excise Tax **is** levied …"). Used only to locate the
+// title/body seam inside a heading line — never to rewrite the words themselves.
+const PIVOT_VERB =
+  '(?:is|are|was|were|has|have|had|includes?|consists?|comprises?|covers?|applies|means?|refers?|requires?|provides?|states?|specifies|defines?|derived|levied|imposed|calculated|determined|governed|regulated|entitled|granted|shall|may|must|will|can|should)';
+// Sentence connectors that begin body prose after a heading title ("Rates of Excise Tax
+// **According to** Cabinet Decision …").
+const CONNECTOR =
+  '(?:According\\s+to|Pursuant\\s+to|In\\s+accordance|As\\s+per|Under\\s+the|Based\\s+on)';
+// Small function words allowed to sit inside a Title-Case heading phrase without ending it.
+const HEADING_SMALL_WORD = new Set([
+  'of', 'the', 'a', 'an', 'to', 'for', 'and', 'or', 'in', 'on', 'with', 'by', 'from', 'as', 'at', 'per',
+]);
+
+/**
+ * Locate the character offset in a heading's text (`rest`, everything after the `#`s) where the
+ * short Title-Case title ends and a body sentence begins — or -1 when the whole line is a
+ * legitimate heading with no glued-on body. Pure/deterministic; no external state.
+ *
+ * Two signals, leftmost wins:
+ *  (1) a sentence connector ("According to …") that begins the body;
+ *  (2) a finite verb (PIVOT_VERB): the body's subject is found either at a repeated Title-Case
+ *      token before the verb (the LLM restated the topic to start the body — e.g.
+ *      "Goods Subject to Excise Tax **Excise** Tax is levied …") or, absent a repeat, at a
+ *      bounded capitalized subject just before the verb.
+ * A split is only accepted when it leaves a real title (>= 2 words) and a real body (>= 3 words),
+ * so genuinely short headings ("Rates of Excise Tax", "Overview") are never split.
+ */
+function headingBodyBoundary(rest: string): number {
+  const words = [...rest.matchAll(/\S+/g)];
+  const candidates: number[] = [];
+
+  const connM = new RegExp('\\s(' + CONNECTOR + ')\\b').exec(rest);
+  if (connM) candidates.push(connM.index + 1);
+
+  const verbRe = new RegExp('^' + PIVOT_VERB + '$', 'i');
+  let vi = -1;
+  for (let k = 1; k < words.length; k++) {
+    if (verbRe.test(words[k][0])) { vi = k; break; }
+  }
+
+  if (vi >= 1) {
+    const norm = (t: string): string => t.replace(/[^A-Za-z0-9%]/g, '').toLowerCase();
+    let seam = -1;
+    const seen = new Map<string, number>();
+    for (let k = 0; k < vi; k++) {
+      const key = norm(words[k][0]);
+      if (!key || HEADING_SMALL_WORD.has(words[k][0].toLowerCase())) continue;
+      if (seen.has(key)) { seam = k; break; }
+      seen.set(key, k);
+    }
+    if (seam >= 2) {
+      // The repeated token starts the body subject, but an article that begins the body
+      // sentence ("A", "The", "An") may sit just before it — pull it into the body too.
+      let bs = seam;
+      while (bs - 1 >= 2 && /^(a|an|the)$/i.test(words[bs - 1][0])) bs--;
+      candidates.push(words[bs].index);
+    } else {
+      // No restated topic: back up a bounded capitalized subject before the verb, keeping
+      // >= 2 title words.
+      let s = vi;
+      let backed = 0;
+      while (s - 1 >= 2 && backed < 5) {
+        const raw = words[s - 1][0];
+        if (/^[*_"'([]*[A-Z0-9]/.test(raw) || HEADING_SMALL_WORD.has(raw.toLowerCase())) { s--; backed++; }
+        else break;
+      }
+      if (s >= 2 && s < words.length && s < vi) candidates.push(words[s].index);
+    }
+  }
+
+  if (candidates.length === 0) return -1;
+  const b = Math.min(...candidates);
+  const titleWords = (rest.slice(0, b).match(/\S+/g) || []).length;
+  const bodyWords = (rest.slice(b).match(/\S+/g) || []).length;
+  if (titleWords < 2 || bodyWords < 3) return -1;
+  return b;
+}
+
 /** Repair malformed markdown and ensure proper paragraph breaks. */
 export function preprocessMarkdown(content: string): string {
   let result = content;
@@ -141,6 +220,19 @@ export function preprocessMarkdown(content: string): string {
   // stray "1." trailing the previous paragraph + a separate paragraph.
   result = result.replace(/(^|\n)[ \t]*(\d{1,2})\.[ \t]*\n+[ \t]*(?=\S)/g, '$1$2. ');
 
+  // ═══ STEP 0d: Strip stray end-of-section "#" artifacts ═══
+  // LLMs sometimes append a lone "#" as a section terminator after text or a citation
+  // ("taxation. #", "products #", "[3]. #"). A "#" preceded by a space and non-"#" text is
+  // never a valid ATX heading (those start the line), so remove it. Runs BEFORE the
+  // heading-body split so the boundary detector sees clean lines.
+  result = result.replace(/([^\n#])[ \t]+#{1,6}[ \t]*(?=\n|$)/g, '$1');
+
+  // ═══ STEP 0e: Move an inline ATX heading onto its own line ═══
+  // "**Lead.** ### Gratuity Calculation …" — a heading glued mid-line onto preceding text.
+  // Break it out so STEP 2b can split its title from its body. Guard requires a real marker
+  // (space + 1-6 "#" + space + capital/quote/bold-open) so "C# code" / "#1" never match.
+  result = result.replace(/([^\n#])[ \t]+(#{1,6})[ \t]+(?=[A-Z*_"'])/g, '$1\n\n$2 ');
+
   // ═══ STEP 1: Fix broken bold headers (language-agnostic) ═══
   // "**2.\nHeader:**" → "**2. Header:**"
   result = result.replace(/\*\*(\d)\.\s*\n\s*/g, '**$1. ');
@@ -154,6 +246,22 @@ export function preprocessMarkdown(content: string): string {
   // Fix "N. -" list format → "N. " (remove redundant dash)
   result = result.replace(/(\d{1,2})\.\s+-\s+/g, '$1. ');
 
+  // ═══ STEP 2b: Split a body sentence glued onto an ATX heading (the biggest fix) ═══
+  // "## Income from Immovable Property Income derived from …" renders the whole sentence as a
+  // giant heading. Keep only the short Title-Case title on the heading line and move the body
+  // to a new paragraph: "## Income from Immovable Property\n\nIncome derived from …". Runs
+  // before STEP 2c/3 so the list splitters see clean lines; genuinely short headings are left
+  // untouched (see headingBodyBoundary).
+  result = result.replace(/^(#{1,6})[ \t]+(.+)$/gm, (line, hashes: string, rest0: string) => {
+    const rest = rest0.trim();
+    const boundary = headingBodyBoundary(rest);
+    if (boundary <= 0) return line;
+    const title = rest.slice(0, boundary).trim();
+    const body = rest.slice(boundary).trim();
+    if (!title || !body) return line;
+    return `${hashes} ${title}\n\n${body}`;
+  });
+
   // ═══ STEP 2c: Break a numbered list item that is embedded inside an ATX heading ═══
   // "## Marriage Procedure 1. First item 2. Second" — the ## heading absorbs the first list
   // item. Pull the first numbered item (and everything after) out of the heading line so
@@ -161,9 +269,13 @@ export function preprocessMarkdown(content: string): string {
   result = result.replace(/^(#{1,6}\s+[^\n]+?)\s+(\d{1,2})\.\s+/gm, '$1\n\n$2. ');
 
   // ═══ STEP 3: Fix inline numbered lists ═══
-  const inlineListPattern = /(?:[.!?:;]\s*)\d{1,2}\.\s+\S[\s\S]*?(?:\s)\d{1,2}\.\s+\S[\s\S]*?(?:\s)\d{1,2}\.\s+\S/;
+  // Fire when TWO or more numbered items run inline after a sentence end or a ":"/heading-body
+  // intro — e.g. "This includes: 1. Transactions … 2. Transactions …" (a common 2-item case that
+  // the old >= 3 guard let slip through). The (?<!\d) look-behind keeps decimals/citations
+  // ("2018.", "[3].") from being mistaken for list markers.
+  const inlineListPattern = /(?:[.!?:;]\s+|:\s+)\d{1,2}\.\s+\S[\s\S]*?\s\d{1,2}\.\s+\S/;
   if (inlineListPattern.test(result)) {
-    result = result.replace(/([.!?:;,])\s+(\d{1,2})\.\s+/g, (match, punct, num) => {
+    result = result.replace(/(?<!\d)([.!?:;,])[ \t]+(\d{1,2})\.\s+/g, (match, punct, num) => {
       const numInt = parseInt(num, 10);
       if (numInt >= 1 && numInt <= 30) {
         return `${punct}\n\n${num}. `;
@@ -171,6 +283,21 @@ export function preprocessMarkdown(content: string): string {
       return match;
     });
   }
+
+  // ═══ STEP 3b: Normalise numbered-list-item newlines ═══
+  // The model mixes single and double newlines between "N." items (example B: items 1-2 split by
+  // a blank line, 2-6 by single newlines). remark-gfm needs a blank line BEFORE the first item
+  // and the items on consecutive lines to parse ONE contiguous <ol>. Collapse blank lines
+  // between consecutive items to a single newline, then ensure a blank line precedes the first.
+  let prevList: string;
+  do {
+    prevList = result;
+    result = result.replace(/^(\d{1,2}\.[ \t]+.*)\n\n+(?=\d{1,2}\.[ \t])/gm, '$1\n');
+  } while (result !== prevList);
+  result = result.replace(/^([^\n].*\S)\n(\d{1,2}\.[ \t]+)/gm, (m, before: string, item: string) => {
+    if (/^\d{1,2}\.[ \t]/.test(before)) return m; // previous line is itself a list item
+    return `${before}\n\n${item}`;
+  });
 
   // ═══ STEP 4: Fix single newlines between paragraphs (language-agnostic) ═══
   // (?<!\d) — a period right after a digit is a list marker ("4.") or a number

@@ -697,15 +697,18 @@ export const ZenMessage: React.FC<ZenMessageProps> = ({
                     try { originLabel = new URL(meta.url).hostname.replace(/^www\./, ''); } catch { /* ignore */ }
                   }
 
-                  // Card title: origin when we have one, else the type label.
+                  // Genuine title line (a real law name for legislation, a document
+                  // title, or a crawl origin host). Empty when the would-be title was
+                  // redundant with the excerpt or already sits in a chip — in that case
+                  // the type/chips identify the source and no title line is shown.
                   const typeLabel = t(typeInfo.labelKey);
-                  const titleText = originLabel && originLabel.length > 2 ? originLabel : typeLabel;
+                  const titleText = originLabel && originLabel.length > 2 ? originLabel : '';
                   // Legislation sources get the shield icon tile; everything else a document
                   const isLegislation = typeInfo.labelKey === 'sourceTypes.legislation';
                   // Article/clause chips get the accent tint; the type label is
-                  // appended as a plain chip unless it already serves as the title.
+                  // appended as a plain chip unless a real title line already shows it.
                   const isArticleChip = (key: string) => /article|madde/i.test(key);
-                  const showTypeChip = titleText !== typeLabel;
+                  const showTypeChip = !titleText;
 
                   return (
                     <div
@@ -733,28 +736,32 @@ export const ZenMessage: React.FC<ZenMessageProps> = ({
                         <span key={`alias-${n}`} id={`citation-${message.id}-${n + 1}`} aria-hidden className="hidden" />
                       ))}
 
-                      {/* Icon tile: shield for legislation, document otherwise */}
-                      <div className="atlas-src-icon" aria-hidden>
-                        {isLegislation ? (
-                          <Shield className="h-[17px] w-[17px]" strokeWidth={1.8} />
-                        ) : (
-                          <FileText className="h-[17px] w-[17px]" strokeWidth={1.8} />
-                        )}
+                      {/* Left column: icon tile with the ORDINAL citation number
+                          beneath it. The number is the group's position (k+1), keeping
+                          the cards a strict 1..n sequence even when merged duplicates
+                          leave gaps in the original indices; inline [n] chips show the
+                          same ordinal via citationDisplayMap. (visibleGroups is a head
+                          slice of sourceGroups, so groupIdx IS the group's position.) */}
+                      <div className="atlas-src-lead">
+                        <div className="atlas-src-icon" aria-hidden>
+                          {isLegislation ? (
+                            <Shield className="h-[17px] w-[17px]" strokeWidth={1.8} />
+                          ) : (
+                            <FileText className="h-[17px] w-[17px]" strokeWidth={1.8} />
+                          )}
+                        </div>
+                        <span className="atlas-src-n">[{groupIdx + 1}]</span>
                       </div>
 
                       <div className="min-w-0 flex-1">
-                        {/* Top row: [n] + title. The number is the group's ORDINAL
-                            position (k+1), keeping the cards a strict 1..n sequence
-                            even when merged duplicates leave gaps in the original
-                            indices; inline [n] chips show the same ordinal via
-                            citationDisplayMap. (visibleGroups is a head slice of
-                            sourceGroups, so groupIdx IS the group's position.) */}
-                        <div className="atlas-src-top">
-                          <span className="atlas-src-n">[{groupIdx + 1}]</span>
-                          <span className="atlas-src-title" title={titleText}>
+                        {/* Genuine title line above the chips (law name for legislation,
+                            document title, or crawl origin). Suppressed when redundant
+                            with the excerpt, so title==excerpt no longer reads as a bug. */}
+                        {titleText && (
+                          <div className="atlas-src-title" title={titleText}>
                             {titleText}
-                          </span>
-                        </div>
+                          </div>
+                        )}
 
                         {/* Meta chips: accent-tinted article chip, bordered rest */}
                         {(chips.length > 0 || showTypeChip) && (

@@ -144,7 +144,7 @@
 
 /* ============ Prose (assistant markdown) ============ */
 .majlis-prose {
-  font-size: 15.5px;
+  font-size: 16px;
   line-height: 1.78;
   color: var(--majlis-ink);
 }
@@ -161,19 +161,19 @@
 }
 
 .majlis-prose h1 {
-  font-size: 26px;
+  font-size: 18px;
   line-height: 1.3;
   margin: 24px 0 6px;
 }
 
 .majlis-prose h2 {
-  font-size: 24px;
+  font-size: 17px;
   line-height: 1.3;
   margin: 24px 0 6px;
 }
 
 .majlis-prose h3 {
-  font-size: 18px;
+  font-size: 16px;
   line-height: 1.4;
   margin: 18px 0 8px;
 }

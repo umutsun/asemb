@@ -189,25 +189,27 @@
 .atlas-prose h1,
 .atlas-prose h2,
 .atlas-prose h3 {
-  font-weight: 650;
   letter-spacing: -0.015em;
   color: var(--atlas-ink);
 }
 
 .atlas-prose h1 {
-  font-size: 21px;
+  font-size: 16.5px;
+  font-weight: 700;
   line-height: 1.3;
   margin: 22px 0 12px;
 }
 
 .atlas-prose h2 {
-  font-size: 19px;
+  font-size: 15.5px;
+  font-weight: 650;
   line-height: 1.35;
   margin: 20px 0 12px;
 }
 
 .atlas-prose h3 {
-  font-size: 16px;
+  font-size: 15px;
+  font-weight: 650;
   line-height: 1.4;
   margin: 16px 0 8px;
 }
@@ -432,10 +434,13 @@
   place-items: center;
 }
 
-.atlas-src-top {
+/* Left column: icon tile with the citation number centered beneath it */
+.atlas-src-lead {
+  flex-shrink: 0;
   display: flex;
-  align-items: baseline;
-  gap: 8px;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
 }
 
 .atlas-src-n {
@@ -444,7 +449,7 @@
   font-weight: 650;
   line-height: 1;
   color: var(--atlas-accent-ink);
-  flex-shrink: 0;
+  text-align: center;
 }
 
 .atlas-src-title {
@@ -452,14 +457,17 @@
   font-weight: 600;
   line-height: 1.4;
   color: var(--atlas-ink);
+  margin-bottom: 2px;
 }
 
 .atlas-src-meta {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
-  margin-top: 7px;
 }
+
+/* When a title line precedes the chips, add breathing room above them */
+.atlas-src-title + .atlas-src-meta { margin-top: 7px; }
 
 .atlas-chip {
   font-size: 11px;
@@ -501,15 +509,15 @@
 .atlas-fup {
   appearance: none;
   cursor: pointer;
-  background: var(--atlas-surface);
+  background: transparent;
   border: 1px solid var(--atlas-border);
-  color: var(--atlas-ink);
+  color: var(--atlas-muted);
   font-family: inherit;
-  font-size: 13px;
+  font-size: 12.5px;
   font-weight: 500;
   line-height: 1.4;
-  padding: 8px 14px;
-  border-radius: 999px;
+  padding: 6px 11px;
+  border-radius: 7px;
   text-align: start;
   transition: border-color 0.15s ease, background 0.15s ease, color 0.15s ease;
 }

@@ -26,8 +26,8 @@ router.post('/api/v2/tts/synthesize', authenticateToken, async (req: Authenticat
       return res.status(403).json({ error: 'Voice output is not enabled' });
     }
 
-    // Check if service is ready
-    if (!ttsService.isReady()) {
+    // Check if service is ready (key resolvable from settings or env)
+    if (!(await ttsService.isReady())) {
       return res.status(503).json({ error: 'TTS service not available' });
     }
 
@@ -96,7 +96,7 @@ router.get('/api/v2/tts/voices', authenticateToken, async (req: AuthenticatedReq
  */
 router.get('/api/v2/tts/health', async (req: Request, res: Response) => {
   try {
-    const isReady = ttsService.isReady();
+    const isReady = await ttsService.isReady();
     const enabled = await settingsService.getSetting('voiceSettings.enableVoiceOutput') === 'true';
 
     res.json({

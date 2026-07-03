@@ -33,27 +33,58 @@ export interface VoiceInfo {
 
 class TTSService {
   private openai: OpenAI | null = null;
+  private resolvedApiKey: string | null = null;
   private maxTextLength = 4096;
 
-  constructor() {
-    this.initialize();
-  }
-
-  private initialize() {
-    const apiKey = process.env.OPENAI_API_KEY;
-    if (apiKey) {
-      this.openai = new OpenAI({ apiKey });
-      console.log('[TTS] Service initialized with OpenAI');
-    } else {
-      console.warn('[TTS] OPENAI_API_KEY not set - TTS will not work');
+  /**
+   * Resolve the OpenAI API key from DB settings (Hard Rule #1), falling back to
+   * env. Runs per request so a key added/changed in `settings` is picked up
+   * without a service restart. The OpenAI client is (re)built only when the
+   * resolved key changes.
+   *
+   * Resolve order: settings `openai.apiKey` -> env `OPENAI_API_KEY`.
+   */
+  private async resolveClient(): Promise<OpenAI | null> {
+    let apiKey: string | null = null;
+    try {
+      const settingValue = await settingsService.getSetting('openai.apiKey');
+      if (settingValue && settingValue.trim().length > 0) {
+        apiKey = settingValue.trim();
+      }
+    } catch (error) {
+      console.warn('[TTS] Could not read openai.apiKey from settings, falling back to env:', error);
     }
+
+    if (!apiKey) {
+      const envKey = process.env.OPENAI_API_KEY;
+      if (envKey && envKey.trim().length > 0) {
+        apiKey = envKey.trim();
+      }
+    }
+
+    if (!apiKey) {
+      this.openai = null;
+      this.resolvedApiKey = null;
+      return null;
+    }
+
+    // Rebuild the client only when the resolved key changes.
+    if (!this.openai || this.resolvedApiKey !== apiKey) {
+      this.openai = new OpenAI({ apiKey });
+      this.resolvedApiKey = apiKey;
+    }
+
+    return this.openai;
   }
 
   /**
-   * Check if TTS service is ready
+   * Check if TTS service is ready.
+   * Reports ready when an OpenAI key is resolvable from settings OR env,
+   * re-checked per call so keys added at runtime are honored.
    */
-  isReady(): boolean {
-    return this.openai !== null;
+  async isReady(): Promise<boolean> {
+    const client = await this.resolveClient();
+    return client !== null;
   }
 
   /**
@@ -74,8 +105,10 @@ class TTSService {
    * Synthesize text to speech
    */
   async synthesize(options: TTSOptions): Promise<TTSResult> {
-    if (!this.openai) {
-      throw new Error('TTS service not initialized - OPENAI_API_KEY missing');
+    // Resolve the key per request (settings -> env) so a key added at runtime works.
+    const openai = await this.resolveClient();
+    if (!openai) {
+      throw new Error('TTS service not initialized - no OpenAI key in settings (openai.apiKey) or env (OPENAI_API_KEY)');
     }
 
     const { text, voice = 'alloy', speed = 1.0, format = 'mp3' } = options;
@@ -97,7 +130,7 @@ class TTSService {
     try {
       console.log(`[TTS] Synthesizing ${text.length} chars with voice: ${voice}, speed: ${validSpeed}`);
 
-      const response = await this.openai.audio.speech.create({
+      const response = await openai.audio.speech.create({
         model: 'tts-1',
         voice: voice,
         input: text,

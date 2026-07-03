@@ -89,6 +89,9 @@ export class WhisperIntegrationService {
       formData.append('model', model);
       formData.append('task', task);
       formData.append('temperature', temperature.toString());
+      // Default to OpenAI API mode; local Whisper (torch) is intentionally disabled.
+      // The Python service resolves the OpenAI key from settings (openai.apiKey).
+      formData.append('mode', process.env.WHISPER_MODE || 'api');
 
       if (initialPrompt) {
         formData.append('initial_prompt', initialPrompt);

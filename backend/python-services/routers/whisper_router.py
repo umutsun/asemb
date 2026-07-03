@@ -12,8 +12,34 @@ from loguru import logger
 
 from services.whisper_service import get_whisper_service
 from services.youtube_service import get_youtube_service
+from services.database import get_db
 
 router = APIRouter(tags=["whisper"])  # prefix provided by main.py (/api/python/whisper)
+
+
+async def resolve_openai_key() -> Optional[str]:
+    """
+    Resolve the OpenAI API key for Whisper API mode.
+
+    Hard Rule #1: the key's source of truth is the DB `settings` table
+    (key `openai.apiKey`); env `OPENAI_API_KEY` is only a fallback. This mirrors
+    the resolver used elsewhere in python-services (e.g.
+    relationship_extraction_service._get_openai_api_key).
+    """
+    try:
+        pool = await get_db()
+        db_key = await pool.fetchval(
+            "SELECT value FROM settings WHERE key = 'openai.apiKey' LIMIT 1"
+        )
+        if db_key:
+            # settings values may be JSON-quoted strings
+            key = db_key.strip().strip('"').strip("'") if isinstance(db_key, str) else str(db_key)
+            if key and key.lower() not in ("null", "none"):
+                return key
+    except Exception as e:
+        logger.warning(f"Could not read openai.apiKey from settings, falling back to env: {e}")
+    env_key = os.getenv("OPENAI_API_KEY")
+    return env_key.strip() if env_key else None
 
 # Language-specific optimization prompts
 LANGUAGE_PROMPTS = {
@@ -73,7 +99,7 @@ async def transcribe_audio(
     audio: UploadFile = File(...),
     language: str = Form("tr"),
     model: str = Form("base"),
-    mode: str = Form("local"),
+    mode: str = Form(os.getenv("WHISPER_MODE", "api")),
     task: str = Form("transcribe"),
     temperature: Optional[float] = Form(None),
     initial_prompt: Optional[str] = Form(None)
@@ -117,21 +143,26 @@ async def transcribe_audio(
         # Get file extension
         file_ext = os.path.splitext(audio.filename)[1].lower()
 
-        # Get API key from environment if API mode
+        # Resolve API key from settings (openai.apiKey) with env fallback if API mode
         api_key = None
         if mode == "api":
-            api_key = os.getenv("OPENAI_API_KEY")
+            api_key = await resolve_openai_key()
             if not api_key:
                 raise HTTPException(
                     status_code=400,
-                    detail="OpenAI API key not configured. Set OPENAI_API_KEY environment variable."
+                    detail="OpenAI API key not configured in settings (openai.apiKey) or env (OPENAI_API_KEY)."
                 )
+            # OpenAI's transcription model is 'whisper-1'; local model sizes
+            # (tiny/base/...) are not valid API model names, so normalize.
+            if model not in ("whisper-1",):
+                model = "whisper-1"
 
-        # Get Whisper service
+        # Get Whisper service (force recreate so a key resolved at runtime is honored)
         whisper_service = get_whisper_service(
             model_name=model,
             mode=mode,
-            api_key=api_key
+            api_key=api_key,
+            force_recreate=(mode == "api")
         )
 
         # Transcribe

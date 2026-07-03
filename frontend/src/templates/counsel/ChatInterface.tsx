@@ -1220,9 +1220,9 @@ export default function ChatInterface() {
         />
 
         {/* Main Chat Area - single centered reading column */}
-        <div className="relative z-10 mx-auto w-full max-w-2xl overflow-hidden px-4">
+        <div className="relative z-10 w-full overflow-hidden">
           <ScrollArea className="h-[calc(100vh-11.5rem)]">
-            <div className="space-y-8 py-6">
+            <div className="mx-auto w-full max-w-2xl space-y-8 py-6 px-4">
               {/* Welcome Screen - only render after settings are loaded */}
               {isClient && settingsLoaded && messages.length === 0 && (
                 <ZenWelcome
