@@ -190,6 +190,28 @@ interface ChatOptions {
   debugSanitizer?: boolean;     // attach the sanitizer/claim-verification summary to _debug.sanitizerReport (eval use)
 }
 
+// Structured-output answer shape (settings-gated, domain-agnostic). Each block carries
+// its own source indices ("citations"); the frontend renders it deterministically — see
+// the STRUCTURED OUTPUT section in this file and the shared StructuredAnswerBody. The
+// schema is generic (summary / sections / steps / bullets) so it fits any assistant
+// domain — per-instance wording lives in settings, never in code (Hard Rule #2).
+interface StructuredAnswerBlock {
+  text: string;
+  citations: number[]; // 1-based indices into the response `sources` array
+}
+interface StructuredAnswerSection {
+  heading: string;
+  paragraphs: StructuredAnswerBlock[];
+  steps: StructuredAnswerBlock[];
+  bullets: StructuredAnswerBlock[];
+}
+export interface StructuredAnswer {
+  language?: string;
+  summary: string;
+  summaryCitations: number[];
+  sections: StructuredAnswerSection[];
+}
+
 export class RAGChatService {
   private pool = pool;
   private llmManager: LLMManager;
@@ -938,6 +960,172 @@ export class RAGChatService {
       const prompt = sections.join('\n\n---\n\n');
       return prompt;
     }
+  }
+
+  // ════════════════════════════════════════════════════════════════════════
+  // STRUCTURED OUTPUT (settings-gated, default OFF via chat.structuredOutput.enabled)
+  // The model returns a JSON object instead of free Markdown, which the frontend
+  // renders deterministically — eliminating merged headings, inline lists, stray
+  // '#', and malformed '[1}' citations as a class. Citations are per-block source
+  // indices (no inline [n] parsing). Falls back to the Markdown pipeline whenever
+  // structured mode is off, the model output can't be parsed, or the response is a
+  // refusal / clarification / out-of-scope / hardcoded answer.
+  // ════════════════════════════════════════════════════════════════════════
+
+  /**
+   * JSON schema for a legal answer. Strict-mode compatible (every field required,
+   * additionalProperties:false, empty arrays when a block is absent).
+   */
+  private buildStructuredAnswerSchema(): Record<string, any> {
+    const citations = {
+      type: 'array',
+      items: { type: 'integer' },
+      description: 'Source numbers this text is grounded in (the [1], [2]... numbering of the sources given above). Empty for general statements.'
+    };
+    const block = {
+      type: 'object',
+      additionalProperties: false,
+      required: ['text', 'citations'],
+      properties: { text: { type: 'string' }, citations }
+    };
+    return {
+      type: 'object',
+      additionalProperties: false,
+      required: ['language', 'summary', 'summaryCitations', 'sections'],
+      properties: {
+        language: { type: 'string', enum: ['en', 'ar', 'tr'], description: 'Language of the text fields' },
+        summary: { type: 'string', description: 'A direct one or two sentence answer to the question' },
+        summaryCitations: citations,
+        sections: {
+          type: 'array',
+          description: 'Ordered content sections that expand on the summary',
+          items: {
+            type: 'object',
+            additionalProperties: false,
+            required: ['heading', 'paragraphs', 'steps', 'bullets'],
+            properties: {
+              heading: { type: 'string', description: 'Short section title (a few words), no trailing colon' },
+              paragraphs: { type: 'array', items: block, description: 'Prose paragraphs' },
+              steps: { type: 'array', items: block, description: 'Ordered steps / sequential actions' },
+              bullets: { type: 'array', items: block, description: 'Unordered key points' }
+            }
+          }
+        }
+      }
+    };
+  }
+
+  /**
+   * Instruction appended to the user prompt describing how to fill the JSON schema.
+   * Settings-overridable per language (Hard Rule #1); English default defined here.
+   */
+  private buildStructuredOutputInstruction(language: string, settingsMap: Map<string, string>): string {
+    const custom = settingsMap.get(`chat.structuredOutput.instruction.${language}`);
+    if (custom && custom.trim()) return custom.trim();
+    const langName = language === 'ar'
+      ? 'Modern Standard Arabic (العربية الفصحى)'
+      : language === 'tr' ? 'Turkish' : 'English';
+    return [
+      'Return your answer ONLY as a JSON object that matches the provided schema. Do not add any text outside the JSON.',
+      `Write every text field in ${langName}.`,
+      '"summary" is a direct 1-2 sentence answer. Put the rest into "sections" — each with a short "heading" and any of "paragraphs", "steps" (ordered actions) or "bullets" (unordered points). Leave an array empty when it is not needed.',
+      'You MAY wrap a few key terms or a leading label in **double asterisks** for bold emphasis. Do NOT use any other Markdown (no "##", no "-" or "1." list markers, no tables) and do NOT put "[1]" citation markers inside any text field.',
+      'Ground every block: list the source numbers it relies on in that block\'s "citations" array as integers (referencing the numbered sources above, e.g. 1, 2). Use an empty array only for general statements.',
+      'Do not state facts, names, numbers or references that are not supported by the provided sources.'
+    ].join('\n');
+  }
+
+  /**
+   * Parse + validate the model's raw JSON string into a normalized StructuredAnswer.
+   * Clamps/drops citation numbers outside [1, sourceCount]. Returns null if the
+   * output is not usable (caller then falls back to the Markdown pipeline).
+   */
+  private parseStructuredAnswer(raw: string, sourceCount: number): StructuredAnswer | null {
+    if (!raw || typeof raw !== 'string') return null;
+    let obj: any;
+    try {
+      obj = JSON.parse(raw);
+    } catch {
+      const match = raw.match(/\{[\s\S]*\}/);
+      if (!match) return null;
+      try { obj = JSON.parse(match[0]); } catch { return null; }
+    }
+    if (!obj || typeof obj !== 'object') return null;
+    if (typeof obj.summary !== 'string' && !Array.isArray(obj.sections)) return null;
+
+    const clampCites = (arr: any): number[] => Array.isArray(arr)
+      ? Array.from(new Set(
+          arr.map((n: any) => parseInt(n, 10))
+             .filter((n: number) => Number.isInteger(n) && n >= 1 && (sourceCount <= 0 || n <= sourceCount))
+        ))
+      : [];
+    // Strip any Markdown that leaked into a text field (block structure comes from the
+    // schema, citations from the array). Keeps **bold** — the renderer honours it.
+    const stripStrayMarkup = (s: string): string => s
+      .replace(/\[\s*\d+\s*\]/g, '')      // inline [n] citation markers (live in `citations`)
+      .replace(/^\s*#{1,6}\s+/, '')       // stray heading marker
+      .replace(/^\s*[-*]\s+/, '')         // stray bullet marker
+      .replace(/^\s*\d+\.\s+/, '')        // stray ordered-list marker
+      .replace(/[ \t]{2,}/g, ' ')
+      .replace(/\s+([.,;:!?])/g, '$1')    // tidy space left before punctuation by removed markers
+      .trim();
+    const cleanBlocks = (arr: any): { text: string; citations: number[] }[] => Array.isArray(arr)
+      ? arr
+          .filter((b: any) => b && typeof b.text === 'string' && stripStrayMarkup(b.text))
+          .map((b: any) => ({ text: stripStrayMarkup(b.text), citations: clampCites(b.citations) }))
+      : [];
+
+    const sections = Array.isArray(obj.sections)
+      ? obj.sections
+          .filter((s: any) => s && typeof s === 'object')
+          .map((s: any) => ({
+            heading: typeof s.heading === 'string' ? stripStrayMarkup(s.heading) : '',
+            paragraphs: cleanBlocks(s.paragraphs),
+            steps: cleanBlocks(s.steps),
+            bullets: cleanBlocks(s.bullets)
+          }))
+          .filter((s: any) => s.heading || s.paragraphs.length || s.steps.length || s.bullets.length)
+      : [];
+
+    const summary = typeof obj.summary === 'string' ? stripStrayMarkup(obj.summary) : '';
+    if (!summary && sections.length === 0) return null;
+
+    const lang = (obj.language === 'ar' || obj.language === 'tr' || obj.language === 'en') ? obj.language : undefined;
+    return { language: lang, summary, summaryCitations: clampCites(obj.summaryCitations), sections };
+  }
+
+  /**
+   * Apply the citation remap (context source number → display source number, keyed by
+   * source._originalIndex) to a structured answer, in place. Citations pointing to a
+   * filtered-out source are dropped. Mirrors the [n] remap done on the Markdown response.
+   */
+  private remapStructuredCitations(answer: StructuredAnswer, remap: Map<number, number>): void {
+    const map = (arr: number[]): number[] =>
+      Array.from(new Set(arr.map((n) => remap.get(n)).filter((n): n is number => typeof n === 'number')));
+    answer.summaryCitations = map(answer.summaryCitations);
+    for (const section of answer.sections) {
+      for (const b of section.paragraphs) b.citations = map(b.citations);
+      for (const b of section.steps) b.citations = map(b.citations);
+      for (const b of section.bullets) b.citations = map(b.citations);
+    }
+  }
+
+  /**
+   * Deterministically render a structured answer to clean Markdown, for the
+   * backward-compatible `response` string (persistence, history/LLM context, and the
+   * frontend Markdown fallback). Blocks carry inline [n] so existing citation wiring works.
+   */
+  private renderStructuredToMarkdown(answer: StructuredAnswer): string {
+    const cite = (c: number[]): string => (c && c.length) ? ' ' + c.map((n) => `[${n}]`).join('') : '';
+    const parts: string[] = [];
+    if (answer.summary) parts.push(`${answer.summary}${cite(answer.summaryCitations)}`);
+    for (const s of answer.sections) {
+      if (s.heading) parts.push(`## ${s.heading}`);
+      for (const p of s.paragraphs) parts.push(`${p.text}${cite(p.citations)}`);
+      if (s.steps.length) parts.push(s.steps.map((st, i) => `${i + 1}. ${st.text}${cite(st.citations)}`).join('\n'));
+      if (s.bullets.length) parts.push(s.bullets.map((b) => `- ${b.text}${cite(b.citations)}`).join('\n'));
+    }
+    return parts.join('\n\n');
   }
 
   /**
@@ -2333,7 +2521,13 @@ ${questionLabel}: ${message}`;
         'ragSettings.maxContextLength',
         'ragSettings.maxExcerptLength',
         'ragSettings.summaryMaxLength',
-        'ragSettings.excerptMaxLength'
+        'ragSettings.excerptMaxLength',
+        // Structured output (JSON answer rendered deterministically on the frontend)
+        'chat.structuredOutput.enabled',
+        'chat.structuredOutput.maxTokens',
+        'chat.structuredOutput.instruction.en',
+        'chat.structuredOutput.instruction.ar',
+        'chat.structuredOutput.instruction.tr'
       ];
 
       const settingsResult = await pool.query(
@@ -3853,18 +4047,55 @@ Lütfen "beyanname" veya "ödeme" yazarak belirtin.`;
         }
       }
 
-      const response: { content: string; provider: string; model: string; fallbackUsed?: boolean; cached?: boolean; usage?: any } =
-        cacheHit
-          ? { content: cachedAnswer as string, provider: providerFromModel, model: activeModel, cached: true }
-          : await llmManager.generateChatResponse(
-              userPromptForLlm,  // User message with context (+ recalled memories) — no system prompt here
-              {
-                temperature: options.temperature,
-                maxTokens: options.maxTokens,
-                systemPrompt: systemPrompt,  // System prompt sent separately to LLM API
-                preferredProvider: providerFromModel  // Pass normalized provider name (claude/openai/gemini/deepseek)
-              }
-            );
+      // ── Structured output (settings-gated, default OFF). When enabled we ask the
+      // model for a JSON answer (provider-native json_schema on OpenAI) so the frontend
+      // can render it deterministically. Any cache hit, parse failure, or generation
+      // error falls back to the normal free-Markdown generation — the answer never breaks.
+      const structuredOutputEnabled =
+        (settingsMap.get('chat.structuredOutput.enabled') || 'false').toString().toLowerCase() === 'true';
+      let structuredAnswer: StructuredAnswer | null = null;
+
+      const normalChatOptions = {
+        temperature: options.temperature,
+        maxTokens: options.maxTokens,
+        systemPrompt: systemPrompt,  // System prompt sent separately to LLM API
+        preferredProvider: providerFromModel  // Pass normalized provider name (claude/openai/gemini/deepseek)
+      };
+
+      let response: { content: string; provider: string; model: string; fallbackUsed?: boolean; cached?: boolean; usage?: any };
+      if (cacheHit) {
+        response = { content: cachedAnswer as string, provider: providerFromModel, model: activeModel, cached: true };
+      } else if (structuredOutputEnabled) {
+        const structuredMaxTokens = parseInt(settingsMap.get('chat.structuredOutput.maxTokens') || '0', 10) || undefined;
+        const structuredSchema = this.buildStructuredAnswerSchema();
+        const structuredInstruction = this.buildStructuredOutputInstruction(effectiveAnswerLang, settingsMap);
+        try {
+          const structuredRes = await llmManager.generateChatResponse(
+            `${userPromptForLlm}\n\n${structuredInstruction}`,
+            {
+              ...normalChatOptions,
+              maxTokens: structuredMaxTokens ?? options.maxTokens,
+              responseFormat: { type: 'json_schema', name: 'structured_answer', schema: structuredSchema }
+            }
+          );
+          const parsed = this.parseStructuredAnswer(structuredRes.content, initialDisplayCount || 0);
+          if (parsed) {
+            structuredAnswer = parsed;
+            // Downstream text logic (refusal detection, sanitizer) runs on clean prose
+            // rendered from the JSON; the final response is re-rendered after citation remap.
+            response = { ...structuredRes, content: this.renderStructuredToMarkdown(parsed) };
+            console.log(`🧩 [structured] parsed legal answer (${parsed.sections.length} sections)`);
+          } else {
+            console.warn('🧩 [structured] could not parse JSON — falling back to Markdown generation');
+            response = await llmManager.generateChatResponse(userPromptForLlm, normalChatOptions);
+          }
+        } catch (structErr) {
+          console.error('🧩 [structured] generation failed — falling back to Markdown:', structErr);
+          response = await llmManager.generateChatResponse(userPromptForLlm, normalChatOptions);
+        }
+      } else {
+        response = await llmManager.generateChatResponse(userPromptForLlm, normalChatOptions);
+      }
       timings.llm = Date.now() - startLLM;
 
       // WS2: on a MISS, cache the RAW answer (pre-post-processing) keyed by the question,
@@ -5464,6 +5695,12 @@ Yani beyanname ile ödeme arasında **2 günlük** bir fark vardır.`;
         }
       }
 
+      // Realign structured-answer citations with the reordered/limited display sources,
+      // using the SAME context→display map applied to the Markdown [n] above.
+      if (structuredAnswer && citationRemap.size > 0) {
+        this.remapStructuredCitations(structuredAnswer, citationRemap);
+      }
+
       // v12.53.1: Extract section headers from system prompt for dynamic header fixing
       const promptSectionHeaders = (systemPrompt.match(/\*\*\d+\.\s+[^*]+:\*\*/g) || []) as string[];
 
@@ -5637,9 +5874,22 @@ Yani beyanname ile ödeme arasında **2 günlük** bir fark vardır.`;
       // 📝 FOOTNOTES: Disabled - sources already shown in Atıflar section with full metadata
       // Footnotes at end of response were redundant
 
+      // Use the structured answer only for genuine FOUND answers with sources — refusals,
+      // clarifications, out-of-scope, and hardcoded deadline responses stay on Markdown.
+      const useStructured = !!structuredAnswer
+        && responseType === 'FOUND'
+        && !isRefusalResponse
+        && !deadlineFixApplied
+        && !deadlineHardcodedApplied
+        && finalSources.length > 0;
+
       return {
-        response: finalResponse,  // Use cleaned response if refusal detected
+        // For a structured answer, re-render the Markdown fresh from the (remapped)
+        // JSON so the persisted/fallback string matches the structured render exactly.
+        response: useStructured ? this.renderStructuredToMarkdown(structuredAnswer!) : finalResponse,
         sources: finalSources,    // Use finalSources (cleared if refusal detected)
+        structured: useStructured ? structuredAnswer : null,     // deterministic render payload
+        responseSchemaId: useStructured ? 'structured-answer' : null, // which structured schema the frontend should use
         relatedTopics: relatedTopics,
         followUpQuestions: followUpQuestions,
         suggestedQuestions: (response as any).suggestedQuestions,  // Clickable suggestions for NEEDS_CLARIFICATION

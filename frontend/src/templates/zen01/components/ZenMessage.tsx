@@ -6,10 +6,9 @@ import { Volume2, Pause, Loader2, ExternalLink, Copy, Check, AlertTriangle } fro
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { ZenTypingIndicator } from './ZenTypingIndicator';
-import { SchemaRenderer } from './SchemaRenderer';
 import { TranslationBadge } from './TranslationBadge';
 import { useAudioPlayer } from '@/lib/hooks/use-audio-player';
-import { prepareMarkdown, cleanLLMResponse, cleanCitationTitle, detectRtl } from '@/lib/chat-markdown';
+import { prepareMarkdown, cleanCitationTitle, detectRtl } from '@/lib/chat-markdown';
 import { getSourceTypeInfo, buildCitationChips, getOfficialSourceUrl, isRedundantTitle } from '@/lib/source-presentation';
 import { useCitationSettings } from '@/lib/citation-settings';
 import { getQualityLevel } from '@/components/chat/quality-badge';
@@ -92,7 +91,7 @@ function highlightKeywordsInText(text: string, keywords: string[]): React.ReactN
 }
 
 // Markdown/citation-title cleanup helpers live in the shared @/lib/chat-markdown module
-// (prepareMarkdown, cleanLLMResponse, cleanCitationTitle) - no local duplicates here.
+// (prepareMarkdown, cleanCitationTitle) - no local duplicates here.
 
 /**
  * Zen01 Message Component
@@ -106,9 +105,6 @@ export const ZenMessage: React.FC<ZenMessageProps> = ({
   voiceOutputEnabled = false,
   enableSourceClick = true,  // From schema, default true
   enableKeywordHighlighting = true,  // From schema, default true
-  responseSchemaId,  // Response format schema ID
-  keywords: backendKeywords = [],  // Backend-extracted keywords for schema sections
-  dayanaklar: backendDayanaklar = [],  // Backend-extracted legal references for schema sections
   minSourcesToShow = 5,  // From RAG settings, default 5
   translation,  // Translation state for this message
   onToggleTranslation,  // Callback to toggle translation
@@ -133,9 +129,6 @@ export const ZenMessage: React.FC<ZenMessageProps> = ({
     if (!enableKeywordHighlighting || !lastUserQuery || isUser) return [];
     return extractKeywords(lastUserQuery);
   }, [lastUserQuery, isUser, enableKeywordHighlighting]);
-
-  // Use schema-based rendering when schemaId is provided
-  const useSchemaRenderer = Boolean(responseSchemaId);
 
   // Determine content to display (original or translated)
   const displayContent = translation?.isShowingTranslation
@@ -315,20 +308,8 @@ export const ZenMessage: React.FC<ZenMessageProps> = ({
         <ZenTypingIndicator />
       ) : (
         <>
-          {/* Answer body */}
-          {useSchemaRenderer ? (
-            <div dir={isRtl ? 'rtl' : 'ltr'}>
-              <SchemaRenderer
-                content={cleanLLMResponse(displayContent)}
-                schemaId={responseSchemaId}
-                keywords={backendKeywords}
-                dayanaklar={backendDayanaklar}
-                className="zen01-schema-response"
-                messageId={message.id}
-              />
-            </div>
-          ) : (
-            <div className="zen01-prose max-w-none" dir={isRtl ? 'rtl' : 'ltr'}>
+          {/* Answer body: plain Markdown rendering */}
+          <div className="zen01-prose max-w-none" dir={isRtl ? 'rtl' : 'ltr'}>
               <ReactMarkdown
                 remarkPlugins={[remarkGfm]}
                 components={{
@@ -473,7 +454,6 @@ export const ZenMessage: React.FC<ZenMessageProps> = ({
                 {prepareMarkdown(displayContent, { lang: contentLang })}
               </ReactMarkdown>
             </div>
-          )}
 
           {/* Meta row: response time · quality, plus hover-revealed ghost actions */}
           <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-[var(--zen-muted)]">

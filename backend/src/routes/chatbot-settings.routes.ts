@@ -112,8 +112,10 @@ router.get('/settings', async (req: Request, res: Response) => {
       enableSourceQuestionGeneration: chatbotData.enableSourceQuestionGeneration !== undefined ? chatbotData.enableSourceQuestionGeneration : true,
       // Keyword Highlighting
       enableKeywordHighlighting: chatbotData.enableKeywordHighlighting !== undefined ? chatbotData.enableKeywordHighlighting : true,
-      // Response Schema (dynamic format configuration)
-      responseSchemaId: chatbotData.responseSchemaId || 'vergilex-article',
+      // Response Schema: settings-driven only (Hard Rule #2 — no hardcoded default).
+      // When unset, the frontend renders plain Markdown; structured answers are driven
+      // by the per-message `structured` payload, not by this id.
+      responseSchemaId: chatbotData.responseSchemaId || null,
       // Custom response schema (if defined in database)
       responseSchema: chatbotData.responseSchema || null,
       // Add app settings for login page

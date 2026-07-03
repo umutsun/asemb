@@ -336,9 +336,7 @@ export default function ChatInterface() {
           enablePdfUpload: chatbotData.enablePdfUpload !== undefined ? chatbotData.enablePdfUpload : false,
           // Voice Feature Toggles (master toggles)
           enableVoiceInput: chatbotData.enableVoiceInput !== undefined ? chatbotData.enableVoiceInput : false,
-          enableVoiceOutput: chatbotData.enableVoiceOutput !== undefined ? chatbotData.enableVoiceOutput : false,
-          // Response schema configuration
-          responseSchemaId: chatbotData.responseSchemaId || 'vergilex-article'
+          enableVoiceOutput: chatbotData.enableVoiceOutput !== undefined ? chatbotData.enableVoiceOutput : false
         };
 
         const minResultsValue = settingsData.ragSettings?.minResults || 7;
@@ -458,8 +456,7 @@ export default function ChatInterface() {
               enableKeywordHighlighting: chatbotData.enableKeywordHighlighting ?? prev.enableKeywordHighlighting,
               enablePdfUpload: chatbotData.enablePdfUpload ?? prev.enablePdfUpload,
               enableVoiceInput: chatbotData.enableVoiceInput ?? prev.enableVoiceInput,
-              enableVoiceOutput: chatbotData.enableVoiceOutput ?? prev.enableVoiceOutput,
-              responseSchemaId: chatbotData.responseSchemaId || prev.responseSchemaId
+              enableVoiceOutput: chatbotData.enableVoiceOutput ?? prev.enableVoiceOutput
             }));
             console.log('[ChatInterface] ✅ Chatbot settings refreshed');
           }
@@ -1239,7 +1236,6 @@ export default function ChatInterface() {
                   voiceOutputEnabled={voiceSettings.enableVoiceOutput}
                   enableSourceClick={chatbotSettings.enableSourceClick}
                   enableKeywordHighlighting={chatbotSettings.enableKeywordHighlighting}
-                  responseSchemaId={chatbotSettings.responseSchemaId}
                   minSourcesToShow={ragSettings.minSourcesToShow}
                   translation={messageTranslations.get(message.id)}
                   onToggleTranslation={() => handleToggleTranslation(message.id)}

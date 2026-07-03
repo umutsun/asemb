@@ -3,6 +3,7 @@
  */
 
 import type { Evidence } from '@/types/chat';
+import type { StructuredAnswer } from '@/components/chat/structured-answer';
 
 // Re-export so counsel components can import everything from '../types'
 export type { Evidence };
@@ -85,6 +86,8 @@ export interface ZenMessage {
   evidence?: Evidence;
   /** Backend-generated follow-up questions rendered as clickable chips */
   followUpQuestions?: string[];
+  /** Structured answer payload — rendered deterministically (StructuredAnswerBody) when present. */
+  structured?: StructuredAnswer;
 }
 
 // Chatbot Settings Interface
@@ -110,8 +113,6 @@ export interface ZenChatbotSettings {
   // Voice Features Master Toggles
   enableVoiceInput?: boolean;
   enableVoiceOutput?: boolean;
-  // Response Schema (dynamic format configuration)
-  responseSchemaId?: string;
 }
 
 // User Info Interface
@@ -224,11 +225,6 @@ export interface ZenMessageProps {
   // Feature toggles from schema
   enableSourceClick?: boolean;
   enableKeywordHighlighting?: boolean;
-  // Response schema configuration
-  responseSchemaId?: string;
-  // Backend-generated metadata for schema sections
-  keywords?: string[];
-  dayanaklar?: string[];
   // Source display configuration
   minSourcesToShow?: number;
   // Translation support

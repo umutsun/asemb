@@ -853,6 +853,25 @@ export class LLMManager {
 
 
   /**
+   * Build an OpenAI-compatible `response_format` value from a generic responseFormat
+   * request. `allowJsonSchema` gates strict json_schema (OpenAI supports it; DeepSeek /
+   * OpenRouter only reliably support json_object, so they downgrade).
+   */
+  private buildOpenAIResponseFormat(
+    rf: { type: 'json_schema' | 'json_object'; name?: string; schema?: Record<string, any> } | undefined,
+    allowJsonSchema: boolean
+  ): any | undefined {
+    if (!rf) return undefined;
+    if (allowJsonSchema && rf.type === 'json_schema' && rf.schema) {
+      return {
+        type: 'json_schema',
+        json_schema: { name: rf.name || 'structured_response', schema: rf.schema, strict: true }
+      };
+    }
+    return { type: 'json_object' };
+  }
+
+  /**
    * Generate chat response using available LLM provider
    */
   async generateChatResponse(
@@ -863,6 +882,16 @@ export class LLMManager {
       systemPrompt?: string;
       preferredProvider?: string; // Add preferred provider option
       _isFallback?: boolean; // Internal flag to prevent infinite recursion
+      // Optional structured-output request. When present, the provider is asked to
+      // return a JSON object (natively enforced where the provider supports it:
+      // OpenAI json_schema strict, Claude forced tool-use, Gemini JSON mime,
+      // DeepSeek/OpenRouter json_object). The returned `content` is the JSON string;
+      // callers JSON.parse it. Absent = today's free-text behaviour (unchanged).
+      responseFormat?: {
+        type: 'json_schema' | 'json_object';
+        name?: string;
+        schema?: Record<string, any>;
+      };
     } = {}
   ): Promise<{ content: string; provider: string; model: string; fallbackUsed?: boolean; usage?: { promptTokens: number; completionTokens: number; totalTokens: number } }> {
     await this.refreshSettingsIfNeeded();
@@ -872,6 +901,7 @@ export class LLMManager {
     const temperature = options.temperature !== undefined ? options.temperature : this.config.temperature;
     const maxTokens = options.maxTokens !== undefined ? options.maxTokens : this.config.maxTokens;
     const systemPrompt = options.systemPrompt !== undefined ? options.systemPrompt : this.config.systemPrompt;
+    const responseFormat = options.responseFormat;
 
     console.log(`️ LLM Manager - options.temperature: ${options.temperature}, final temperature: ${temperature}`);
 
@@ -959,22 +989,48 @@ export class LLMManager {
 
           console.log(` Calling Claude with model: ${prov!.model}, maxTokens: ${maxTokens}, temperature: ${temperature}`);
 
+          // In structured mode, force a single tool call whose input_schema is the JSON
+          // schema — the SDK version (0.61) has no native json_schema, so forced tool-use
+          // is the guaranteed-JSON mechanism for Claude.
+          const claudeToolParams = responseFormat
+            ? {
+                tools: [
+                  {
+                    name: responseFormat.name || 'structured_response',
+                    description: 'Return the answer strictly as a structured object.',
+                    input_schema: (responseFormat.schema as any) || { type: 'object' }
+                  }
+                ],
+                tool_choice: { type: 'tool' as const, name: responseFormat.name || 'structured_response' }
+              }
+            : {};
+
           const claudeResponse = await prov!.client.messages.create({
             model: prov!.model,
             max_tokens: maxTokens,
             temperature: temperature,
             system: systemPrompt,
+            ...claudeToolParams,
             messages: [{ role: 'user', content: message }]
           });
 
           console.log(` Claude response received, content blocks: ${claudeResponse.content?.length || 0}`);
 
-          // Extract text content from Claude response
+          // Extract content from Claude response. Structured mode: read the tool_use block's
+          // input (the JSON object) and stringify it. Otherwise read the text block.
           let content = '';
           if (claudeResponse.content && claudeResponse.content.length > 0) {
-            const textBlock = claudeResponse.content.find((block: any) => block.type === 'text');
-            if (textBlock && textBlock.text) {
-              content = textBlock.text;
+            if (responseFormat) {
+              const toolBlock = claudeResponse.content.find((block: any) => block.type === 'tool_use');
+              if (toolBlock && (toolBlock as any).input !== undefined) {
+                content = JSON.stringify((toolBlock as any).input);
+              }
+            }
+            if (!content) {
+              const textBlock = claudeResponse.content.find((block: any) => block.type === 'text');
+              if (textBlock && textBlock.text) {
+                content = textBlock.text;
+              }
             }
           }
 
@@ -1010,10 +1066,12 @@ export class LLMManager {
             hasCompletions: !!(prov!.client && (prov!.client as any).chat && (prov!.client as any).chat.completions)
           });
           console.log(` [CHAT REQUEST] Using OpenAI | Model: ${prov!.model} | Provider: ${provider} | Preferred: ${preferredProvider}`);
+          const openaiRf = this.buildOpenAIResponseFormat(responseFormat, true);
           const openaiResponse = await prov!.client.chat.completions.create({
             model: prov!.model,
             max_tokens: maxTokens,
             temperature: temperature,
+            ...(openaiRf ? { response_format: openaiRf } : {}),
             messages: [
               { role: 'system', content: systemPrompt },
               { role: 'user', content: message }
@@ -1066,9 +1124,11 @@ export class LLMManager {
           // Add user message
           parts.push({ text: message });
           
-          // Generate content with proper format
+          // Generate content with proper format. In structured mode, force a JSON
+          // response via responseMimeType (the answer shape is instructed in the prompt).
           const geminiResponse = await geminiModel.generateContent({
-            contents: [{ parts }]
+            contents: [{ parts }],
+            ...(responseFormat ? { generationConfig: { responseMimeType: 'application/json' } } : {})
           });
           
           // Gemini usageMetadata contains token counts
@@ -1107,10 +1167,12 @@ export class LLMManager {
           // Ensure we're using the correct model name - force deepseek-chat as default
           const deepseekModel = 'deepseek-chat';
           console.log(` Using DeepSeek model: ${deepseekModel}`);
+          const deepseekRf = this.buildOpenAIResponseFormat(responseFormat, false);
           const deepseekResponse = await prov!.client.chat.completions.create({
             model: deepseekModel,
             max_tokens: maxTokens,
             temperature: temperature,
+            ...(deepseekRf ? { response_format: deepseekRf } : {}),
             messages: [
               { role: 'system', content: systemPrompt },
               { role: 'user', content: message }
@@ -1150,10 +1212,12 @@ export class LLMManager {
           // OpenRouter model name should be in format "provider/model" (e.g., "openai/gpt-4o-mini")
           const openrouterModel = prov!.model || 'openai/gpt-4o-mini';
           console.log(` [CHAT REQUEST] Using OpenRouter | Model: ${openrouterModel} | Provider: ${provider} | Preferred: ${preferredProvider}`);
+          const openrouterRf = this.buildOpenAIResponseFormat(responseFormat, false);
           const openrouterResponse = await prov!.client.chat.completions.create({
             model: openrouterModel,
             max_tokens: maxTokens,
             temperature: temperature,
+            ...(openrouterRf ? { response_format: openrouterRf } : {}),
             messages: [
               { role: 'system', content: systemPrompt },
               { role: 'user', content: message }

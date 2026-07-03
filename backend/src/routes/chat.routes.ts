@@ -185,8 +185,12 @@ router.post('/api/v2/chat', authenticateToken, async (req: AuthenticatedRequest,
       responseFirst200: result.response?.substring(0, 200)
     });
 
-    // Citation reorder: remove unused, renumber sequentially (shared helper)
-    applyCitationReorder(result as any);
+    // Citation reorder: remove unused, renumber sequentially (shared helper).
+    // Skipped for structured answers — their citations are already aligned to the
+    // display sources and are rendered from the structured object, not from [n] text.
+    if (!(result as any).structured) {
+      applyCitationReorder(result as any);
+    }
 
     // Save enhanced chat interaction with search results and sources
     // This is done asynchronously to not block the response
@@ -223,7 +227,9 @@ router.post('/api/v2/chat', authenticateToken, async (req: AuthenticatedRequest,
               processingTime: (result as any).processingTime,
               confidence: (result as any).confidence,
               evidence: (result as any).evidence, // Evidence-gate scores (quality badge on history reload)
-              usage: (result as any).usage // Token usage from LLM response
+              usage: (result as any).usage, // Token usage from LLM response
+              structured: (result as any).structured || null, // Structured answer for deterministic re-render on history reload
+              responseSchemaId: (result as any).responseSchemaId || null
             }
           );
 
@@ -875,8 +881,12 @@ async function streamChatResponse(
     // Generate the full response
     const result = await ragChat.processMessage(message, conversationId, userId, options);
 
-    // Citation reorder: remove unused, renumber sequentially (shared helper)
-    applyCitationReorder(result as any);
+    // Citation reorder: remove unused, renumber sequentially (shared helper).
+    // Skipped for structured answers — their citations are already aligned to the
+    // display sources and are rendered from the structured object, not from [n] text.
+    if (!(result as any).structured) {
+      applyCitationReorder(result as any);
+    }
 
     // Send final response
     if (ws.readyState === ws.OPEN) {
@@ -889,6 +899,8 @@ async function streamChatResponse(
         relatedTopics: (result as any).relatedTopics,
         language: (result as any).language,
         evidence: (result as any).evidence,
+        structured: (result as any).structured || null, // Structured answer for deterministic render
+        responseSchemaId: (result as any).responseSchemaId || null,
         fastMode: (result as any).fastMode || false // Pass fastMode flag to frontend
       }));
     }

@@ -6,10 +6,10 @@ import { Volume2, Pause, Loader2, ExternalLink, Copy, Check, AlertTriangle, Shie
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { ZenTypingIndicator } from './ZenTypingIndicator';
-import { SchemaRenderer } from './SchemaRenderer';
 import { TranslationBadge } from './TranslationBadge';
+import { StructuredAnswerBody, isStructuredAnswer } from '@/components/chat/structured-answer';
 import { useAudioPlayer } from '@/lib/hooks/use-audio-player';
-import { prepareMarkdown, cleanLLMResponse, cleanCitationTitle, detectRtl } from '@/lib/chat-markdown';
+import { prepareMarkdown, cleanCitationTitle, detectRtl } from '@/lib/chat-markdown';
 import { getSourceTypeInfo, buildCitationChips, getOfficialSourceUrl, isRedundantTitle, cleanExcerpt } from '@/lib/source-presentation';
 import { useCitationSettings } from '@/lib/citation-settings';
 import { getQualityLevel } from '@/components/chat/quality-badge';
@@ -141,9 +141,6 @@ export const ZenMessage: React.FC<ZenMessageProps> = ({
   voiceOutputEnabled = false,
   enableSourceClick = true,  // From schema, default true
   enableKeywordHighlighting = true,  // From schema, default true
-  responseSchemaId,  // Response format schema ID
-  keywords: backendKeywords = [],  // Backend-extracted keywords for schema sections
-  dayanaklar: backendDayanaklar = [],  // Backend-extracted legal references for schema sections
   minSourcesToShow = 5,  // From RAG settings, default 5
   translation,  // Translation state for this message
   onToggleTranslation,  // Callback to toggle translation
@@ -188,8 +185,11 @@ export const ZenMessage: React.FC<ZenMessageProps> = ({
     return extractKeywords(lastUserQuery);
   }, [lastUserQuery, isUser, enableKeywordHighlighting]);
 
-  // Use schema-based rendering when schemaId is provided
-  const useSchemaRenderer = Boolean(responseSchemaId);
+  // Structured "legal answer" payload: rendered deterministically when present (and not
+  // showing a translated Markdown string). Legacy / non-structured messages use Markdown.
+  const structuredAnswer = (!translation?.isShowingTranslation && isStructuredAnswer(message.structured))
+    ? message.structured
+    : null;
 
   // Audio player hook for TTS
   const { isPlaying, isLoading: isTTSLoading, play, pause } = useAudioPlayer({
@@ -405,6 +405,15 @@ export const ZenMessage: React.FC<ZenMessageProps> = ({
     return child;
   };
 
+  // Inline text renderer for the structured body: applies keyword highlighting to plain
+  // text spans (the structured renderer handles **bold** + citation chips itself).
+  const renderInlineText = (text: string, keyPrefix: string): React.ReactNode => {
+    if (highlightKeywords.length > 0) {
+      return <React.Fragment key={keyPrefix}>{highlightKeywordsInText(text, highlightKeywords)}</React.Fragment>;
+    }
+    return text;
+  };
+
   // Answer quality level (evidence gate when available; count fallback for legacy messages)
   const qualityLevel = getQualityLevel(message.evidence, message.sources?.length || 0);
 
@@ -444,17 +453,14 @@ export const ZenMessage: React.FC<ZenMessageProps> = ({
         <ZenTypingIndicator />
       ) : (
         <>
-          {/* Answer body */}
-          {useSchemaRenderer ? (
+          {/* Answer body: deterministic structured render when present, else Markdown */}
+          {structuredAnswer ? (
             <div dir={isRtl ? 'rtl' : 'ltr'}>
-              <SchemaRenderer
-                content={cleanLLMResponse(displayContent)}
-                schemaId={responseSchemaId}
-                keywords={backendKeywords}
-                dayanaklar={backendDayanaklar}
-                className="atlas-schema-response"
-                messageId={message.id}
-                citationDisplayMap={citationDisplayMap}
+              <StructuredAnswerBody
+                answer={structuredAnswer}
+                renderCite={renderCitationSup}
+                renderInline={renderInlineText}
+                className="atlas-prose max-w-none"
               />
             </div>
           ) : (

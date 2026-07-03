@@ -110,8 +110,6 @@ export interface ZenChatbotSettings {
   // Voice Features Master Toggles
   enableVoiceInput?: boolean;
   enableVoiceOutput?: boolean;
-  // Response Schema (dynamic format configuration)
-  responseSchemaId?: string;
 }
 
 // User Info Interface
@@ -224,11 +222,6 @@ export interface ZenMessageProps {
   // Feature toggles from schema
   enableSourceClick?: boolean;
   enableKeywordHighlighting?: boolean;
-  // Response schema configuration
-  responseSchemaId?: string;
-  // Backend-generated metadata for schema sections
-  keywords?: string[];
-  dayanaklar?: string[];
   // Source display configuration
   minSourcesToShow?: number;
   // Translation support

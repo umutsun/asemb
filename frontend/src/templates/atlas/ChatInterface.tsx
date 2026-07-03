@@ -34,6 +34,7 @@ import type {
   DEFAULT_ACTIVE_PROMPT
 } from './types';
 import { useToast } from '@/hooks/use-toast';
+import { isStructuredAnswer } from '@/components/chat/structured-answer';
 
 // Suggestions cache TTL
 const SUGGESTIONS_CACHE_TTL = 60 * 60 * 1000; // 1 hour
@@ -345,9 +346,6 @@ export default function ChatInterface() {
           // Voice Feature Toggles (master toggles)
           enableVoiceInput: chatbotData.enableVoiceInput !== undefined ? chatbotData.enableVoiceInput : false,
           enableVoiceOutput: chatbotData.enableVoiceOutput !== undefined ? chatbotData.enableVoiceOutput : false,
-          // Response schema configuration (settings-driven only; when unset the
-          // plain markdown renderer is used instead of a schema renderer)
-          responseSchemaId: chatbotData.responseSchemaId
         };
 
         const minResultsValue = settingsData.ragSettings?.minResults || 7;
@@ -468,9 +466,6 @@ export default function ChatInterface() {
               enablePdfUpload: chatbotData.enablePdfUpload ?? prev.enablePdfUpload,
               enableVoiceInput: chatbotData.enableVoiceInput ?? prev.enableVoiceInput,
               enableVoiceOutput: chatbotData.enableVoiceOutput ?? prev.enableVoiceOutput,
-              // No `|| prev` fallback: undefined is meaningful here — a cleared
-              // schema id must take effect immediately (plain markdown branch).
-              responseSchemaId: chatbotData.responseSchemaId
             }));
             console.log('[ChatInterface] ✅ Chatbot settings refreshed');
           }
@@ -907,7 +902,8 @@ export default function ChatInterface() {
               fastMode: data.fastMode,
               language: data.language,
               evidence: data.evidence,
-              followUpQuestions: data.followUpQuestions
+              followUpQuestions: data.followUpQuestions,
+              structured: data.structured || undefined
             }
             : msg
         ));
@@ -1152,7 +1148,8 @@ export default function ChatInterface() {
           evidence: (meta.evidence as ZenMessageType['evidence']) || undefined,
           followUpQuestions: Array.isArray(meta.followUpQuestions)
             ? (meta.followUpQuestions as string[])
-            : undefined
+            : undefined,
+          structured: isStructuredAnswer(meta.structured) ? meta.structured : undefined
         };
       });
 
@@ -1254,7 +1251,6 @@ export default function ChatInterface() {
                   voiceOutputEnabled={voiceSettings.enableVoiceOutput}
                   enableSourceClick={chatbotSettings.enableSourceClick}
                   enableKeywordHighlighting={chatbotSettings.enableKeywordHighlighting}
-                  responseSchemaId={chatbotSettings.responseSchemaId}
                   minSourcesToShow={ragSettings.minSourcesToShow}
                   translation={messageTranslations.get(message.id)}
                   onToggleTranslation={() => handleToggleTranslation(message.id)}
