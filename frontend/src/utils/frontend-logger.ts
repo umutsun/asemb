@@ -6,208 +6,112 @@ interface FrontendLogEntry {
   metadata?: any;
 }
 
+/**
+ * Frontend logger.
+ *
+ * IMPORTANT: this used to monkey-patch console.log/info/warn/error/debug and fire ONE
+ * fetch() per console call to a backend endpoint. Combined with the app's chatty
+ * per-request logging + axios-retry, that turned every page load into an unbounded storm
+ * of fetch/Promise/string allocations to a (non-existent) endpoint — ballooning the tab
+ * to tens of GB of RAM. It is now:
+ *   - OFF by default (enable per deployment via NEXT_PUBLIC_FRONTEND_LOG='true'),
+ *   - never patches console.* (no per-log fetch),
+ *   - only captures genuine window errors / unhandled rejections,
+ *   - queue is CAPPED and flushed in a single batched interval (drops on overflow/failure).
+ */
 class FrontendLogger {
   private isInitialized = false;
-  private originalConsole: {
-    log: typeof console.log;
-    warn: typeof console.warn;
-    error: typeof console.error;
-    debug: typeof console.debug;
-    info: typeof console.info;
-  };
+  private readonly enabled: boolean;
+  private readonly apiUrl: string;
   private logQueue: FrontendLogEntry[] = [];
-  private apiUrl: string;
+  private flushTimer: ReturnType<typeof setInterval> | null = null;
+  private readonly MAX_QUEUE = 50;
+  private readonly FLUSH_MS = 10000;
+  // Bound reference to the real console.error so failure reporting can never re-enter.
+  private readonly reportError: typeof console.error;
 
   constructor() {
-    this.apiUrl = process.env.NEXT_PUBLIC_API_URL || '/api';
-    this.originalConsole = {
-      log: console.log,
-      warn: console.warn,
-      error: console.error,
-      debug: console.debug,
-      info: console.info,
-    };
+    // Disabled unless a deployment explicitly opts in AND a backend log sink exists.
+    this.enabled = String(process.env.NEXT_PUBLIC_FRONTEND_LOG || '').toLowerCase() === 'true';
+    this.apiUrl = process.env.NEXT_PUBLIC_API_URL || '';
+    this.reportError = (typeof console !== 'undefined' ? console.error.bind(console) : (() => {})) as typeof console.error;
   }
 
   initialize() {
-    if (this.isInitialized || typeof window === 'undefined') return;
+    if (this.isInitialized || typeof window === 'undefined' || !this.enabled) return;
+    this.isInitialized = true;
 
-    // Override console methods
-    console.log = (...args: any[]) => {
-      this.processLog('info', args);
-      this.originalConsole.log.apply(console, args);
-    };
-
-    console.warn = (...args: any[]) => {
-      this.processLog('warn', args);
-      this.originalConsole.warn.apply(console, args);
-    };
-
-    console.error = (...args: any[]) => {
-      this.processLog('error', args);
-      this.originalConsole.error.apply(console, args);
-    };
-
-    console.debug = (...args: any[]) => {
-      this.processLog('debug', args);
-      this.originalConsole.debug.apply(console, args);
-    };
-
-    console.info = (...args: any[]) => {
-      this.processLog('info', args);
-      this.originalConsole.info.apply(console, args);
-    };
-
-    // Capture unhandled errors
+    // Capture ONLY real runtime errors — never console.* (patching console + fetching per
+    // call is exactly what caused the unbounded allocation storm).
     window.addEventListener('error', (event) => {
-      this.sendLog({
+      this.enqueue({
         level: 'error',
-        message: event.message,
+        message: String(event.message || 'window.error').slice(0, 500),
         source: 'window.error',
         timestamp: new Date().toISOString(),
-        metadata: {
-          filename: event.filename,
-          lineno: event.lineno,
-          colno: event.colno,
-          stack: event.error?.stack
-        }
+        metadata: { filename: event.filename, lineno: event.lineno, colno: event.colno }
       });
     });
-
-    // Capture unhandled promise rejections
     window.addEventListener('unhandledrejection', (event) => {
-      this.sendLog({
+      this.enqueue({
         level: 'error',
-        message: `Unhandled Promise Rejection: ${event.reason}`,
+        message: `Unhandled promise rejection: ${String((event as PromiseRejectionEvent).reason)}`.slice(0, 500),
         source: 'unhandled.rejection',
-        timestamp: new Date().toISOString(),
-        metadata: {
-          reason: event.reason
-        }
+        timestamp: new Date().toISOString()
       });
     });
 
-    this.isInitialized = true;
-    console.log('Frontend Logger initialized');
-
-    // Send queued logs
-    this.flushQueue();
+    this.flushTimer = setInterval(() => { void this.flush(); }, this.FLUSH_MS);
   }
 
-  private processLog(level: FrontendLogEntry['level'], args: any[]) {
-    // Skip certain logs to reduce noise
-    const message = args.map(arg =>
-      typeof arg === 'object' ? JSON.stringify(arg) : String(arg)
-    ).join(' ');
-
-    // Skip React DevTools and other noise
-    if (message.includes('Warning: ReactDOM.render is deprecated') ||
-        message.includes('Warning: componentWillMount has been renamed') ||
-        message.includes('[HMR]') ||
-        message.includes('DevTools')) {
-      return;
-    }
-
-    this.sendLog({
-      level,
-      message,
-      source: 'frontend',
-      timestamp: new Date().toISOString(),
-      metadata: {
-        url: window.location.href,
-        userAgent: navigator.userAgent.substring(0, 100)
-      }
-    });
-  }
-
-  private async sendLog(logEntry: FrontendLogEntry) {
-    // If not initialized, queue the log
-    if (!this.isInitialized) {
-      this.logQueue.push(logEntry);
-      return;
-    }
-
-    try {
-      await fetch(`${this.apiUrl}/api/v2/frontend/log`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(logEntry)
-      });
-    } catch (error) {
-      // Silently fail to avoid infinite loops
-      this.originalConsole.error('Failed to send frontend log:', error);
+  private enqueue(entry: FrontendLogEntry) {
+    if (!this.enabled) return;
+    this.logQueue.push(entry);
+    // Hard cap: drop the oldest so the queue can never grow without bound.
+    if (this.logQueue.length > this.MAX_QUEUE) {
+      this.logQueue = this.logQueue.slice(-this.MAX_QUEUE);
     }
   }
 
-  private async flushQueue() {
-    if (this.logQueue.length === 0) return;
-
-    const logsToSend = [...this.logQueue];
+  private async flush() {
+    if (!this.enabled || this.logQueue.length === 0 || !this.apiUrl) return;
+    const batch = this.logQueue;
     this.logQueue = [];
-
     try {
       await fetch(`${this.apiUrl}/api/v2/frontend/batch`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ logs: logsToSend })
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ logs: batch })
       });
     } catch (error) {
-      this.originalConsole.error('Failed to send queued logs:', error);
+      // Drop on failure — NEVER re-queue (unbounded re-queue is what let it grow).
+      this.reportError('[frontend-logger] flush failed:', error);
     }
   }
 
-  // Manual log methods
+  // Manual API — queued + batched, inert when disabled. Kept for existing callers/tests.
   info(message: string, metadata?: any) {
-    this.sendLog({
-      level: 'info',
-      message,
-      source: 'manual',
-      timestamp: new Date().toISOString(),
-      metadata
-    });
+    this.enqueue({ level: 'info', message, source: 'manual', timestamp: new Date().toISOString(), metadata });
   }
 
   warn(message: string, metadata?: any) {
-    this.sendLog({
-      level: 'warn',
-      message,
-      source: 'manual',
-      timestamp: new Date().toISOString(),
-      metadata
-    });
+    this.enqueue({ level: 'warn', message, source: 'manual', timestamp: new Date().toISOString(), metadata });
   }
 
   error(message: string, metadata?: any) {
-    this.sendLog({
-      level: 'error',
-      message,
-      source: 'manual',
-      timestamp: new Date().toISOString(),
-      metadata
-    });
+    this.enqueue({ level: 'error', message, source: 'manual', timestamp: new Date().toISOString(), metadata });
   }
 
   debug(message: string, metadata?: any) {
-    this.sendLog({
-      level: 'debug',
-      message,
-      source: 'manual',
-      timestamp: new Date().toISOString(),
-      metadata
-    });
+    this.enqueue({ level: 'debug', message, source: 'manual', timestamp: new Date().toISOString(), metadata });
   }
 
-  // Restore original console methods
+  // Kept for API compatibility. Nothing is patched anymore, so this only stops the flush timer.
   restore() {
-    console.log = this.originalConsole.log;
-    console.warn = this.originalConsole.warn;
-    console.error = this.originalConsole.error;
-    console.debug = this.originalConsole.debug;
-    console.info = this.originalConsole.info;
+    if (this.flushTimer) {
+      clearInterval(this.flushTimer);
+      this.flushTimer = null;
+    }
     this.isInitialized = false;
   }
 }
@@ -217,9 +121,8 @@ const frontendLogger = new FrontendLogger();
 
 export default frontendLogger;
 
-// Initialize on client side
+// Initialize on the client (no-op unless NEXT_PUBLIC_FRONTEND_LOG='true').
 if (typeof window !== 'undefined') {
-  // Initialize after a short delay to ensure the page is loaded
   setTimeout(() => {
     frontendLogger.initialize();
   }, 1000);
