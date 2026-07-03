@@ -126,6 +126,10 @@ const PIVOT_VERB =
 // **According to** Cabinet Decision …").
 const CONNECTOR =
   '(?:According\\s+to|Pursuant\\s+to|In\\s+accordance|As\\s+per|Under\\s+the|Based\\s+on)';
+// An infinitive clause ("**To** recover input VAT, …") that opens body prose after a short
+// Title-Case section title ("General Conditions To recover …"). The verb must start lowercase so a
+// Title-Case "to Register" inside a heading ("Steps to Register a New Business") never matches.
+const INFINITIVE_LEAD = 'To\\s+[a-z]';
 // Small function words allowed to sit inside a Title-Case heading phrase without ending it.
 const HEADING_SMALL_WORD = new Set([
   'of', 'the', 'a', 'an', 'to', 'for', 'and', 'or', 'in', 'on', 'with', 'by', 'from', 'as', 'at', 'per',
@@ -136,9 +140,11 @@ const HEADING_SMALL_WORD = new Set([
  * short Title-Case title ends and a body sentence begins — or -1 when the whole line is a
  * legitimate heading with no glued-on body. Pure/deterministic; no external state.
  *
- * Two signals, leftmost wins:
+ * Signals, EARLIEST wins (the body starts at the first of these, never a late pivot):
  *  (1) a sentence connector ("According to …") that begins the body;
- *  (2) a finite verb (PIVOT_VERB): the body's subject is found either at a repeated Title-Case
+ *  (2) an infinitive clause ("To recover …") opening the body after a short Title-Case title
+ *      ("General Conditions To recover input VAT …" → title "General Conditions");
+ *  (3) a finite verb (PIVOT_VERB): the body's subject is found either at a repeated Title-Case
  *      token before the verb (the LLM restated the topic to start the body — e.g.
  *      "Goods Subject to Excise Tax **Excise** Tax is levied …") or, absent a repeat, at a
  *      bounded capitalized subject just before the verb.
@@ -151,6 +157,12 @@ function headingBodyBoundary(rest: string): number {
 
   const connM = new RegExp('\\s(' + CONNECTOR + ')\\b').exec(rest);
   if (connM) candidates.push(connM.index + 1);
+
+  // An infinitive clause after >= 2 leading Title-Case words is an early body boundary. Requiring a
+  // preceding word keeps the "To" out of the title while never firing on a heading that itself opens
+  // with "To …" (there would be no title left). "To" must be word-initial and verb lowercase.
+  const infM = new RegExp('(?:^|\\s)(' + INFINITIVE_LEAD + ')').exec(rest);
+  if (infM && infM.index > 0) candidates.push(infM.index + (infM[0].length - infM[1].length));
 
   const verbRe = new RegExp('^' + PIVOT_VERB + '$', 'i');
   let vi = -1;

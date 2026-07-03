@@ -128,6 +128,44 @@ describe('preprocessMarkdown — malformed LLM heading/list repair', () => {
   });
 });
 
+describe('preprocessMarkdown — heading with early infinitive/connector body boundary', () => {
+  it('E: "General Conditions To recover …" keeps only the short title, rest becomes body + list', () => {
+    const input =
+      '## General Conditions To recover input VAT, the following conditions must be met: 1. The Taxable Person must be registered. 2. The input tax must have been incurred.';
+    const out = preprocessMarkdown(input);
+    // The heading is exactly the short Title-Case title — the infinitive clause is NOT absorbed.
+    expect(headingLines(out)).toEqual(['## General Conditions']);
+    expect(out).toContain('## General Conditions\n\nTo recover input VAT');
+    // The two steps form one contiguous ordered list.
+    assertSingleOrderedList(out.split('## General Conditions')[1], 2);
+  });
+
+  it('F: "Specific Conditions According to …" splits at the connector', () => {
+    const input =
+      '## Specific Conditions According to **Federal Decree-Law No. 8 of 2017** and its amendments, the recovery of input VAT is permitted only under stated cases.';
+    const out = preprocessMarkdown(input);
+    expect(headingLines(out)).toEqual(['## Specific Conditions']);
+    expect(out).toContain('## Specific Conditions\n\nAccording to ');
+  });
+
+  it('G: "Calculation of Recoverable Input Tax The calculation …" splits at the restated topic', () => {
+    const input =
+      '## Calculation of Recoverable Input Tax The calculation for recoverable input tax is outlined as follows: it depends on use.';
+    const out = preprocessMarkdown(input);
+    expect(headingLines(out)).toEqual(['## Calculation of Recoverable Input Tax']);
+    expect(out).toContain('## Calculation of Recoverable Input Tax\n\nThe calculation ');
+  });
+
+  it('H: "Additional Considerations 1. If …" pulls the list off the heading (STEP 2c)', () => {
+    const input =
+      '## Additional Considerations 1. If the difference between input and output tax is material, an adjustment is required. 2. The recovery must be documented.';
+    const out = preprocessMarkdown(input);
+    // The heading holds only its short title; the numbered list begins the body block.
+    expect(headingLines(out)).toEqual(['## Additional Considerations']);
+    expect(out).toContain('## Additional Considerations\n\n1. If the difference ');
+  });
+});
+
 describe('preprocessMarkdown — regression guards (no over-splitting)', () => {
   it('leaves a genuinely short heading untouched', () => {
     const input = '## Corporate Tax Rate\n\nThe rate is 9% on taxable income above the threshold.';

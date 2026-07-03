@@ -244,8 +244,15 @@ export default function ChatInterface() {
   }, [settingsLoaded, chatbotSettings.enableSuggestions]);
 
   const [shuffledSuggestions, setShuffledSuggestions] = useState<string[]>([]);
+  // Bumped on each new conversation / clear so the welcome re-shuffles its example
+  // questions even when the cached POOL is unchanged (the fetch cache stays intact —
+  // only the SELECTION is re-randomized). A returning user sees a different set.
+  const [shuffleNonce, setShuffleNonce] = useState(0);
 
-  // Shuffle and limit suggestions based on maxSuggestionCards setting
+  // Randomly shuffle and limit suggestions for the welcome screen. Uses Math.random()
+  // (app code) so the displayed set VARIES between loads/conversations, rather than the
+  // old deterministic seed that always produced the same order. The pool itself is still
+  // served from the fetch cache (suggestionsCache); only the selection is randomized.
   useEffect(() => {
     if (suggestedQuestions.length === 0) {
       setShuffledSuggestions([]);
@@ -253,16 +260,16 @@ export default function ChatInterface() {
     }
 
     const unique = Array.from(new Set(suggestedQuestions));
-    const seed = unique[0]?.charCodeAt(0) || 1;
     const shuffled = [...unique];
     for (let i = shuffled.length - 1; i > 0; i--) {
-      const j = Math.floor(((i + 1) * seed * 7) % shuffled.length);
+      const j = Math.floor(Math.random() * (i + 1));
       [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
     }
-    // Use maxSuggestionCards from settings (default 10 for /suggest panel)
+    // Use maxSuggestionCards from settings (default 10). When the pool is smaller than
+    // the cap, slice() simply returns the whole (shuffled) pool.
     const maxCards = chatbotSettings.maxSuggestionCards || 10;
     setShuffledSuggestions(shuffled.slice(0, maxCards));
-  }, [suggestedQuestions, chatbotSettings.maxSuggestionCards]);
+  }, [suggestedQuestions, chatbotSettings.maxSuggestionCards, shuffleNonce]);
 
   const memoizedSuggestions = shuffledSuggestions;
 
@@ -1109,6 +1116,8 @@ export default function ChatInterface() {
     setConversationId(undefined);
     setShowSuggestions(chatbotSettings.enableSuggestions);
     setIsHistoryOpen(false);
+    // Re-shuffle the welcome's example questions from the cached pool.
+    setShuffleNonce(n => n + 1);
 
     // Refresh suggestions
     if (typeof window !== 'undefined') {
@@ -1192,6 +1201,8 @@ export default function ChatInterface() {
     setMessageTranslations(new Map()); // Clear translations too
     setShowSuggestions(chatbotSettings.enableSuggestions);
     setConversationId(undefined);
+    // Re-shuffle the welcome's example questions from the cached pool.
+    setShuffleNonce(n => n + 1);
 
     if (typeof window !== 'undefined') {
       setIsSuggestionsLoading(true);

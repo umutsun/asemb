@@ -171,6 +171,54 @@ export function isRedundantTitle(title?: string, body?: string): boolean {
 }
 
 /**
+ * Make a raw retrieval chunk fragment more readable for a citation excerpt WITHOUT
+ * fabricating content. Chunk boundaries often cut mid-word or mid-sentence, so the
+ * stored excerpt can start with a lowercase partial fragment (e.g. "clude a copy of
+ * his passport…" from "…include a copy…", or "natural or legal persons…").
+ *
+ * Rules:
+ *  - Trim and collapse internal whitespace/newlines to single spaces.
+ *  - If the text starts mid-word / lowercase, drop the leading partial fragment up to
+ *    the first sentence-like start (the first capital letter that begins a word). If
+ *    the whole thing is lowercase (no such start), just capitalize the first letter.
+ *  - Never append an ellipsis — the 2-line CSS clamp shows the visual truncation, and
+ *    a source that already ended with "…" keeps it.
+ *  - Defensive: return the original trimmed text when cleanup would leave it empty or
+ *    too short (< ~20 chars), so we never blank out a usable (if imperfect) excerpt.
+ *
+ * Non-Latin scripts (Arabic, etc.) have no letter case, so the lowercase-start branch
+ * never triggers for them and they are returned collapsed/trimmed as-is.
+ */
+export function cleanExcerpt(text: string): string {
+  const original = (text || '').trim();
+  if (!original) return '';
+
+  // Collapse internal whitespace/newlines to single spaces.
+  const collapsed = original.replace(/\s+/g, ' ');
+
+  // Minimum length below which we don't risk trimming a leading fragment.
+  const MIN_LENGTH = 20;
+
+  // Starts with an uppercase letter (or a non-cased script / digit / symbol): already
+  // a clean-enough start, keep as-is.
+  if (!/^[a-z]/.test(collapsed)) return collapsed;
+
+  // Starts lowercase: find the first capital letter that begins a word (a real
+  // sentence-like start) and drop the leading partial fragment up to it.
+  const capStart = collapsed.search(/(?:^|\s)[A-Z]/);
+  if (capStart >= 0) {
+    // search() matched at the leading whitespace when not at index 0; skip it.
+    const from = collapsed[capStart] === ' ' ? capStart + 1 : capStart;
+    const candidate = collapsed.slice(from).trim();
+    if (candidate.length >= MIN_LENGTH) return candidate;
+  }
+
+  // Whole thing is lowercase (or trimming would make it too short): just capitalize
+  // the first letter — the least invasive fix that never fabricates content.
+  return collapsed.charAt(0).toUpperCase() + collapsed.slice(1);
+}
+
+/**
  * Resolve the display value of one priority field from source metadata.
  * A handful of fields get structured fallbacks (legacy metadata aliases, URL host,
  * date truncation); everything else reads metadata[field] directly.
@@ -207,9 +255,12 @@ function resolveFieldValue(field: string, source: PresentableSource): string {
 
 /**
  * Generic chip order used when the tenant has no citationPriorityFields setting:
- * law title, article number, year, issue date, source host, language badge.
+ * law title, article number, year, issue date, language badge. 'source' and 'url'
+ * are intentionally omitted so no host/source-name chip shows by default — this
+ * matches the live bookie tenant setting, which dropped 'source'. The
+ * resolveFieldValue 'source'/'url' cases remain for tenants that re-add them.
  */
-const DEFAULT_PRIORITY_FIELDS = ['law_title', 'article_number', 'law_year', 'issue_date', 'url', 'lang'];
+const DEFAULT_PRIORITY_FIELDS = ['law_title', 'article_number', 'law_year', 'issue_date', 'lang'];
 
 /**
  * Build the ordered citation chips for a source card.

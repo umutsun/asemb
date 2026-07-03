@@ -10,7 +10,7 @@ import { SchemaRenderer } from './SchemaRenderer';
 import { TranslationBadge } from './TranslationBadge';
 import { useAudioPlayer } from '@/lib/hooks/use-audio-player';
 import { prepareMarkdown, cleanLLMResponse, cleanCitationTitle, detectRtl } from '@/lib/chat-markdown';
-import { getSourceTypeInfo, buildCitationChips, getOfficialSourceUrl, isRedundantTitle } from '@/lib/source-presentation';
+import { getSourceTypeInfo, buildCitationChips, getOfficialSourceUrl, isRedundantTitle, cleanExcerpt } from '@/lib/source-presentation';
 import { useCitationSettings } from '@/lib/citation-settings';
 import { getQualityLevel } from '@/components/chat/quality-badge';
 import type { ZenMessageProps, ZenSource } from '../types';
@@ -93,6 +93,40 @@ function highlightKeywordsInText(text: string, keywords: string[]): React.ReactN
 
 // Markdown/citation-title cleanup helpers live in the shared @/lib/chat-markdown module
 // (prepareMarkdown, cleanLLMResponse, cleanCitationTitle) - no local duplicates here.
+
+/**
+ * True when a candidate source-name reads like a GENUINE identifier (a real law name
+ * or document title) rather than a raw chunk fragment. Web / government-service cards
+ * often carry a mid-sentence chunk head as their "title" (e.g. "clude a copy of his
+ * passport…" or "natural or legal persons…"), which duplicates the excerpt below —
+ * those must be suppressed. A genuine title either:
+ *   - begins with a legal document keyword (Law / Federal / Cabinet / Decree / Article), or
+ *   - is Title Case (most significant words capitalized, none starting lowercase).
+ * Anything that starts lowercase, starts mid-word, or is a lowercase sentence fragment
+ * is rejected. Non-Latin (e.g. Arabic) names have no case, so they are accepted as-is
+ * — the redundant-with-excerpt / in-chips checks still filter fragments there.
+ */
+function isGenuineTitle(name: string): boolean {
+  const s = (name || '').trim();
+  if (!s) return false;
+  // Legal document identifiers are always genuine.
+  if (/^(Law|Federal|Cabinet|Decree|Article)\b/.test(s)) return true;
+  // No Latin letters at all (e.g. Arabic script): accept — case can't gate it.
+  if (!/[A-Za-z]/.test(s)) return true;
+  // Starts lowercase / mid-word: a sentence fragment, not a title.
+  if (/^[a-z]/.test(s)) return false;
+  // Title Case check: of the alphabetic words, none may start lowercase (allowing
+  // short connective words like "of", "the", "and" to stay lowercase mid-title).
+  const CONNECTIVES = new Set(['of', 'the', 'and', 'or', 'for', 'to', 'in', 'on', 'a', 'an', 'no', 'de', 'la']);
+  const words = s.split(/\s+/).filter((w) => /[A-Za-z]/.test(w));
+  if (words.length === 0) return false;
+  return words.every((w, i) => {
+    const first = w[0];
+    if (/[A-Z0-9]/.test(first)) return true;
+    // A lowercase word is only allowed if it's a short connective and not the first word.
+    return i > 0 && CONNECTIVES.has(w.toLowerCase().replace(/[^a-z]/g, ''));
+  });
+}
 
 /**
  * Counsel Message Component
@@ -623,24 +657,15 @@ export const ZenMessage: React.FC<ZenMessageProps> = ({
 
                     // Get content for the body
                     const raw = source.summary || source.excerpt || source.content || '';
-                    let cleaned = cleanCitationTitle(raw, { lang: chipLang })
-                      .replace(/^(KONU|İLGİ|SORU|CEVAP|Dilekçenizde|konusu|VERGİ\s*Sİ\s*KANUNU[^.]*\.)[:.\s]*/gi, '')
-                      .replace(/\.{2,}/g, '.')
-                      .trim();
-                    // Chunk boundaries can cut mid-word/mid-sentence (e.g. "iability Company ..."
-                    // from "Liability"). If the excerpt starts with a lowercase Latin fragment,
-                    // jump to the first real sentence start nearby; failing that, drop the short
-                    // leading partial word. (Arabic/other scripts have no case, so they're left
-                    // as-is; the chunker fix prevents mid-word starts for newly-embedded content.)
-                    if (/^[a-z]/.test(cleaned)) {
-                      const firstSentence = cleaned.search(/[.?!؟]\s+\S/);
-                      if (firstSentence > 0 && firstSentence <= 120) {
-                        cleaned = cleaned.slice(firstSentence + 1).trimStart();
-                      } else {
-                        const sp = cleaned.indexOf(' ');
-                        if (sp > 0 && sp <= 16) cleaned = cleaned.slice(sp + 1).trimStart();
-                      }
-                    }
+                    // cleanExcerpt (shared) makes a raw chunk fragment readable: it drops a
+                    // leading mid-word/lowercase partial and starts at the first real sentence
+                    // start, or capitalizes an all-lowercase excerpt — without fabricating text.
+                    const cleaned = cleanExcerpt(
+                      cleanCitationTitle(raw, { lang: chipLang })
+                        .replace(/^(KONU|İLGİ|SORU|CEVAP|Dilekçenizde|konusu|VERGİ\s*Sİ\s*KANUNU[^.]*\.)[:.\s]*/gi, '')
+                        .replace(/\.{2,}/g, '.')
+                        .trim()
+                    );
 
                     // If konu is good and different from content, prefix it
                     let combined = '';
@@ -687,17 +712,23 @@ export const ZenMessage: React.FC<ZenMessageProps> = ({
                     meta?.source_name || meta?.law_title || meta?.law_name || meta?.title || meta?.baslik
                       || (source as any).title || (source as any).citation || ''
                   ), { lang: chipLang }).replace(/\.pdf$/i, '').replace(/\s*[-–]\s*ID:\s*\d+.*$/i, '').replace(/_/g, ' ').trim();
-                  // Chunk-derived titles are just the head of the description, and
-                  // the law name may already sit in a chip — showing either twice
-                  // reads as a repeat, so drop the redundant title line.
+                  // A title line shows ONLY for a GENUINE identifier (a real law name /
+                  // document title). Drop it when it is: redundant with the excerpt
+                  // (isRedundantTitle), already present in a chip, or a raw chunk fragment
+                  // rather than a name (isGenuineTitle rejects lowercase / mid-word / sentence
+                  // fragments). Web / government-service cards typically fail isGenuineTitle,
+                  // so their mid-sentence chunk head no longer duplicates the excerpt.
                   const norm = (s: string) => s.toLowerCase().replace(/\s+/g, ' ').trim();
                   const inChips = chips.some((c) => norm(String(c.value)) === norm(sourceName));
-                  let originLabel = (inChips || isRedundantTitle(sourceName, description)) ? '' : sourceName;
+                  let originLabel = (inChips || isRedundantTitle(sourceName, description) || !isGenuineTitle(sourceName))
+                    ? '' : sourceName;
+                  // A distinct crawl host is a legitimate origin even when the source-name was
+                  // a fragment — fall back to it (hosts never read as duplicated sentences).
                   if (!originLabel && !inChips && meta?.url) {
                     try { originLabel = new URL(meta.url).hostname.replace(/^www\./, ''); } catch { /* ignore */ }
                   }
 
-                  // Line 1 title: origin when we have one, else the type label.
+                  // Line 1 title: a genuine origin when we have one, else the type label.
                   const typeLabel = t(typeInfo.labelKey);
                   const titleText = originLabel && originLabel.length > 2 ? originLabel : typeLabel;
                   // Line 2 meta: chip label+value pairs joined with dots; append the type
