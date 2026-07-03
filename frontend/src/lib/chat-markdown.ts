@@ -256,6 +256,12 @@ export function preprocessMarkdown(content: string): string {
     const rest = rest0.trim();
     const boundary = headingBodyBoundary(rest);
     if (boundary <= 0) return line;
+    // If the computed body would start AT or AFTER the first inline numbered-list marker, the
+    // "body" is really a list item — splitting here can cut inside a "**Bold label**" (the
+    // a/an/the article heuristic). Let STEP 2c split the list off the heading instead. Only split
+    // when the prose boundary is strictly BEFORE the list (heading + prose + list, e.g. fixture A).
+    const listMarker = rest.search(/\s\d{1,2}\.\s/);
+    if (listMarker >= 0 && boundary >= listMarker) return line;
     const title = rest.slice(0, boundary).trim();
     const body = rest.slice(boundary).trim();
     if (!title || !body) return line;

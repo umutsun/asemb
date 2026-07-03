@@ -27,9 +27,10 @@ export const ZenWelcome: React.FC<ZenWelcomeProps> = ({
       </p>
 
       {suggestions.length > 0 && (
-        <div className="mt-6 w-full max-w-[700px] text-start">
-          {/* dir on the container keeps the pill row direction-aware */}
-          <div className="atlas-fups justify-center" dir={i18n.dir()}>
+        <div className="mt-6 w-full max-w-[560px] text-start">
+          {/* dir keeps the stacked block buttons direction-aware; the CSS makes
+              every button full-width so short and long suggestions stay equal. */}
+          <div className="atlas-fups" dir={i18n.dir()}>
             {suggestions.slice(0, 4).map((question, index) => (
               <button
                 key={index}
@@ -37,7 +38,7 @@ export const ZenWelcome: React.FC<ZenWelcomeProps> = ({
                 onClick={() => onSuggestionClick?.(question)}
                 className="atlas-fup"
               >
-                <span className="min-w-0">{question}</span>
+                <span className="min-w-0 flex-1">{question}</span>
               </button>
             ))}
           </div>

@@ -245,18 +245,21 @@
   line-height: 1.65;
 }
 
+/* Answer step number: a SOLID accent tile (filled), deliberately larger and
+   stronger than the small accent-soft citation [n] chip so a reader never
+   confuses an answer step with a footnote reference. */
 .atlas-prose ol > li::before {
   content: counter(item);
   flex-shrink: 0;
-  width: 22px;
-  height: 22px;
+  width: 26px;
+  height: 26px;
   margin-top: 1px;
-  border-radius: 7px;
-  background: var(--atlas-accent-soft);
-  color: var(--atlas-accent-ink);
-  font-weight: 650;
-  font-size: 12px;
-  line-height: 22px;
+  border-radius: 8px;
+  background: var(--atlas-accent-fill);
+  color: var(--atlas-on-accent);
+  font-weight: 700;
+  font-size: 14px;
+  line-height: 26px;
   text-align: center;
 }
 
@@ -498,10 +501,12 @@
   overflow: hidden;
 }
 
-/* ============ Follow-up suggestions: bordered pills ============ */
+/* ============ Follow-up suggestions & welcome cards: equal-width block buttons ============ */
+/* Single-column stack so short and long questions read as one tidy list —
+   each button spans the full column width instead of hugging its own text. */
 .atlas-fups {
   display: flex;
-  flex-wrap: wrap;
+  flex-direction: column;
   gap: 8px;
   margin-top: 18px;
 }
@@ -509,6 +514,11 @@
 .atlas-fup {
   appearance: none;
   cursor: pointer;
+  display: flex;
+  align-items: center;
+  width: 100%;
+  min-height: 40px;
+  box-sizing: border-box;
   background: transparent;
   border: 1px solid var(--atlas-border);
   color: var(--atlas-muted);
@@ -516,8 +526,8 @@
   font-size: 12.5px;
   font-weight: 500;
   line-height: 1.4;
-  padding: 6px 11px;
-  border-radius: 7px;
+  padding: 9px 13px;
+  border-radius: 8px;
   text-align: start;
   transition: border-color 0.15s ease, background 0.15s ease, color 0.15s ease;
 }

@@ -494,14 +494,10 @@ export const ZenMessage: React.FC<ZenMessageProps> = ({
                       {children}
                     </em>
                   ),
-                  // Lists: unordered keeps brass disc markers; ordered renders bare —
-                  // majlis.css replaces browser numbering with mono decimal-leading-zero
-                  // brass numerals ("01", "02") via a CSS counter
-                  ul: ({ children }) => (
-                    <ul className="my-3 list-disc list-outside ps-5 space-y-2.5">
-                      {children}
-                    </ul>
-                  ),
+                  // Lists render bare — majlis.css owns markers, indent and spacing
+                  // for both: unordered gets a positioned brass bullet, ordered gets
+                  // larger brass "1." / "2." numerals (no browser numbering here).
+                  ul: ({ children }) => <ul>{children}</ul>,
                   ol: ({ children }) => <ol>{children}</ol>,
                   // List items run the same citation/keyword processing as
                   // paragraphs: tight lists give <li> bare string children.
@@ -741,9 +737,15 @@ export const ZenMessage: React.FC<ZenMessageProps> = ({
                     try { originLabel = new URL(meta.url).hostname.replace(/^www\./, ''); } catch { /* ignore */ }
                   }
 
-                  // Line 1 title: origin when we have one, else the type label.
+                  // Line 1 title: a genuine origin ONLY (a real law name or a
+                  // distinct crawl host). We DO NOT fall back to the type label —
+                  // a bare "Legislation" title duplicates the type already carried
+                  // by the meta line below, so it is suppressed and no title shows.
                   const typeLabel = t(typeInfo.labelKey);
-                  const titleText = originLabel && originLabel.length > 2 ? originLabel : typeLabel;
+                  const isBareTypeLabel =
+                    norm(originLabel) === norm(typeLabel) || norm(sourceName) === norm(typeLabel);
+                  const titleText =
+                    originLabel && originLabel.length > 2 && !isBareTypeLabel ? originLabel : '';
 
                   // Year for the dotted-leader slot at the row's end; rows without a
                   // derivable year omit the leader + year entirely.
@@ -757,13 +759,14 @@ export const ZenMessage: React.FC<ZenMessageProps> = ({
                     : chips;
 
                   // Line 2 meta: chip label+value pairs joined with em-dashes, small-caps
-                  // muted with the leading (article) segment in brass; append the type
-                  // label unless it already serves as the title.
+                  // muted with the leading (article) segment in brass; always append the
+                  // type label here (it is the source's identity), unless the title line
+                  // already shows that exact origin.
                   const metaSegments = metaChips.map((chip) => {
                     const label = chip.label ?? t(chip.labelKey, { defaultValue: '' });
                     return label ? `${label} ${chip.value}` : chip.value;
                   });
-                  if (titleText !== typeLabel) metaSegments.push(typeLabel);
+                  if (!titleText || norm(titleText) !== norm(typeLabel)) metaSegments.push(typeLabel);
 
                   return (
                     <div
@@ -800,19 +803,26 @@ export const ZenMessage: React.FC<ZenMessageProps> = ({
                       <span className="majlis-src-n">{String(groupIdx + 1).padStart(2, '0')}</span>
 
                       <div className="min-w-0 flex-1">
-                        {/* Title line: serif title (row hover turns it brass), dotted
-                            leader filling out to a right-aligned mono year */}
-                        <div className="majlis-src-line">
-                          <span className="majlis-src-title" title={titleText}>
-                            {titleText}
-                          </span>
-                          {year && (
-                            <>
-                              <span className="majlis-src-leader" aria-hidden />
-                              <span className="majlis-src-year">{year}</span>
-                            </>
-                          )}
-                        </div>
+                        {/* Title line: rendered ONLY for a genuine origin (law name or
+                            distinct web host). Low-value titles that merely repeat the
+                            type label are suppressed — the meta line below carries the
+                            identity. The dotted leader + mono year still show whenever a
+                            year is known, whether or not a title is present. */}
+                        {(titleText || year) && (
+                          <div className="majlis-src-line">
+                            {titleText && (
+                              <span className="majlis-src-title" title={titleText}>
+                                {titleText}
+                              </span>
+                            )}
+                            {year && (
+                              <>
+                                <span className="majlis-src-leader" aria-hidden />
+                                <span className="majlis-src-year">{year}</span>
+                              </>
+                            )}
+                          </div>
+                        )}
 
                         {/* Meta line: small-caps chip data, leading (article) segment brass */}
                         {metaSegments.length > 0 && (

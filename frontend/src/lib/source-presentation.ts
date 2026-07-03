@@ -185,8 +185,15 @@ function resolveFieldValue(field: string, source: PresentableSource): string {
       const raw = asText(m.issue_date);
       return raw ? raw.slice(0, 10) : '';
     }
-    case 'source':
-      return asText(m.source) || asText(m.source_name) || hostOf(asText(m.url));
+    case 'source': {
+      // Show WHERE a citation came from, but never an internal ingest/table identifier
+      // (e.g. "crawl_sites", "UAE_INGEST_POC", "document_embeddings"). Those are snake_case /
+      // UPPER_SNAKE tokens with underscores and no spaces — hide them and prefer a real host.
+      const raw = (asText(m.source) || asText(m.source_name)).trim();
+      const isInternalToken = /^[A-Za-z][\w]*(?:_[\w]+)+$/.test(raw);
+      if (raw && !isInternalToken) return raw;
+      return hostOf(asText(m.url));
+    }
     case 'url': {
       const url = getOfficialSourceUrl(source);
       return url ? hostOf(url) : '';

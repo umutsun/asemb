@@ -829,7 +829,7 @@ export const ZenMessage: React.FC<ZenMessageProps> = ({
                   onClick={() => handleFollowUpClick(question)}
                   className="atlas-fup"
                 >
-                  <span className="min-w-0">{question}</span>
+                  <span className="min-w-0 flex-1">{question}</span>
                 </button>
               ))}
             </div>

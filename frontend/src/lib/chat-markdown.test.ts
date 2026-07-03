@@ -19,6 +19,15 @@ const FIXTURE_B =
 const FIXTURE_C =
   "**Lead.** ### Gratuity Calculation for Full-time Workers According to **Article 51**, the gratuity entitlement is as follows: 1. For the first five years of service, 21 days' wage per year. 2. For each additional year, 30 days' wage per year [1].";
 
+// Heading + bold-labelled numbered items, split across blocks by the model (items 1-4 glued to the
+// heading, item 5 alone, items 6-9 glued). The heading must not eat item 1, the "**Bold label**"
+// spans must stay intact (never cut at an "a/an/the" article), and all 9 form one ordered list.
+const FIXTURE_D =
+  '**To register a business, several steps must be followed.** #\n\n' +
+  '## Steps to Register a New Business 1. **Identify a Business Activity** It is essential to determine the specific activity. 2. **Select the Legal Form** Choose an appropriate legal structure. 3. **Apply for a Trade License** Submit an application to operate. 4. **Register the Trade Name** The trade name must comply with the rules [2]\n\n' +
+  '5. **Obtain Initial Approval** Acquire initial approval indicating no objections [2]\n\n' +
+  '6. **Draft Required Documents** Prepare a Memorandum of Association. 7. **Select a Business Location** Choose a suitable location. 8. **Get Additional Approvals** Depending on the business. 9. **Collect the Business License** After completing the steps [3].';
+
 /** Split into lines and return only the ATX heading lines. */
 function headingLines(md: string): string[] {
   return md.split('\n').filter((l) => /^#{1,6}\s+/.test(l));
@@ -105,6 +114,17 @@ describe('preprocessMarkdown — malformed LLM heading/list repair', () => {
     const input = 'The requirements are as follows: 1. Register for tax. 2. File annual returns.';
     const out = preprocessMarkdown(input);
     assertSingleOrderedList(out, 2);
+  });
+
+  it('D: heading + bold-labelled items 1-9 (glued across blocks) → clean h2 + one ordered list', () => {
+    const out = preprocessMarkdown(FIXTURE_D);
+    // Heading holds only its short title — no list text absorbed.
+    expect(out).toContain('## Steps to Register a New Business\n\n1. ');
+    expect(headingLines(out)).toEqual(['## Steps to Register a New Business']);
+    // Bold label of item 1 is intact (never cut at the "a Business Activity" article).
+    expect(out).toContain('1. **Identify a Business Activity** It is essential');
+    // All nine steps form one contiguous ordered list.
+    assertSingleOrderedList(out.split('## Steps to Register a New Business')[1], 9);
   });
 });
 

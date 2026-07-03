@@ -194,11 +194,11 @@
   color: var(--majlis-ink);
 }
 
-/* Ordered lists: no browser numbering — mono brass numerals with a leading
-   zero ("01", "02"). Positioned counter instead of the mock's flex so any
-   child structure (tight/loose items, nested inline nodes) flows intact;
-   inline-start keeps it RTL-correct. Visual result matches the mock:
-   12px mono numeral, 16px gap to the text, 12px between items. */
+/* Ordered lists: no browser numbering — brass numerals with a trailing dot
+   ("1.", "2.", NO leading zero) at a larger 15px so an ANSWER step reads clearly
+   apart from the source ledger's mono leading-zero "01/02" numbers and the small
+   [n] citation markers. Positioned counter (not the mock's flex) so any child
+   structure flows intact; inline-start keeps it RTL-correct. */
 .majlis-prose ol {
   list-style: none;
   counter-reset: majlis-item;
@@ -209,25 +209,50 @@
 .majlis-prose ol > li {
   counter-increment: majlis-item;
   position: relative;
-  padding-inline-start: 32px; /* ~2ch mono numeral + 16px gap */
+  padding-inline-start: 30px; /* numeral + dot + gap to the text */
   line-height: 1.7;
 }
 
 .majlis-prose ol > li + li { margin-top: 12px; }
 
 .majlis-prose ol > li::before {
-  content: counter(majlis-item, decimal-leading-zero);
+  content: counter(majlis-item, decimal) ".";
   position: absolute;
   inset-inline-start: 0;
-  top: 4px;
+  top: 1px;
   font-family: var(--majlis-mono);
-  font-size: 12px;
+  font-size: 15px;
+  font-weight: 600;
   color: var(--majlis-accent);
 }
 
-/* Unordered lists keep browser markers, tinted brass */
-.majlis-prose ul > li::marker {
-  color: var(--majlis-accent);
+/* Unordered lists: a tidy, deliberately-marked brass bullet that reads as a peer
+   of the ordered-list numeral. A positioned custom marker (not the browser disc)
+   keeps the bullet size, color and indent consistent with the ordered treatment
+   and correct under RTL. */
+.majlis-prose ul {
+  list-style: none;
+  margin: 4px 0 14px;
+  padding: 0;
+}
+
+.majlis-prose ul > li {
+  position: relative;
+  padding-inline-start: 22px;
+  line-height: 1.7;
+}
+
+.majlis-prose ul > li + li { margin-top: 10px; }
+
+.majlis-prose ul > li::before {
+  content: "";
+  position: absolute;
+  inset-inline-start: 4px;
+  top: 0.72em;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--majlis-accent);
 }
 
 /* ============ Inline citation [n] markers ============ */
@@ -300,10 +325,13 @@
   30% { opacity: 1; }
 }
 
-/* ============ Meta row: small-caps muted, quality in brass-toned colors ============ */
+/* ============ Meta row: small-caps muted, quality in brass-toned colors ============
+   Sized and tracked to match the SOURCES section label (.majlis-src-label) so the
+   response-time / answer-quality line reads as the same small-caps heading scale,
+   not a heavier stand-alone row. Quality-level colors (.majlis-q-*) still apply. */
 .majlis-meta {
   font-size: 10.5px;
-  letter-spacing: 0.16em;
+  letter-spacing: 0.24em;
   text-transform: uppercase;
   color: var(--majlis-muted);
 }
