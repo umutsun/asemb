@@ -760,18 +760,15 @@ export const ZenMessage: React.FC<ZenMessageProps> = ({
                   // so their mid-sentence chunk head no longer duplicates the excerpt.
                   const norm = (s: string) => s.toLowerCase().replace(/\s+/g, ' ').trim();
                   const inChips = chips.some((c) => norm(String(c.value)) === norm(sourceName));
-                  let originLabel = (inChips || isRedundantTitle(sourceName, description) || !isGenuineTitle(sourceName))
+                  const originLabel = (inChips || isRedundantTitle(sourceName, description) || !isGenuineTitle(sourceName))
                     ? '' : sourceName;
-                  // A distinct crawl host is a legitimate origin even when the source-name was
-                  // a fragment — fall back to it (hosts never read as duplicated sentences).
-                  if (!originLabel && !inChips && meta?.url) {
-                    try { originLabel = new URL(meta.url).hostname.replace(/^www\./, ''); } catch { /* ignore */ }
-                  }
+                  // We deliberately do NOT surface the source host/domain (e.g. "u.ae",
+                  // "mof.gov.ae") or any official-source link — the product does not expose
+                  // where a citation was crawled from. Only a genuine law/document name shows.
 
-                  // Line 1 title: a genuine origin ONLY (a real law name or a
-                  // distinct crawl host). We DO NOT fall back to the type label —
-                  // a bare "Legislation" title duplicates the type already carried
-                  // by the meta line below, so it is suppressed and no title shows.
+                  // Line 1 title: a genuine law/document name ONLY. We do NOT fall back to the
+                  // source host or the type label — a bare "Legislation" title duplicates the
+                  // type already carried by the meta line below, so no title shows for those.
                   const typeLabel = t(typeInfo.labelKey);
                   const isBareTypeLabel =
                     norm(originLabel) === norm(typeLabel) || norm(sourceName) === norm(typeLabel);

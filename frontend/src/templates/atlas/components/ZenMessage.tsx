@@ -720,13 +720,11 @@ export const ZenMessage: React.FC<ZenMessageProps> = ({
                   // so their mid-sentence chunk head no longer duplicates the excerpt.
                   const norm = (s: string) => s.toLowerCase().replace(/\s+/g, ' ').trim();
                   const inChips = chips.some((c) => norm(String(c.value)) === norm(sourceName));
-                  let originLabel = (inChips || isRedundantTitle(sourceName, description) || !isGenuineTitle(sourceName))
+                  const originLabel = (inChips || isRedundantTitle(sourceName, description) || !isGenuineTitle(sourceName))
                     ? '' : sourceName;
-                  // A distinct crawl host is a legitimate origin even when the source-name was
-                  // a fragment — fall back to it (hosts never read as duplicated sentences).
-                  if (!originLabel && !inChips && meta?.url) {
-                    try { originLabel = new URL(meta.url).hostname.replace(/^www\./, ''); } catch { /* ignore */ }
-                  }
+                  // We deliberately do NOT surface the source host/domain (e.g. "u.ae",
+                  // "mof.gov.ae") or any official-source link — only a genuine law/document
+                  // name shows as the title.
 
                   // Genuine title line (a real law name for legislation, a document
                   // title, or a crawl origin host). Empty when the would-be title was
