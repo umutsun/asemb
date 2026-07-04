@@ -1,11 +1,12 @@
 'use client';
 
-import React, { useState } from 'react';
-import { ChevronRight, Eye, EyeOff } from 'lucide-react';
+import React, { useRef, useState } from 'react';
+import { ChevronRight, Eye, EyeOff, Loader2, Upload } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Switch } from '@/components/ui/switch';
 import { Slider } from '@/components/ui/slider';
 import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import {
   Select,
@@ -314,6 +315,73 @@ function SourceBars({ field, values, set }: FieldProps) {
   );
 }
 
+function ImageUploadRow({ field, values, set }: FieldProps) {
+  const v = values[field.key] ?? '';
+  const [uploading, setUploading] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const upload = async (file: File) => {
+    setUploading(true);
+    setErr(null);
+    try {
+      const fd = new FormData();
+      fd.append('logo', file);
+      const res = await fetch('/api/v2/settings/logo', { method: 'POST', body: fd });
+      const d = await res.json();
+      if (!res.ok || d?.error) throw new Error(d?.error || 'Upload failed');
+      set(field.key, d.url);
+    } catch (e: any) {
+      setErr(e?.message || 'Upload failed');
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  return (
+    <Row label={field.label} help={field.help}>
+      <div className="flex items-center gap-2.5">
+        {v ? (
+          <img
+            src={String(v)}
+            alt=""
+            className="h-9 w-9 flex-shrink-0 rounded border border-border bg-muted object-contain"
+          />
+        ) : null}
+        <Input
+          className="w-[160px] text-[12px]"
+          value={String(v)}
+          placeholder="image URL"
+          onChange={(e) => set(field.key, e.target.value)}
+        />
+        <input
+          ref={inputRef}
+          type="file"
+          accept="image/*"
+          aria-label="Upload image"
+          className="hidden"
+          onChange={(e) => {
+            const f = e.target.files?.[0];
+            if (f) upload(f);
+            e.target.value = '';
+          }}
+        />
+        <Button size="sm" variant="outline" disabled={uploading} onClick={() => inputRef.current?.click()}>
+          {uploading ? (
+            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+          ) : (
+            <>
+              <Upload className="mr-1 h-3.5 w-3.5" />
+              Upload
+            </>
+          )}
+        </Button>
+        {err ? <span className="text-[11px] text-destructive">{err}</span> : null}
+      </div>
+    </Row>
+  );
+}
+
 // ---- dispatcher -------------------------------------------------------------
 
 export interface FieldProps {
@@ -341,6 +409,8 @@ export function FieldRow(props: FieldProps) {
       return <TextareaRow {...props} />;
     case 'sourceBars':
       return <SourceBars {...props} />;
+    case 'imageUpload':
+      return <ImageUploadRow {...props} />;
     case 'text':
     default:
       return <TextRow {...props} />;

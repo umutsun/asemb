@@ -23,7 +23,8 @@ export type ControlType =
   | 'textarea'
   | 'json'
   | 'range'
-  | 'sourceBars';
+  | 'sourceBars'
+  | 'imageUpload';
 
 interface LayoutField {
   key: string;
@@ -106,7 +107,7 @@ const NAV: LayoutSection[] = [
         fields: [
           { key: 'app.name', label: 'Application name' },
           { key: 'app.description', label: 'Description' },
-          { key: 'app.logoUrl', label: 'Logo URL' },
+          { key: 'app.logoUrl', label: 'Logo', help: 'Upload an image or paste a URL', control: 'imageUpload' },
           { key: 'app.locale', label: 'Default locale', control: 'select', options: LANGS },
         ],
       },

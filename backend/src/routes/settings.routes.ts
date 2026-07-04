@@ -17,6 +17,22 @@ import {
 } from '../config/settings-registry';
 import { buildSettingsSchema } from '../config/settings-ui-layout';
 import { buildLlmMetadata } from '../config/llm-metadata';
+import multer from 'multer';
+import path from 'path';
+import fs from 'fs';
+
+// Logo upload storage (served statically at /uploads by server.ts).
+const logoUploadsDir = path.join(process.cwd(), 'uploads');
+if (!fs.existsSync(logoUploadsDir)) fs.mkdirSync(logoUploadsDir, { recursive: true });
+const logoUpload = multer({
+  storage: multer.diskStorage({
+    destination: (_req, _file, cb) => cb(null, logoUploadsDir),
+    filename: (_req, file, cb) => cb(null, 'logo-' + Date.now() + path.extname(file.originalname)),
+  }),
+  limits: { fileSize: 5 * 1024 * 1024 },
+  fileFilter: (_req, file, cb) =>
+    file.mimetype.startsWith('image/') ? cb(null, true) : cb(new Error('Only image files are allowed')),
+});
 // NOTE: `settingsService` is already imported lower in this file (semantic-analyzer section).
 
 const router = Router();
@@ -539,6 +555,18 @@ router.get('/llm-metadata', (_req: Request, res: Response) => {
   } catch (error: any) {
     console.error('Error building LLM metadata:', error);
     res.status(500).json({ error: 'Failed to build LLM metadata' });
+  }
+});
+
+// Upload an application logo image → returns { url } (served at /uploads/<file>).
+// The caller sets app.logoUrl to this url and persists it via the normal settings save.
+router.post('/logo', logoUpload.single('logo'), (req: Request, res: Response) => {
+  try {
+    if (!req.file) return res.status(400).json({ error: 'No image file provided' });
+    res.json({ url: `/uploads/${req.file.filename}` });
+  } catch (error: any) {
+    console.error('Logo upload error:', error);
+    res.status(500).json({ error: 'Failed to upload logo' });
   }
 });
 

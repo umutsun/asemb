@@ -9,6 +9,7 @@ import { Label } from '@/components/ui/label';
 
 import { User, Lock, Save, ArrowLeft, Eye, EyeOff, Camera } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthProvider';
+import useAuthStore from '@/stores/auth.store';
 import { useToast } from '@/hooks/use-toast';
 import Link from 'next/link';
 import apiConfig from '@/config/api.config';
@@ -16,6 +17,7 @@ import { useTranslation } from 'react-i18next';
 
 export default function ProfilePage() {
   const { user, token } = useAuth();
+  const setUser = useAuthStore((s) => s.setUser);
   const { toast } = useToast();
   const router = useRouter();
   const { t } = useTranslation();
@@ -95,7 +97,10 @@ export default function ProfilePage() {
 
       const data = await response.json();
 
-      // Update user in localStorage
+      // Update the auth store (+ its persisted storage) so the UI reflects the change
+      // and it survives a reload — previously only a stray 'user' localStorage key was
+      // written, so the form re-hydrated from the OLD store user ("came back the same").
+      if (data?.user) setUser(data.user);
       localStorage.setItem('user', JSON.stringify(data.user));
 
       toast({
@@ -498,6 +503,7 @@ export default function ProfilePage() {
                       ref={fileInputRef}
                       type="file"
                       accept="image/*"
+                      aria-label="Upload profile image"
                       onChange={handleImageUpload}
                       className="hidden"
                     />

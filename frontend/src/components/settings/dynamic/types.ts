@@ -11,7 +11,8 @@ export type ControlType =
   | 'textarea'
   | 'json'
   | 'range'
-  | 'sourceBars';
+  | 'sourceBars'
+  | 'imageUpload';
 
 export interface SchemaFieldOption {
   value: string;

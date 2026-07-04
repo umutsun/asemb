@@ -385,6 +385,7 @@ export default function DashboardPage() {
   // Relationship graph data
   const [relationshipStats, setRelationshipStats] = useState<any>(null);
   const [graphData, setGraphData] = useState<any>(null);
+  const [graphLoading, setGraphLoading] = useState(true);
   const graphContainerRef = useRef<HTMLDivElement>(null);
   const [graphWidth, setGraphWidth] = useState(0);
 
@@ -721,6 +722,8 @@ export default function DashboardPage() {
         }
       } catch (error) {
         // Silently fail - graph is optional
+      } finally {
+        if (isMounted) setGraphLoading(false);
       }
     };
     setTimeout(fetchRelationshipData, 3000);
@@ -1673,20 +1676,14 @@ export default function DashboardPage() {
 
   return (
     <div className="w-[90%] mx-auto p-8 space-y-8">
-      {/* Dashboard Header with Live Status */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-cyan-100">{config?.app?.name || 'Dashboard'}</h1>
-          <p className="text-sm text-gray-500 dark:text-slate-400 mt-1">{t('dashboard.subtitle')}</p>
-        </div>
-        <div className="flex items-center gap-4">
-          <LiveIndicator connected={sseConnected} />
-          {metricsWsConnected && (
-            <Badge variant="outline" className="text-xs bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 border-cyan-500/30">
-              WS: {metricsWsLatency}ms
-            </Badge>
-          )}
-        </div>
+      {/* Live status only — app name/description already shown in the top header */}
+      <div className="flex items-center justify-end gap-4">
+        <LiveIndicator connected={sseConnected} />
+        {metricsWsConnected && (
+          <Badge variant="outline" className="text-xs bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 border-cyan-500/30">
+            WS: {metricsWsLatency}ms
+          </Badge>
+        )}
       </div>
 
       {/* Single Page Dashboard - No Tabs */}
@@ -1932,7 +1929,12 @@ export default function DashboardPage() {
 
                 {/* Force-Directed Graph */}
                 <div ref={graphContainerRef} className="lg:col-span-2 rounded-xl border border-gray-200/60 dark:border-[#1e3a5f]/50 overflow-hidden bg-gradient-to-br from-slate-50/50 to-gray-50/50 dark:from-[#0a1628]/60 dark:to-[#0d1f3c]/60" style={{ height: 320 }}>
-                  {graphData && graphData.edges && graphData.edges.length > 0 && graphWidth > 0 ? (
+                  {graphLoading ? (
+                    <div className="flex h-full flex-col items-center justify-center gap-2.5 text-slate-400">
+                      <div className="h-6 w-6 animate-spin rounded-full border-2 border-slate-500/25 border-t-cyan-500" />
+                      <span className="text-xs">Loading graph…</span>
+                    </div>
+                  ) : graphData && graphData.edges && graphData.edges.length > 0 && graphWidth > 0 ? (
                     <ForceGraph2D
                       graphData={kgGraphData}
                       width={graphWidth}
