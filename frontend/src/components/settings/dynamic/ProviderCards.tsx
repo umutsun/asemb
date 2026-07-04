@@ -1,17 +1,20 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { cn } from '@/lib/utils';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { Eye, EyeOff, Check, X, Loader2 } from 'lucide-react';
+import { Eye, EyeOff, Check, X, Loader2, ShieldCheck } from 'lucide-react';
+import { getSettingsValues, saveSettingsFlat } from '@/lib/api/settings';
 import type { ValueMap, SetValue } from './types';
 
 const MASK = '••••••••';
 
-// Metadata-driven provider cards: API key (secret, writes into the shell dirty map),
-// Test Connection (via the existing POST /api/v2/api-validation/test/:provider), and
-// model/pricing info from GET /settings/llm-metadata. Replaces the old hardcoded lists.
+type Status = { validated: boolean; date?: string };
+
+// Metadata-driven provider cards: API key (secret), Test Connection (via the existing
+// POST /api/v2/api-validation/test/:provider), a PERSISTENT validation badge (loaded from
+// the stored apiStatus.* and refreshed on a successful test), and model/pricing info.
 export function ProviderCards({
   metadata,
   values,
@@ -22,19 +25,70 @@ export function ProviderCards({
   set: SetValue;
 }) {
   const providers: any[] = metadata?.providers ?? [];
+  const [status, setStatus] = useState<Record<string, Status>>({});
+
+  useEffect(() => {
+    if (!providers.length) return;
+    let cancelled = false;
+    const keys = providers.flatMap((p) => [`apiStatus.${p.id}.status`, `apiStatus.${p.id}.verifiedDate`]);
+    getSettingsValues(keys)
+      .then((v) => {
+        if (cancelled) return;
+        const s: Record<string, Status> = {};
+        for (const p of providers) {
+          const st = v[`apiStatus.${p.id}.status`];
+          const dt = v[`apiStatus.${p.id}.verifiedDate`];
+          s[p.id] = { validated: st === 'active' || st === 'success' || !!dt, date: dt || undefined };
+        }
+        setStatus(s);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [providers.length]);
+
+  const markValidated = (id: string, date: string) =>
+    setStatus((s) => ({ ...s, [id]: { validated: true, date } }));
+
   if (!providers.length) {
     return <div className="p-4 text-sm text-muted-foreground">Loading providers…</div>;
   }
   return (
     <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
       {providers.map((p) => (
-        <ProviderCard key={p.id} p={p} values={values} set={set} />
+        <ProviderCard
+          key={p.id}
+          p={p}
+          values={values}
+          set={set}
+          status={status[p.id]}
+          onValidated={markValidated}
+        />
       ))}
     </div>
   );
 }
 
-function ProviderCard({ p, values, set }: { p: any; values: ValueMap; set: SetValue }) {
+function fmtDate(iso?: string): string {
+  if (!iso) return '';
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime()) ? '' : d.toLocaleDateString();
+}
+
+function ProviderCard({
+  p,
+  values,
+  set,
+  status,
+  onValidated,
+}: {
+  p: any;
+  values: ValueMap;
+  set: SetValue;
+  status?: Status;
+  onValidated: (id: string, date: string) => void;
+}) {
   const keyKey = `${p.id}.apiKey`;
   const raw = values[keyKey];
   const saved = raw === MASK;
@@ -42,6 +96,8 @@ function ProviderCard({ p, values, set }: { p: any; values: ValueMap; set: SetVa
   const [show, setShow] = useState(false);
   const [testing, setTesting] = useState(false);
   const [result, setResult] = useState<{ ok: boolean; msg: string } | null>(null);
+
+  const validated = status?.validated;
 
   const test = async () => {
     const key = String(values[keyKey] ?? '');
@@ -59,11 +115,23 @@ function ProviderCard({ p, values, set }: { p: any; values: ValueMap; set: SetVa
         body: JSON.stringify({ apiKey: key, model }),
       });
       const d = await res.json();
-      setResult(
-        d.success
-          ? { ok: true, msg: `OK · ${d.responseTime || 0}ms` }
-          : { ok: false, msg: d.error || 'Failed' },
-      );
+      if (d.success) {
+        setResult({ ok: true, msg: `OK · ${d.responseTime || 0}ms` });
+        // Persist the validated key + status so the ✓ badge sticks (matches old UX).
+        const date = new Date().toISOString();
+        try {
+          await saveSettingsFlat({
+            [keyKey]: key,
+            [`apiStatus.${p.id}.status`]: 'active',
+            [`apiStatus.${p.id}.verifiedDate`]: date,
+          });
+        } catch {
+          /* non-fatal — the live result still shows */
+        }
+        onValidated(p.id, date);
+      } else {
+        setResult({ ok: false, msg: d.error || 'Failed' });
+      }
     } catch (e: any) {
       setResult({ ok: false, msg: e?.message || 'Error' });
     } finally {
@@ -75,16 +143,23 @@ function ProviderCard({ p, values, set }: { p: any; values: ValueMap; set: SetVa
   const modelCount = (p.chatModels?.length || 0) + (p.embeddingModels?.length || 0);
 
   return (
-    <div className="rounded-lg border border-border bg-card p-3">
+    <div className={cn('rounded-lg border bg-card p-3', validated ? 'border-green-500/40' : 'border-border')}>
       <div className="mb-2 flex items-start justify-between gap-2">
         <div className="min-w-0">
-          <div className="truncate text-[13.5px] font-semibold text-foreground">{p.name}</div>
+          <div className="flex items-center gap-1.5">
+            <span className="truncate text-[13.5px] font-semibold text-foreground">{p.name}</span>
+            {validated ? <ShieldCheck className="h-4 w-4 flex-shrink-0 text-green-600 dark:text-green-400" /> : null}
+          </div>
           <div className="text-[11px] text-muted-foreground">
             {caps} · {modelCount} models
           </div>
         </div>
-        {saved ? (
-          <span className="rounded bg-primary/10 px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-primary">
+        {validated ? (
+          <span className="whitespace-nowrap rounded bg-green-500/10 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-green-600 dark:text-green-400">
+            valid{status?.date ? ` · ${fmtDate(status.date)}` : ''}
+          </span>
+        ) : saved ? (
+          <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-muted-foreground">
             saved
           </span>
         ) : null}

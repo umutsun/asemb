@@ -168,14 +168,17 @@ function SegmentedRow({ field, values, set }: FieldProps) {
 
 function SelectRow({ field, values, set }: FieldProps) {
   const v = String(values[field.key] ?? '');
+  const opts = field.options ?? [];
+  // Keep an arbitrary stored value selectable even if it's not in the option list.
+  const allOpts = v && !opts.some((o) => o.value === v) ? [{ value: v, label: v }, ...opts] : opts;
   return (
     <Row label={field.label} help={field.help}>
       <Select value={v} onValueChange={(nv) => set(field.key, nv)}>
-        <SelectTrigger className="min-w-[150px]">
+        <SelectTrigger className="min-w-[180px] max-w-[260px]">
           <SelectValue placeholder="Select…" />
         </SelectTrigger>
         <SelectContent>
-          {(field.options ?? []).map((o) => (
+          {allOpts.map((o) => (
             <SelectItem key={o.value} value={o.value}>
               {o.label}
             </SelectItem>

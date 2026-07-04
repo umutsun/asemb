@@ -72,6 +72,26 @@ interface LayoutSection {
 // -----------------------------------------------------------------------------
 // Nav layout: 6 focused groups (was 10 flat sections in the old monolith).
 // -----------------------------------------------------------------------------
+// Reusable option lists for select fields.
+const LANGS = [
+  { value: 'en', label: 'English' }, { value: 'ar', label: 'Arabic' }, { value: 'tr', label: 'Turkish' },
+  { value: 'fr', label: 'French' }, { value: 'es', label: 'Spanish' }, { value: 'de', label: 'German' },
+  { value: 'it', label: 'Italian' }, { value: 'ru', label: 'Russian' }, { value: 'zh', label: 'Chinese' },
+  { value: 'ja', label: 'Japanese' }, { value: 'ko', label: 'Korean' },
+];
+const EMBEDDING_PROVIDERS = [
+  { value: 'openai', label: 'OpenAI' }, { value: 'google', label: 'Google' }, { value: 'cohere', label: 'Cohere' },
+  { value: 'voyage', label: 'Voyage' }, { value: 'jina', label: 'Jina' }, { value: 'huggingface', label: 'HuggingFace' },
+  { value: 'openrouter', label: 'OpenRouter' },
+];
+const TRANSLATION_PROVIDERS = [
+  { value: 'deepl', label: 'DeepL' }, { value: 'google', label: 'Google Translate' }, { value: 'openai', label: 'OpenAI' },
+];
+const RESPONSE_STYLES = [
+  { value: 'professional', label: 'Professional' }, { value: 'friendly', label: 'Friendly' },
+  { value: 'casual', label: 'Casual' }, { value: 'technical', label: 'Technical' }, { value: 'concise', label: 'Concise' },
+];
+
 const NAV: LayoutSection[] = [
   // ===== GENERAL =====
   {
@@ -87,7 +107,7 @@ const NAV: LayoutSection[] = [
           { key: 'app.name', label: 'Application name' },
           { key: 'app.description', label: 'Description' },
           { key: 'app.logoUrl', label: 'Logo URL' },
-          { key: 'app.locale', label: 'Default locale' },
+          { key: 'app.locale', label: 'Default locale', control: 'select', options: LANGS },
         ],
       },
     ],
@@ -141,7 +161,8 @@ const NAV: LayoutSection[] = [
           { key: 'llmSettings.topP', label: 'Top-p', min: 0, max: 1, step: 0.05, advanced: true },
           { key: 'llmSettings.maxTokens', label: 'Max output tokens', advanced: true },
           { key: 'llmSettings.streamResponse', label: 'Stream responses' },
-          { key: 'llmSettings.language', label: 'Answer language' },
+          { key: 'llmSettings.language', label: 'Answer language', control: 'select', options: LANGS },
+          { key: 'llmSettings.responseStyle', label: 'Response style', control: 'select', options: RESPONSE_STYLES },
           { key: 'llmSettings.systemPrompt', label: 'System prompt', control: 'textarea', advanced: true },
         ],
       },
@@ -157,8 +178,8 @@ const NAV: LayoutSection[] = [
         id: 'embeddings',
         title: 'Embeddings',
         fields: [
-          { key: 'embeddings.provider', label: 'Provider' },
-          { key: 'embeddings.model', label: 'Model' },
+          { key: 'embeddings.provider', label: 'Provider', control: 'select', options: EMBEDDING_PROVIDERS },
+          { key: 'embeddings.model', label: 'Model', control: 'select', optionsFrom: 'embeddingModels' },
           { key: 'embeddings.dimension', label: 'Dimension', advanced: true },
           { key: 'embeddings.chunkSize', label: 'Chunk size', min: 100, max: 5000, step: 100 },
           { key: 'embeddings.chunkOverlap', label: 'Chunk overlap', advanced: true },
@@ -178,7 +199,7 @@ const NAV: LayoutSection[] = [
         id: 'translation',
         title: 'Translation',
         fields: [
-          { key: 'llmSettings.translationProvider', label: 'Provider' },
+          { key: 'llmSettings.translationProvider', label: 'Provider', control: 'select', options: TRANSLATION_PROVIDERS },
           { key: 'deepl.apiKey', label: 'DeepL API key' },
           { key: 'google.translate.apiKey', label: 'Google Translate API key' },
           { key: 'translation.model', label: 'Translation model', advanced: true },
@@ -368,7 +389,7 @@ const NAV: LayoutSection[] = [
         title: 'Extraction',
         fields: [
           { key: 'relationships.extractionEnabled', label: 'Extraction enabled' },
-          { key: 'relationships.extractionModel', label: 'Extraction model' },
+          { key: 'relationships.extractionModel', label: 'Extraction model', control: 'select', optionsFrom: 'chatModels' },
           { key: 'relationships.batchSize', label: 'Batch size', min: 10, max: 200, step: 10, advanced: true },
           { key: 'relationships.confidenceThreshold', label: 'Confidence threshold', min: 0, max: 1, step: 0.05 },
         ],
