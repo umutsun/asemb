@@ -385,6 +385,8 @@ export const SETTINGS: SettingDef[] = [
   { key: 'crawler.proxyPassword', category: 'crawler', type: 'secret', description: 'Proxy password' },
 
   { key: 'relationships.neo4jEnabled', category: 'relationships', type: 'boolean', default: true, description: 'Use Neo4j graph store' },
+
+  { key: 'prompts.list', category: 'prompts', type: 'json', description: 'System prompts / personas (JSON array of prompt objects)' },
 ];
 
 // -----------------------------------------------------------------------------

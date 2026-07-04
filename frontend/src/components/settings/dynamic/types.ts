@@ -26,6 +26,7 @@ export interface SchemaField {
   type: 'string' | 'number' | 'boolean' | 'json' | 'secret';
   secret: boolean;
   options?: SchemaFieldOption[];
+  optionsFrom?: 'chatModels' | 'embeddingModels';
   min?: number;
   max?: number;
   step?: number;
@@ -41,6 +42,8 @@ export interface SchemaGroup {
   /** Key of a bespoke component to embed (see dynamic/embeds.tsx) instead of fields. */
   component?: string;
   preset?: 'answerSafety';
+  providerCards?: boolean;
+  collection?: 'prompts';
   fields: SchemaField[];
 }
 

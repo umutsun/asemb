@@ -214,7 +214,19 @@ export async function getSettingsSchema(): Promise<any> {
   return data;
 }
 
-// Typed current values for an explicit dotted-key list (numbers/booleans/JSON; secrets '').
+// LLM provider/model/pricing metadata for the settings UI (single source; no hardcoded lists).
+export async function getLlmMetadata(): Promise<any> {
+  const res = await fetch('/api/v2/settings/llm-metadata', {
+    headers: { 'Content-Type': 'application/json' },
+  });
+  const data = await res.json();
+  if (!res.ok || data?.error) {
+    throw new Error(data?.error || `Failed to load LLM metadata (Status: ${res.status})`);
+  }
+  return data;
+}
+
+// Typed current values for an explicit dotted-key list (numbers/booleans/JSON; secrets '' or a mask).
 export async function getSettingsValues(keys: string[]): Promise<Record<string, any>> {
   if (!keys.length) return {};
   const res = await fetch(`/api/v2/settings/values?keys=${encodeURIComponent(keys.join(','))}`, {
@@ -230,10 +242,12 @@ export async function getSettingsValues(keys: string[]): Promise<Record<string, 
 // Save a flat map of dotted keys via the registry-guarded POST path (validation +
 // category/description + blank-secret guard + side-effects incl. corpusVersion bump).
 export async function saveSettingsFlat(values: Record<string, any>): Promise<any> {
+  // Never persist the secret mask sentinel (would overwrite a stored secret).
+  const clean = Object.fromEntries(Object.entries(values).filter(([, v]) => v !== '••••••••'));
   const res = await fetch('/api/v2/settings', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(values),
+    body: JSON.stringify(clean),
   });
   const data = await res.json();
   if (!res.ok || data?.error) {

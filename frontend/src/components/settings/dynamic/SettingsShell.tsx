@@ -3,8 +3,10 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
-import { getSettingsSchema, getSettingsValues, saveSettingsFlat } from '@/lib/api/settings';
+import { getSettingsSchema, getSettingsValues, saveSettingsFlat, getLlmMetadata } from '@/lib/api/settings';
 import { EMBEDS } from './embeds';
+import { ProviderCards } from './ProviderCards';
+import { PromptsEditor } from './CollectionEditor';
 import { FieldRow, Group, AdvancedExpander } from './controls';
 import type { SettingsSchema, SchemaSection, SchemaGroup, ValueMap, Preset } from './types';
 
@@ -98,28 +100,50 @@ function PresetCards({
   );
 }
 
+// Build select options from llm-metadata (e.g. every provider's chat models as "provider/model").
+function buildMetaOptions(metadata: any, kind: 'chatModels' | 'embeddingModels') {
+  const out: { value: string; label: string }[] = [];
+  for (const p of metadata?.providers ?? []) {
+    for (const m of p[kind] ?? []) {
+      out.push({ value: `${p.id}/${m.id}`, label: `${p.name} · ${m.name}` });
+    }
+  }
+  return out;
+}
+
 function SectionGroup({
   group,
   schema,
   values,
   set,
   applyPreset,
+  metadata,
 }: {
   group: SchemaGroup;
   schema: SettingsSchema;
   values: ValueMap;
   set: (k: string, v: any) => void;
   applyPreset: (vals: Record<string, any>) => void;
+  metadata: any;
 }) {
   if (group.preset === 'answerSafety') {
     return <PresetCards presets={schema.presets} values={values} apply={applyPreset} />;
+  }
+  if (group.providerCards) {
+    return <ProviderCards metadata={metadata} values={values} set={set} />;
+  }
+  if (group.collection === 'prompts') {
+    return <PromptsEditor values={values} set={set} />;
   }
   if (group.component) {
     const Embed = EMBEDS[group.component];
     return Embed ? <Embed /> : <div className="p-4 text-sm text-muted-foreground">Unknown panel: {group.component}</div>;
   }
-  const normal = group.fields.filter((f) => !f.advanced);
-  const advanced = group.fields.filter((f) => f.advanced);
+  // Resolve metadata-driven select options (optionsFrom) into concrete options.
+  const enrich = (f: any) =>
+    f.optionsFrom && metadata ? { ...f, options: buildMetaOptions(metadata, f.optionsFrom) } : f;
+  const normal = group.fields.filter((f) => !f.advanced).map(enrich);
+  const advanced = group.fields.filter((f) => f.advanced).map(enrich);
   return (
     <>
       {normal.length > 0 ? (
@@ -144,6 +168,7 @@ function SectionGroup({
 
 export default function SettingsShell() {
   const [schema, setSchema] = useState<SettingsSchema | null>(null);
+  const [metadata, setMetadata] = useState<any>(null);
   const [values, setValues] = useState<ValueMap>({});
   const [dirty, setDirty] = useState<ValueMap>({});
   const [active, setActive] = useState<string>('');
@@ -161,8 +186,14 @@ export default function SettingsShell() {
         if (cancelled) return;
         setSchema(sc);
         setActive(sc.sections[0]?.id || '');
-        const vals = await getSettingsValues(collectKeys(sc));
-        if (!cancelled) setValues({ ...collectDefaults(sc), ...vals });
+        const [vals, md] = await Promise.all([
+          getSettingsValues(collectKeys(sc)),
+          getLlmMetadata().catch(() => null),
+        ]);
+        if (!cancelled) {
+          setValues({ ...collectDefaults(sc), ...vals });
+          setMetadata(md);
+        }
       } catch (e: any) {
         if (!cancelled) setError(e?.message || 'Failed to load settings');
       } finally {
@@ -289,6 +320,7 @@ export default function SettingsShell() {
                 values={eff}
                 set={set}
                 applyPreset={applyPreset}
+                metadata={metadata}
               />
             ))}
           </>

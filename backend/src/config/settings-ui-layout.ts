@@ -35,6 +35,7 @@ interface LayoutField {
   step?: number;
   unit?: string;
   options?: { value: string; label: string }[]; // override enum options
+  optionsFrom?: 'chatModels' | 'embeddingModels'; // build select options from llm-metadata
   advanced?: boolean; // hidden under a per-group "Advanced" expander
   rangeMaxKey?: string; // for control 'range': this key is the min, rangeMaxKey the max
 }
@@ -56,6 +57,8 @@ interface LayoutGroup {
   fields?: LayoutField[];
   component?: ComponentKey; // embed a bespoke component instead of generated fields
   preset?: 'answerSafety'; // render preset cards at the top of this section
+  providerCards?: boolean; // render the metadata-driven provider cards (keeps `fields` for value loading)
+  collection?: 'prompts'; // render a list/collection editor over a JSON-array key
 }
 
 interface LayoutSection {
@@ -100,6 +103,7 @@ const NAV: LayoutSection[] = [
       {
         id: 'keys',
         title: 'Provider keys',
+        providerCards: true,
         fields: [
           { key: 'openai.apiKey', label: 'OpenAI' },
           { key: 'anthropic.apiKey', label: 'Anthropic (Claude)' },
@@ -125,8 +129,8 @@ const NAV: LayoutSection[] = [
         id: 'active',
         title: 'Active models',
         fields: [
-          { key: 'llmSettings.activeChatModel', label: 'Chat model', help: 'Format: provider/model' },
-          { key: 'llmSettings.activeEmbeddingModel', label: 'Embedding model', help: 'Format: provider/model' },
+          { key: 'llmSettings.activeChatModel', label: 'Chat model', control: 'select', optionsFrom: 'chatModels' },
+          { key: 'llmSettings.activeEmbeddingModel', label: 'Embedding model', control: 'select', optionsFrom: 'embeddingModels' },
         ],
       },
       {
@@ -346,9 +350,9 @@ const NAV: LayoutSection[] = [
     id: 'prompts',
     navGroup: 'Chatbot',
     title: 'Prompts',
-    blurb: 'System prompts / personas (raw JSON for now; a visual editor is coming).',
+    blurb: 'System prompts / personas. One is active at a time.',
     groups: [
-      { id: 'prompts', title: 'Prompt list', fields: [{ key: 'prompts.list', label: 'Prompts (JSON)', control: 'json' }] },
+      { id: 'prompts', title: 'Prompt list', collection: 'prompts', fields: [{ key: 'prompts.list', label: 'Prompts', control: 'json' }] },
     ],
   },
 
@@ -662,6 +666,7 @@ export interface SchemaField {
   type: SettingType;
   secret: boolean;
   options?: { value: string; label: string }[];
+  optionsFrom?: 'chatModels' | 'embeddingModels';
   min?: number;
   max?: number;
   step?: number;
@@ -711,6 +716,7 @@ function mergeField(lf: LayoutField): SchemaField {
     type,
     secret: type === 'secret',
     options,
+    optionsFrom: lf.optionsFrom,
     min,
     max,
     step: lf.step,
@@ -728,6 +734,8 @@ export function buildSettingsSchema() {
       title: g.title,
       component: g.component,
       preset: g.preset,
+      providerCards: g.providerCards,
+      collection: g.collection,
       fields: (g.fields ?? []).map(mergeField),
     }));
     const count = groups.reduce((n, g) => n + g.fields.length, 0);

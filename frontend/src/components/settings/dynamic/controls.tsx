@@ -205,26 +205,35 @@ function TextRow({ field, values, set }: FieldProps) {
   );
 }
 
+export const SECRET_MASK = '••••••••';
+
 function SecretRow({ field, values, set }: FieldProps) {
   const [show, setShow] = useState(false);
-  const v = values[field.key] ?? '';
+  const raw = values[field.key];
+  const saved = raw === SECRET_MASK; // a stored secret; untouched → not dirty → preserved
+  const v = saved ? '' : raw ?? '';
   return (
     <Row label={field.label} help={field.help}>
-      <div className="relative">
-        <Input
-          className="w-[220px] pr-9"
-          type={show ? 'text' : 'password'}
-          value={String(v)}
-          placeholder="•••••••• · leave blank to keep"
-          onChange={(e) => set(field.key, e.target.value)}
-        />
-        <button
-          type="button"
-          onClick={() => setShow((s) => !s)}
-          className="absolute inset-y-0 right-2 flex items-center text-muted-foreground hover:text-foreground"
-        >
-          {show ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-        </button>
+      <div className="flex items-center gap-2">
+        {saved ? (
+          <span className="rounded bg-primary/10 px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-primary">saved</span>
+        ) : null}
+        <div className="relative">
+          <Input
+            className="w-[220px] pr-9"
+            type={show ? 'text' : 'password'}
+            value={String(v)}
+            placeholder={saved ? 'saved · enter to replace' : 'enter key'}
+            onChange={(e) => set(field.key, e.target.value)}
+          />
+          <button
+            type="button"
+            onClick={() => setShow((s) => !s)}
+            className="absolute inset-y-0 right-2 flex items-center text-muted-foreground hover:text-foreground"
+          >
+            {show ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+          </button>
+        </div>
       </div>
     </Row>
   );

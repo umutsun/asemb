@@ -16,6 +16,7 @@ import {
   SECRET_KEY_RE,
 } from '../config/settings-registry';
 import { buildSettingsSchema } from '../config/settings-ui-layout';
+import { buildLlmMetadata } from '../config/llm-metadata';
 // NOTE: `settingsService` is already imported lower in this file (semantic-analyzer section).
 
 const router = Router();
@@ -530,6 +531,17 @@ router.get('/schema', (_req: Request, res: Response) => {
   }
 });
 
+// LLM provider/model/pricing metadata — single source for the settings UI's provider
+// cards and model selects (replaces the old hardcoded frontend/backend model lists).
+router.get('/llm-metadata', (_req: Request, res: Response) => {
+  try {
+    res.json(buildLlmMetadata());
+  } catch (error: any) {
+    console.error('Error building LLM metadata:', error);
+    res.status(500).json({ error: 'Failed to build LLM metadata' });
+  }
+});
+
 // Current values for an explicit dotted-key list (?keys=a,b,c), typed via the registry
 // coercion so the UI gets real numbers/booleans/JSON. Secret keys are redacted to ''.
 // Used by the redesigned settings shell, which loads exactly the keys its schema declares
@@ -544,7 +556,13 @@ router.get('/values', async (req: Request, res: Response) => {
     const result = await lsembPool.query('SELECT key, value FROM settings WHERE key = ANY($1)', [keys]);
     const out: Record<string, any> = {};
     for (const row of result.rows) {
-      out[row.key] = SECRET_KEY_RE.test(row.key) ? '' : coerceSetting(row.key, row.value);
+      if (SECRET_KEY_RE.test(row.key)) {
+        // Never send a secret value. Return a masked sentinel when one is stored so the
+        // UI can show "saved" — leaving it untouched keeps the stored value (blank-guard).
+        out[row.key] = row.value && String(row.value).trim() !== '' ? '••••••••' : '';
+      } else {
+        out[row.key] = coerceSetting(row.key, row.value);
+      }
     }
     res.json(out);
   } catch (error: any) {
